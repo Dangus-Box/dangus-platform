@@ -1,0 +1,190 @@
+import { expect, test } from "bun:test";
+import { readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { loadConfig, validateConfig } from "./config";
+import { deploy, KAMAL_IMAGE, type Runner, withRendered } from "./deploy";
+
+const root = resolve(import.meta.dir, "../../..");
+for (const variant of ["postgres", "sqlite"]) {
+  test(`render da variante ${variant} corresponde aos arquivos de referência`, async () => {
+    const product = join(root, "examples", variant);
+    const config = await loadConfig(product);
+    await withRendered(config, "dangus-host", async (dir, apps) => {
+      expect(apps).toEqual(["api", "web"]);
+      for (const app of apps) {
+        for (const [source, suffix] of [
+          ["deploy.yml", "yml"],
+          [".kamal/secrets", "secrets"],
+        ]) {
+          expect(await readFile(join(dir, app, source), "utf8")).toBe(
+            await readFile(
+              join(
+                root,
+                "packages/cli/test/golden",
+                `${variant}-${app}.${suffix}`,
+              ),
+              "utf8",
+            ),
+          );
+        }
+      }
+    });
+    const cli = Bun.spawn(
+      ["bun", join(root, "packages/cli/src/index.ts"), "render"],
+      { cwd: product, stdout: "pipe", stderr: "pipe" },
+    );
+    const output = await new Response(cli.stdout).text();
+    expect(await cli.exited).toBe(0);
+    expect(output).toContain(
+      await readFile(
+        join(root, "packages/cli/test/golden", `${variant}-api.yml`),
+        "utf8",
+      ),
+    );
+    expect(output).toContain(
+      await readFile(
+        join(root, "packages/cli/test/golden", `${variant}-web.yml`),
+        "utf8",
+      ),
+    );
+  });
+}
+
+test("deploy transmite secrets apenas pelo ambiente e usa comandos exatos", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: {
+      api: { domain: "api.produto.com", secrets: ["TOKEN"] },
+      web: { domain: "web.produto.com" },
+    },
+    database: "postgres",
+    deployTimeoutSeconds: 42,
+  });
+  const calls: string[][] = [];
+  let temp = "";
+  const runner: Runner = async (args, env) => {
+    calls.push(args);
+    if (args[0] === "git") return { code: 0, stdout: "a".repeat(40) };
+    if (args[0] === "bws")
+      return {
+        code: 0,
+        stdout: JSON.stringify([
+          { key: "produto__TOKEN", value: "valor-secreto" },
+          { key: "produto__POSTGRES_PASSWORD", value: "senha-secreta" },
+        ]),
+      };
+    expect(env.TOKEN).toBe("valor-secreto");
+    expect(env.DATABASE_URL).toBe(
+      "postgres://produto:senha-secreta@produto-api-db:5432/produto",
+    );
+    temp = args[args.indexOf("-v", args.indexOf("-w")) + 1].split(":")[0];
+    const configPath = join(temp, "deploy.yml");
+    const files =
+      (await readFile(configPath, "utf8")) +
+      (await readFile(join(temp, ".kamal/secrets"), "utf8"));
+    expect(files).not.toContain("valor-secreto");
+    expect(files).not.toContain("senha-secreta");
+    return { code: 0, stdout: "" };
+  };
+  await deploy(config, "/produto", runner, {
+    SSH_AUTH_SOCK: "/ssh-agent",
+    KAMAL_REGISTRY_USERNAME: "usuario",
+    KAMAL_REGISTRY_PASSWORD: "registro-secreto",
+  });
+  expect(calls[0]).toEqual(["git", "rev-parse", "--verify", "HEAD"]);
+  expect(calls[1]).toEqual(["bws", "secret", "list"]);
+  for (const [index, app] of ["api", "web"].entries()) {
+    const args = calls[index + 2];
+    const path = args[args.indexOf("-v", args.indexOf("-w")) + 1].split(":")[0];
+    expect(args).toEqual([
+      "docker",
+      "run",
+      "--rm",
+      "--network",
+      "host",
+      "-v",
+      "/produto:/produto",
+      "-w",
+      "/produto",
+      "-v",
+      `${path}:/dangus:ro`,
+      "-v",
+      "/var/run/docker.sock:/var/run/docker.sock",
+      "-v",
+      "/ssh-agent:/ssh-agent",
+      "-e",
+      "SSH_AUTH_SOCK=/ssh-agent",
+      "-e",
+      "KAMAL_REGISTRY_USERNAME",
+      "-e",
+      "KAMAL_REGISTRY_PASSWORD",
+      ...(app === "api"
+        ? ["-e", "TOKEN", "-e", "POSTGRES_PASSWORD", "-e", "DATABASE_URL"]
+        : []),
+      KAMAL_IMAGE,
+      "setup",
+      "--config-file",
+      "/dangus/deploy.yml",
+      `--version=${"a".repeat(40)}`,
+    ]);
+  }
+  expect(JSON.stringify(calls)).not.toContain("secreta");
+  expect(JSON.stringify(calls)).not.toContain("secreto");
+  expect(await Bun.file(join(temp, "deploy.yml")).exists()).toBe(false);
+});
+
+test("secret ausente interrompe deploy antes de chamar Docker", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: { api: { domain: "api.produto.com", secrets: ["TOKEN"] } },
+    database: "sqlite",
+    deployTimeoutSeconds: 10,
+  });
+  const calls: string[][] = [];
+  const runner: Runner = async (args) => {
+    calls.push(args);
+    return { code: 0, stdout: args[0] === "git" ? "a".repeat(40) : "[]" };
+  };
+  await expect(
+    deploy(config, "/produto", runner, { SSH_AUTH_SOCK: "/ssh-agent" }),
+  ).rejects.toThrow("produto__TOKEN");
+  expect(calls).toEqual([
+    ["git", "rev-parse", "--verify", "HEAD"],
+    ["bws", "secret", "list"],
+  ]);
+});
+
+test("render usa recursos, timeout, Host e contexto informados, sem App mobile", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: {
+      api: { domain: "api.produto.com", memoryMb: 1234 },
+      mobile: { domain: "mobile.produto.com" },
+    },
+    database: "sqlite",
+    deployTimeoutSeconds: 73,
+  });
+  await withRendered(
+    config,
+    "host.tailnet",
+    async (dir, apps) => {
+      expect(apps).toEqual(["api"]);
+      const doc = Bun.YAML.parse(
+        await Bun.file(join(dir, "api/deploy.yml")).text(),
+      ) as {
+        servers: { web: { hosts: string[]; options: { memory: string } } };
+        deploy_timeout: number;
+        builder: { context: string };
+        env: { clear: { SQLITE_PATH: string } };
+        volumes: string[];
+      };
+      expect(doc.servers.web.hosts).toEqual(["host.tailnet"]);
+      expect(doc.servers.web.options.memory).toBe("1234m");
+      expect(doc.deploy_timeout).toBe(73);
+      expect(doc.builder.context).toBe("../..");
+      expect(doc.env.clear.SQLITE_PATH).toBe("/app/data/produto.sqlite");
+      expect(doc.volumes).toEqual(["produto-sqlite:/app/data"]);
+    },
+    "../..",
+  );
+});

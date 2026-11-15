@@ -1,0 +1,8 @@
+.git
+**/node_modules
+.external-accounts.env
+**/.env
+**/.env.*
+**/.terraform
+**/*.tfstate
+**/*.tfstate.*
