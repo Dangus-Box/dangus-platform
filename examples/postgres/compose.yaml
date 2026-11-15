@@ -6,4 +6,4 @@ services:
       POSTGRES_PASSWORD: produto
       POSTGRES_DB: produto
     ports:
-      - "55432:5432"
+      - "127.0.0.1:55432:5432"
