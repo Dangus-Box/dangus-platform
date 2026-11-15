@@ -10,6 +10,11 @@ const example = resolve(
 );
 const connected = async (args: string[], cwd: string) =>
   args[0] === "tailscale" ? { code: 0, output: "" } : run(args, cwd);
+const lockfile = (spec: string, resolved: string) =>
+  JSON.stringify({
+    workspaces: { "": { devDependencies: { "@dangus-box/cli": spec } } },
+    packages: { "@dangus-box/cli": [`@dangus-box/cli@${resolved}`] },
+  });
 async function fixture() {
   const dir = await mkdtemp(join(tmpdir(), "dangus-doctor-"));
   await mkdir(join(dir, "apps/api"), { recursive: true });
@@ -22,10 +27,7 @@ async function fixture() {
     join(dir, "apps/api/index.ts"),
     await Bun.file(example).text(),
   );
-  await writeFile(
-    join(dir, "bun.lock"),
-    '{"packages":{"@dangus-box/cli":["@dangus-box/cli@1.2.3"]}}',
-  );
+  await writeFile(join(dir, "bun.lock"), lockfile("1.2.3", "1.2.3"));
   await run(["git", "init", "-q"], dir);
   await run(
     [
@@ -74,7 +76,7 @@ test("verificações passam e falham com instruções específicas", async () =>
 test("lint ignora comentários e literais e reconhece operações sem distinguir maiúsculas", () => {
   expect(
     lintSql(
-      "-- DROP table x\nSELECT 'RENAME'; /* CREATE INDEX x */ SELECT $$DROP$$; CREATE INDEX CONCURRENTLY x ON t(c);",
+      "-- DROP table x\nSELECT 'RENAME'; /* CREATE INDEX x */ CREATE INDEX CONCURRENTLY x ON t(c);",
     ),
   ).toEqual([]);
   const issues = lintSql(
@@ -155,6 +157,58 @@ test("doctor retorna código de CI para aviso e falha", async () => {
     const failure = await execute();
     expect(failure.code).toBe(1);
     expect(failure.output).toContain("[fail]");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("lint cobre DDL do Drizzle, blocos DO e informa a linha", () => {
+  const statuses = (sql: string) => lintSql(sql).map((r) => r.status);
+  for (const sql of [
+    "create index concurrently x on t(c);",
+    "CREATE UNIQUE INDEX CONCURRENTLY x ON t(c);",
+    'CREATE TABLE "a" (\n\t"dropped_at" timestamp\n);\n--> statement-breakpoint\nALTER TABLE "a" ADD COLUMN "b" text;',
+    "INSERT INTO t VALUES ('it''s DROP');",
+  ])
+    expect(statuses(sql)).toEqual([]);
+  for (const sql of [
+    'ALTER TABLE "t" DROP COLUMN "c";',
+    'ALTER TABLE "t" RENAME COLUMN "a" TO "b";',
+    "alter table t\n  drop\n  column c;",
+    "DO $$ BEGIN DROP TABLE x; END $$;",
+  ])
+    expect(statuses(sql)).toEqual(["fail"]);
+  expect(statuses("ALTER TABLE t ALTER c TYPE int;")).toEqual(["warn"]);
+  expect(
+    lintSql(
+      'CREATE TABLE "a" ("id" int);\n--> statement-breakpoint\nDROP TABLE "b";\n--> statement-breakpoint\n/* x\n */ DROP TABLE "c";',
+    ).map((r) => r.line),
+  ).toEqual([3, 6]);
+});
+
+test("CLI precisa de versão exata no bun.lock", async () => {
+  const dir = await fixture();
+  const cli = async () =>
+    (await doctor(dir, "HEAD", connected)).find((r) =>
+      r.message.startsWith("CLI") || r.message.includes("CLI fixada"),
+    );
+  try {
+    expect((await cli())?.status).toBe("pass");
+    for (const [spec, resolved] of [
+      ["^1.2.3", "1.2.3"],
+      ["~1.2.3", "1.2.3"],
+      ["latest", "1.2.3"],
+      ["workspace:*", "workspace:packages/cli"],
+      ["file:../cli", "file:../cli"],
+      ["link:@dangus-box/cli", "link:@dangus-box/cli"],
+    ] as const) {
+      await writeFile(join(dir, "bun.lock"), lockfile(spec, resolved));
+      const check = await cli();
+      expect(check?.status).toBe("fail");
+      expect(check?.message).toContain("--exact");
+    }
+    await rm(join(dir, "bun.lock"));
+    expect((await cli())?.status).toBe("fail");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
