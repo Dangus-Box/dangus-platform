@@ -9,9 +9,13 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
   console.log(version);
 } else if (
   (process.argv[2] === "render" || process.argv[2] === "deploy") &&
-  process.argv.length === 3
+  (process.argv.length === 3 ||
+    (process.argv[2] === "deploy" &&
+      process.argv.length === 4 &&
+      process.argv[3] === "--skip-build"))
 ) {
   try {
+    if (process.argv[3] === "--skip-build") process.env.DANGUS_SKIP_BUILD = "1";
     const config = await loadConfig();
     if (process.argv[2] === "deploy") await deploy(config, process.cwd());
     else
@@ -42,6 +46,8 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
     process.exitCode = 1;
   }
 } else {
-  console.error("Uso: dangus render | deploy | host bootstrap <host>");
+  console.error(
+    "Uso: dangus render | deploy [--skip-build] | host bootstrap <host>",
+  );
   process.exitCode = 1;
 }

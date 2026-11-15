@@ -268,3 +268,50 @@ test("render imprime YAML legível, um campo por linha", () => {
   });
   expect(render(config, "web")).toContain("\nproxy:\n");
 });
+
+test("rollback verifica todas as imagens antes de deployar sem build", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: {
+      api: { domain: "api.produto.com" },
+      web: { domain: "web.produto.com" },
+    },
+    database: "sqlite",
+    deployTimeoutSeconds: 10,
+  });
+  const calls: string[][] = [];
+  const runner: Runner = async (args) => {
+    calls.push(args);
+    return { code: 0, stdout: args[0] === "git" ? "a".repeat(40) : "" };
+  };
+  await deploy(config, "/produto", runner, {
+    SSH_AUTH_SOCK: "/agent",
+    DANGUS_SKIP_BUILD: "1",
+  });
+  expect(calls.slice(1, 3)).toEqual(
+    ["api", "web"].map((app) => [
+      "docker",
+      "manifest",
+      "inspect",
+      `ghcr.io/dangus-box/produto-${app}:${"a".repeat(40)}`,
+    ]),
+  );
+  expect(calls.slice(3).every((args) => args.includes("--skip-push"))).toBe(
+    true,
+  );
+  calls.length = 0;
+  const missing: Runner = async (args, env, cwd, stream) => {
+    if (args[1] === "manifest" && args[3].includes("-web:")) {
+      calls.push(args);
+      return { code: 1, stdout: "" };
+    }
+    return runner(args, env, cwd, stream);
+  };
+  await expect(
+    deploy(config, "/produto", missing, {
+      SSH_AUTH_SOCK: "/agent",
+      DANGUS_SKIP_BUILD: "1",
+    }),
+  ).rejects.toThrow("Imagem indisponível");
+  expect(calls.some((args) => args[1] === "run")).toBe(false);
+});

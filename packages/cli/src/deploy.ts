@@ -186,6 +186,18 @@ export async function deploy(
       }
       if (config.database === "postgres" && config.apps.api)
         values.DATABASE_URL = `postgres://produto:${encodeURIComponent(values.POSTGRES_PASSWORD)}@${config.name}-api-db:5432/produto`;
+      if (env.DANGUS_SKIP_BUILD === "1") {
+        for (const app of apps) {
+          const image = `ghcr.io/dangus-box/${config.name}-${app}:${version}`;
+          const result = await runner(
+            ["docker", "manifest", "inspect", image],
+            env,
+            directory,
+          );
+          if (result.code !== 0)
+            throw new Error(`Imagem indisponível: ${image}.`);
+        }
+      }
       for (const app of apps) {
         const path = join(dir, app);
         const args = [
@@ -202,6 +214,9 @@ export async function deploy(
           `${path}:/dangus:ro`,
           "-v",
           "/var/run/docker.sock:/var/run/docker.sock",
+          ...(env.DANGUS_SSH_KNOWN_HOSTS
+            ? ["-v", `${env.DANGUS_SSH_KNOWN_HOSTS}:/root/.ssh/known_hosts:ro`]
+            : []),
           "-v",
           `${env.SSH_AUTH_SOCK}:/ssh-agent`,
           "-e",
@@ -214,6 +229,7 @@ export async function deploy(
           "--config-file",
           "/dangus/deploy.yml",
           `--version=${version}`,
+          ...(env.DANGUS_SKIP_BUILD === "1" ? ["--skip-push"] : []),
         ];
         const result = await runner(
           args,
