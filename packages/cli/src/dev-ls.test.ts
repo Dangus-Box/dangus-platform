@@ -61,3 +61,83 @@ test("ls falha quando SSH falha ou Host é inválido", async () => {
     listProducts(".", runner, { DANGUS_HOST: "-oProxyCommand=x" }),
   ).rejects.toThrow("Host Tailscale inválido");
 });
+
+type ComposeDoc = {
+  services: { postgres: { volumes?: string[] } };
+  volumes?: Record<string, unknown>;
+};
+
+async function composeOf(directory: string) {
+  const config = await loadConfig("examples/postgres");
+  let compose: { project: string; doc: ComposeDoc } | undefined;
+  await dev(config, directory, async (args) => {
+    if (args.includes("up"))
+      compose = {
+        project: args[args.indexOf("-p") + 1] as string,
+        doc: Bun.YAML.parse(
+          await Bun.file(args[args.indexOf("-f") + 1] as string).text(),
+        ) as ComposeDoc,
+      };
+    return { code: 0, stdout: "" };
+  });
+  if (!compose) throw new Error("compose up não executado");
+  return compose;
+}
+
+test("dev persiste os dados do Postgres num volume nomeado entre execuções", async () => {
+  const { doc } = await composeOf("examples/postgres");
+  expect(doc.services.postgres.volumes).toEqual([
+    "data:/var/lib/postgresql/data",
+  ]);
+  expect(Object.keys(doc.volumes ?? {})).toEqual(["data"]);
+});
+
+test("dev isola o projeto Compose por diretório, sem derrubar o banco de outra worktree", async () => {
+  const a = await composeOf("/worktrees/a/examples/postgres");
+  const b = await composeOf("/worktrees/b/examples/postgres");
+  expect(a.project).toStartWith("dangus-dev-exemplo-postgres-");
+  expect(a.project).not.toBe(b.project);
+});
+
+test("dev interrompe a App pelo signal e ainda derruba o Postgres", async () => {
+  const config = await loadConfig("examples/postgres");
+  const controller = new AbortController();
+  const signals: Record<string, AbortSignal | undefined> = {};
+  await expect(
+    dev(
+      config,
+      ".",
+      async (args, _env, _cwd, _stream, signal) => {
+        const step = args[0] === "bun" ? "bun" : (args.at(-1) as string);
+        signals[step] = signal;
+        if (step === "bun") {
+          controller.abort();
+          return { code: 130, stdout: "" };
+        }
+        return { code: 0, stdout: "" };
+      },
+      {},
+      controller.signal,
+    ),
+  ).rejects.toThrow();
+  expect(signals.bun).toBe(controller.signal);
+  expect(signals["--wait"]).toBe(controller.signal);
+  expect(Object.keys(signals)).toContain("down");
+  expect(signals.down).toBeUndefined();
+});
+
+test("ls mostra só Apps dos Produtos, sem o proxy da Plataforma nem o Banco", async () => {
+  const runner: Runner = async () => ({
+    code: 0,
+    stdout:
+      "platform\tproxy\nexemplo\tpostgres\nmeu produto\tapi\nexemplo\tweb\n",
+  });
+  expect(await listProducts(".", runner, {})).toBe(
+    "PRODUTO\tAPP\nexemplo\tweb\nmeu produto\tapi",
+  );
+});
+
+test("ls sem Apps no Host mostra só o cabeçalho", async () => {
+  const runner: Runner = async () => ({ code: 0, stdout: "" });
+  expect(await listProducts(".", runner, {})).toBe("PRODUTO\tAPP");
+});
