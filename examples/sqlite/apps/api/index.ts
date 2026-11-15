@@ -4,7 +4,6 @@ import { db } from "./db";
 import { mensagens } from "./schema";
 
 const observacao = observability();
-observacao.markReady();
 
 new Elysia()
   .use(observacao.plugin)
@@ -17,4 +16,5 @@ new Elysia()
     },
   )
   .listen(Number(process.env.PORT ?? 3000));
+observacao.markReady();
 console.log(`API em http://localhost:${process.env.PORT ?? 3000}`);
