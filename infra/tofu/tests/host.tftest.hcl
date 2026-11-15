@@ -35,3 +35,27 @@ run "rejeita_datacenter_fora_do_brasil" {
 
   expect_failures = [hostinger_vps.host]
 }
+
+run "aceita_codigo_de_pais_da_api" {
+  command = plan
+
+  override_data {
+    target = data.hostinger_vps_data_centers.available
+    values = {
+      data_centers = [{ id = 42, name = "bnu", location = "br", city = "São Paulo", continent = "South America" }]
+    }
+  }
+}
+
+run "rejeita_datacenter_existente_fora_do_brasil" {
+  command = plan
+
+  override_data {
+    target = data.hostinger_vps_data_centers.available
+    values = {
+      data_centers = [{ id = 42, name = "phx", location = "us", city = "Phoenix", continent = "North America" }]
+    }
+  }
+
+  expect_failures = [hostinger_vps.host]
+}
