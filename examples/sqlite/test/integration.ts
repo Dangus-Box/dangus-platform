@@ -1,4 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 let server: ReturnType<typeof Bun.spawn>;
 const port = 18000 + Math.floor(Math.random() * 10000);
@@ -40,3 +43,22 @@ test("a rota grava e lê uma mensagem no Banco do Produto", async () => {
     messages.some((message: { texto: string }) => message.texto === texto),
   ).toBe(true);
 });
+
+test("as migrations estão em dia com o schema", async () => {
+  const out = await mkdtemp(join(tmpdir(), "drizzle-"));
+  await cp("drizzle", out, { recursive: true });
+  const generate = Bun.spawn(
+    [
+      "bunx",
+      "drizzle-kit",
+      "generate",
+      "--dialect=sqlite",
+      "--schema=apps/api/schema.ts",
+      `--out=${out}`,
+    ],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  const output = await new Response(generate.stdout).text();
+  await rm(out, { recursive: true });
+  expect(output).toContain("No schema changes");
+}, 30_000);
