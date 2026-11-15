@@ -34,7 +34,7 @@ export function migrateSqlite(database: Database, migrationsFolder: string) {
 }
 
 export async function migratePostgres(url: string, migrationsFolder: string) {
-  const client = postgres(url, { max: 1 });
+  const client = postgres(url, { max: 1, onnotice: () => {} });
   try {
     await client`SELECT pg_advisory_lock(184732017)`;
     try {
