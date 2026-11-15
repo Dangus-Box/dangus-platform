@@ -35,6 +35,9 @@ export function observability(
   const seen = new WeakSet<object>();
   function redact(value: unknown): unknown {
     if (!value || typeof value !== "object") return value;
+    if (value instanceof Error) return redact(pino.stdSerializers.err(value));
+    if ("toJSON" in value && typeof value.toJSON === "function")
+      return redact(value.toJSON());
     if (seen.has(value)) return "[Circular]";
     seen.add(value);
     const result = Array.isArray(value)
@@ -62,6 +65,11 @@ export function observability(
     },
     options.destination,
   );
+  // pino descarta formatters.bindings nos filhos; oculta os bindings de cada child.
+  const child = logger.child;
+  logger.child = function (this: typeof logger, bindings, childOptions) {
+    return child.call(this, redact(bindings) as typeof bindings, childOptions);
+  } as typeof child;
   const exporter = new PrometheusExporter({ preventServerStart: true });
   const provider = new MeterProvider({ readers: [exporter] });
   const meter = provider.getMeter("@dangus-box/server");

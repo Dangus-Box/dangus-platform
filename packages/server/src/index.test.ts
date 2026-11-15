@@ -52,16 +52,27 @@ describe("observabilidade", () => {
   test("oculta campos em bindings de child loggers", () => {
     let output = "";
     const { logger } = observability({
-      destination: { write: (chunk) => (output += chunk) },
+      destination: {
+        write: (chunk) => {
+          output += chunk;
+        },
+      },
     });
-    logger.child({ token: "secret", headers: { cookie: "secret" } }).info("x");
+    logger
+      .child({ token: "secret" })
+      .child({ headers: { cookie: "secret" } })
+      .info("x");
     expect(output).not.toContain("secret");
   });
 
   test("preserva erros e datas, ocultando campos sensíveis do erro", () => {
     let output = "";
     const { logger } = observability({
-      destination: { write: (chunk) => (output += chunk) },
+      destination: {
+        write: (chunk) => {
+          output += chunk;
+        },
+      },
     });
     const error = Object.assign(new Error("boom"), {
       config: { headers: { Authorization: "Bearer secret" } },
