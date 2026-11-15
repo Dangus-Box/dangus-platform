@@ -1,5 +1,12 @@
 {
   "name": "@dangus-box/native",
   "version": "0.0.0",
-  "type": "module"
+  "type": "module",
+  "files": [
+    "src/index.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": "./src/index.ts"
 }

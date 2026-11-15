@@ -4,5 +4,11 @@
   "type": "module",
   "bin": {
     "dangus": "./src/index.ts"
+  },
+  "files": [
+    "src/index.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }
