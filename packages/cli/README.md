@@ -13,3 +13,27 @@ Antes de executar, confira o acesso de emergência pelo Browser terminal da Host
 O Alloy começa sem destino remoto. Containers que disponibilizam métricas devem ter as labels Docker `prometheus.io.scrape=true` e `prometheus.io.port=<porta>`; o endpoint é `/metrics`. O Alloy coleta logs e métricas, mas as descarta até que um destino seja configurado em trabalho futuro. O timer de limpeza remove imagens não utilizadas com mais de sete dias.
 
 Para exercitar o provisionamento localmente, execute `packages/cli/test/bootstrap-container.sh` com Docker. O teste cria um container privilegiado descartável com systemd, usa o driver Docker `vfs` para permitir Docker aninhado e pula apenas a entrada real na tailnet (`DANGUS_TEST_SKIP_TAILSCALE_JOIN=1`, recusado fora de container). Ele verifica as regras locais, os serviços e a segunda execução; a conectividade pública, a entrada real na tailnet e o Browser terminal precisam de um Host real.
+
+# Config do Produto
+
+Crie `dangus.config.ts` na raiz do repositório do Produto:
+
+```ts
+import { defineConfig } from "@dangus-box/cli";
+
+export default defineConfig({
+  name: "produto",
+  apps: {
+    api: { domain: "api.produto.com", memoryMb: 1024 },
+    web: { domain: "web.produto.com" },
+  },
+  database: "postgres",
+  deployTimeoutSeconds: 120,
+  logger: { redact: ["token"] },
+  backup: { destination: "r2" },
+});
+```
+
+O `name` usa apenas letras minúsculas, números e hífens. Declare ao menos uma das Apps `api`, `web` e `mobile`; cada App declarada precisa de um domínio com um único nível de subdomínio, como `api-staging.produto.com`. O limite `memoryMb` (inteiro, em MB) tem padrão de 512 MB por App. O banco aceita `postgres` ou `sqlite`; `deployTimeoutSeconds` é o timeout de deploy em segundos (inteiro). `logger.redact` acrescenta campos para redaction e tem padrão vazio. O destino do Backup tem padrão `r2`; use `s3` para AWS S3 em `sa-east-1`.
+
+O CLI pode carregar e validar a Config do Produto com `loadConfig(diretorio)`, que usa o diretório atual por padrão. Erros identificam o caminho do campo inválido.
