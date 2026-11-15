@@ -315,3 +315,23 @@ test("rollback verifica todas as imagens antes de deployar sem build", async () 
   ).rejects.toThrow("Imagem indisponível");
   expect(calls.some((args) => args[1] === "run")).toBe(false);
 });
+
+test("deploy de push constrói as imagens e ignora DANGUS_SKIP_BUILD do ambiente", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: { api: { domain: "api.produto.com" } },
+    database: "sqlite",
+    deployTimeoutSeconds: 10,
+  });
+  const calls: string[][] = [];
+  const runner: Runner = async (args) => {
+    calls.push(args);
+    return { code: 0, stdout: args[0] === "git" ? "a".repeat(40) : "" };
+  };
+  await deploy(config, "/produto", runner, {
+    SSH_AUTH_SOCK: "/agent",
+    DANGUS_SKIP_BUILD: "1",
+  });
+  expect(calls.some((args) => args[1] === "manifest")).toBe(false);
+  expect(calls.some((args) => args.includes("--skip-push"))).toBe(false);
+});
