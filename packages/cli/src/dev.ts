@@ -1,6 +1,6 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { ResolvedProductConfig } from "./config";
 import { type Runner, run } from "./deploy";
 
@@ -9,12 +9,13 @@ export async function dev(
   directory: string,
   runner: Runner = run,
   env: Record<string, string | undefined> = process.env,
+  signal?: AbortSignal,
 ): Promise<void> {
   const localEnv = { ...env, NODE_ENV: "development", DANGUS_DEV: "1" };
   if (config.database === "sqlite") {
     if (
-      (await runner(["bun", "run", "dev"], localEnv, directory, true)).code !==
-      0
+      (await runner(["bun", "run", "dev"], localEnv, directory, true, signal))
+        .code !== 0
     )
       throw new Error("Falha ao executar a App em desenvolvimento.");
     return;
@@ -28,7 +29,8 @@ export async function dev(
     "docker",
     "compose",
     "-p",
-    `dangus-dev-${config.name}`,
+    // Um projeto por diretório: outra worktree do Produto não derruba este banco.
+    `dangus-dev-${config.name}-${Bun.hash(resolve(directory)).toString(36)}`,
     "-f",
     file,
   ];
@@ -46,6 +48,7 @@ export async function dev(
               POSTGRES_DB: "produto",
             },
             ports: [`127.0.0.1:${port}:5432`],
+            volumes: ["data:/var/lib/postgresql/data"],
             healthcheck: {
               test: ["CMD-SHELL", "pg_isready -U produto -d produto"],
               interval: "1s",
@@ -54,6 +57,7 @@ export async function dev(
             },
           },
         },
+        volumes: { data: {} },
       }),
     );
     if (
@@ -63,6 +67,7 @@ export async function dev(
           localEnv,
           directory,
           true,
+          signal,
         )
       ).code !== 0
     )
@@ -74,7 +79,8 @@ export async function dev(
         `postgres://produto:produto@localhost:${port}/produto`,
     };
     if (
-      (await runner(["bun", "run", "dev"], appEnv, directory, true)).code !== 0
+      (await runner(["bun", "run", "dev"], appEnv, directory, true, signal))
+        .code !== 0
     )
       throw new Error("Falha ao executar a App em desenvolvimento.");
   } finally {

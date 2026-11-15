@@ -11,10 +11,18 @@ export type Runner = (
   env: Record<string, string | undefined>,
   cwd: string,
   stream?: boolean,
+  signal?: AbortSignal,
 ) => Promise<{ code: number; stdout: string }>;
-export const run: Runner = async (args, env, cwd, stream = false) => {
+export const run: Runner = async (args, env, cwd, stream = false, signal) => {
   const output = stream ? "inherit" : "pipe";
-  const child = Bun.spawn(args, { cwd, env, stdout: output, stderr: output });
+  const child = Bun.spawn(args, {
+    cwd,
+    env,
+    stdout: output,
+    stderr: output,
+    signal,
+    killSignal: "SIGINT",
+  });
   const [stdout] = await Promise.all([
     child.stdout ? new Response(child.stdout).text() : "",
     child.stderr ? new Response(child.stderr).text() : "",

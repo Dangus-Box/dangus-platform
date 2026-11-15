@@ -34,24 +34,28 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
   (process.argv[2] === "dev" || process.argv[2] === "ls") &&
   process.argv.length === 3
 ) {
-  let interrupted = false;
+  const controller = new AbortController();
   try {
     if (process.argv[2] === "dev") {
-      // O processo da App recebe o sinal no mesmo grupo; aguardamos a limpeza.
-      const onInterrupt = () => {
-        interrupted = true;
-      };
+      // Ctrl-C ou SIGTERM interrompem a App; aguardamos a limpeza do Postgres.
+      const onInterrupt = () => controller.abort();
       process.on("SIGINT", onInterrupt);
       process.on("SIGTERM", onInterrupt);
       try {
-        await dev(await loadConfig(), process.cwd());
+        await dev(
+          await loadConfig(),
+          process.cwd(),
+          undefined,
+          undefined,
+          controller.signal,
+        );
       } finally {
         process.off("SIGINT", onInterrupt);
         process.off("SIGTERM", onInterrupt);
       }
     } else console.log(await listProducts(process.cwd()));
   } catch (error) {
-    if (!interrupted) {
+    if (!controller.signal.aborted) {
       console.error(
         error instanceof Error ? error.message : "Falha no comando.",
       );

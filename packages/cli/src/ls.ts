@@ -31,7 +31,8 @@ export async function listProducts(
     result.stdout
       .split("\n")
       .map((line) => line.trim())
-      .filter(Boolean),
+      // O proxy da Plataforma e o Banco do Produto também têm labels; não são Apps.
+      .filter((line) => /\t(api|web)$/.test(line)),
   );
   return ["PRODUTO\tAPP", ...[...rows].sort()].join("\n");
 }
