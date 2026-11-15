@@ -45,3 +45,9 @@ Execute `dangus render` na raiz do Produto para imprimir o `deploy.yml` de cada 
 Declare `secrets: ["CHAVE"]` em cada App; o CLI busca `<produto>__<CHAVE>` no BWS e passa o valor ao Kamal pelo ambiente, sem gravá-lo no `deploy.yml` ou nos argumentos. Nomes que controlam o deploy ou que a Plataforma fornece são recusados: `KAMAL_*`, `DOCKER_*`, `PATH`, `HOME`, `SSH_AUTH_SOCK`, `DATABASE_URL`, `POSTGRES_PASSWORD` e `SQLITE_PATH`. Postgres requer `<produto>__POSTGRES_PASSWORD`; o CLI fornece `DATABASE_URL` à API e mantém o Banco do Produto na rede interna. Para SQLite, a API deve usar `SQLITE_PATH` para o arquivo persistente. O adaptador `bitwarden-sm` não é usado diretamente porque a [imagem oficial do Kamal não inclui os CLIs dos gerenciadores de secrets](https://kamal-deploy.org/docs/installation/dockerized/).
 
 Nos exemplos deste monorepo, execute `DANGUS_BUILD_CONTEXT=../.. dangus render` ou `DANGUS_BUILD_CONTEXT=../.. dangus deploy`, pois eles consomem `packages/server` fora da raiz do Produto. Os Dockerfiles dos exemplos pressupõem esse contexto; em Produtos independentes não defina essa variável.
+
+# Desenvolvimento local e inventário
+
+Na raiz do Produto, execute `dangus dev` para iniciar `bun run dev` com `NODE_ENV=development`, que ativa os logs formatados de `@dangus-box/server`. Para Postgres, o comando inicia somente o Banco do Produto via Docker Compose na porta local 55432 e o para quando a App termina; para SQLite não inicia containers. `DANGUS_DEV_POSTGRES_PORT` altera a porta local e `DATABASE_URL` pode substituir a conexão padrão. O comando define `DANGUS_DEV=1` para os futuros SDKs de analytics e Flags usarem modo no-op ou valores padrão; eles ainda não estão implementados.
+
+Execute `dangus ls` para consultar, por SSH no Host `DANGUS_HOST` (padrão `dangus-host`), as labels Docker `product` e `app` dos containers em execução. O inventário vem do próprio Host, sem registro central.

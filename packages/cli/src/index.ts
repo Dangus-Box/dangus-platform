@@ -4,6 +4,8 @@ import { version } from "../package.json";
 import { bootstrap } from "./bootstrap";
 import { loadConfig } from "./config";
 import { deploy, withRendered } from "./deploy";
+import { dev } from "./dev";
+import { listProducts } from "./ls";
 
 if (process.argv[2] === "--version" && process.argv.length === 3) {
   console.log(version);
@@ -29,6 +31,34 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
     process.exitCode = 1;
   }
 } else if (
+  (process.argv[2] === "dev" || process.argv[2] === "ls") &&
+  process.argv.length === 3
+) {
+  let interrupted = false;
+  try {
+    if (process.argv[2] === "dev") {
+      // O processo da App recebe o sinal no mesmo grupo; aguardamos a limpeza.
+      const onInterrupt = () => {
+        interrupted = true;
+      };
+      process.on("SIGINT", onInterrupt);
+      process.on("SIGTERM", onInterrupt);
+      try {
+        await dev(await loadConfig(), process.cwd());
+      } finally {
+        process.off("SIGINT", onInterrupt);
+        process.off("SIGTERM", onInterrupt);
+      }
+    } else console.log(await listProducts(process.cwd()));
+  } catch (error) {
+    if (!interrupted) {
+      console.error(
+        error instanceof Error ? error.message : "Falha no comando.",
+      );
+      process.exitCode = 1;
+    }
+  }
+} else if (
   process.argv[2] === "host" &&
   process.argv[3] === "bootstrap" &&
   process.argv.length === 5
@@ -42,6 +72,8 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
     process.exitCode = 1;
   }
 } else {
-  console.error("Uso: dangus render | deploy | host bootstrap <host>");
+  console.error(
+    "Uso: dangus dev | ls | render | deploy | host bootstrap <host>",
+  );
   process.exitCode = 1;
 }
