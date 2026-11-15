@@ -284,10 +284,7 @@ test("rollback verifica todas as imagens antes de deployar sem build", async () 
     calls.push(args);
     return { code: 0, stdout: args[0] === "git" ? "a".repeat(40) : "" };
   };
-  await deploy(config, "/produto", runner, {
-    SSH_AUTH_SOCK: "/agent",
-    DANGUS_SKIP_BUILD: "1",
-  });
+  await deploy(config, "/produto", runner, { SSH_AUTH_SOCK: "/agent" }, true);
   expect(calls.slice(1, 3)).toEqual(
     ["api", "web"].map((app) => [
       "docker",
@@ -308,10 +305,7 @@ test("rollback verifica todas as imagens antes de deployar sem build", async () 
     return runner(args, env, cwd, stream);
   };
   await expect(
-    deploy(config, "/produto", missing, {
-      SSH_AUTH_SOCK: "/agent",
-      DANGUS_SKIP_BUILD: "1",
-    }),
+    deploy(config, "/produto", missing, { SSH_AUTH_SOCK: "/agent" }, true),
   ).rejects.toThrow("Imagem indisponível");
   expect(calls.some((args) => args[1] === "run")).toBe(false);
 });

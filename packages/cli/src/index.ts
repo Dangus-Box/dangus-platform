@@ -15,9 +15,15 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
       process.argv[3] === "--skip-build"))
 ) {
   try {
-    if (process.argv[3] === "--skip-build") process.env.DANGUS_SKIP_BUILD = "1";
     const config = await loadConfig();
-    if (process.argv[2] === "deploy") await deploy(config, process.cwd());
+    if (process.argv[2] === "deploy")
+      await deploy(
+        config,
+        process.cwd(),
+        undefined,
+        undefined,
+        process.argv[3] === "--skip-build",
+      );
     else
       await withRendered(
         config,

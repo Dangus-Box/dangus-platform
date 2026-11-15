@@ -135,6 +135,7 @@ export async function deploy(
   directory: string,
   runner: Runner = run,
   env: Record<string, string | undefined> = process.env,
+  skipBuild = false,
 ): Promise<void> {
   await withRendered(
     config,
@@ -186,7 +187,7 @@ export async function deploy(
       }
       if (config.database === "postgres" && config.apps.api)
         values.DATABASE_URL = `postgres://produto:${encodeURIComponent(values.POSTGRES_PASSWORD)}@${config.name}-api-db:5432/produto`;
-      if (env.DANGUS_SKIP_BUILD === "1") {
+      if (skipBuild) {
         for (const app of apps) {
           const image = `ghcr.io/dangus-box/${config.name}-${app}:${version}`;
           const result = await runner(
@@ -229,7 +230,7 @@ export async function deploy(
           "--config-file",
           "/dangus/deploy.yml",
           `--version=${version}`,
-          ...(env.DANGUS_SKIP_BUILD === "1" ? ["--skip-push"] : []),
+          ...(skipBuild ? ["--skip-push"] : []),
         ];
         const result = await runner(
           args,

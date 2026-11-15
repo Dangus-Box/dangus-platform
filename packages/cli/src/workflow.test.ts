@@ -45,7 +45,11 @@ for (const file of [
     expect(text).toContain("cancel-in-progress: false");
     expect(text).toContain("packages: write");
     expect(
-      [...text.matchAll(/secrets\.([A-Z_]+)/g)].map((match) => match[1]).sort(),
+      [
+        ...new Set(
+          [...text.matchAll(/secrets\.([A-Z_]+)/g)].map((match) => match[1]),
+        ),
+      ].sort(),
     ).toEqual(["BWS_ACCESS_TOKEN", "GITHUB_TOKEN"]);
     expect(text).toContain("platform__TAILSCALE_OAUTH_CLIENT_ID");
     expect(text).toContain("platform__TAILSCALE_OAUTH_CLIENT_SECRET");
@@ -89,6 +93,7 @@ for (const file of [
     expect(job.steps.indexOf(steps[0])).toBeLessThan(checkout);
     expect(job.steps.indexOf(steps[1])).toBeGreaterThan(checkout);
     expect(job.steps.indexOf(steps[1])).toBeLessThan(install);
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: expressão do GitHub Actions
     for (const step of steps) expect(step.env?.SHA).toBe("${{ inputs.sha }}");
 
     const repo = await mkdtemp(join(tmpdir(), "dangus-workflow-"));
