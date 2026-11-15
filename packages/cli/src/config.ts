@@ -27,7 +27,7 @@ export function defineConfig(config: ProductConfig): ProductConfig {
 }
 
 function fail(path: string, message: string): never {
-  throw new Error(`Config do Produto: ${path}: ${message}`);
+  throw new Error(`Config do Produto: ${path || "export default"}: ${message}`);
 }
 
 function object(
@@ -46,9 +46,9 @@ function object(
   return result;
 }
 
-function positiveNumber(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-    return fail(path, "deve ser um número positivo");
+function positiveInteger(value: unknown, path: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    return fail(path, "deve ser um número inteiro positivo");
   }
   return value;
 }
@@ -62,9 +62,15 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
     "logger",
     "backup",
   ]);
-  if (typeof config.name !== "string" || !config.name.trim())
-    fail("name", "deve ser um texto não vazio");
+  // O nome vira nome de serviço, container e banco na config gerada (ADR-0004).
+  if (
+    typeof config.name !== "string" ||
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(config.name)
+  )
+    fail("name", "deve usar apenas letras minúsculas, números e hífens");
   const inputApps = object(config.apps, "apps", ["api", "web", "mobile"]);
+  if (Object.keys(inputApps).length === 0)
+    fail("apps", "deve declarar ao menos uma App");
   const apps: ResolvedProductConfig["apps"] = {};
   for (const key of ["api", "web", "mobile"] as const) {
     if (inputApps[key] === undefined) continue;
@@ -84,7 +90,7 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
     }
     apps[key] = {
       domain: app.domain,
-      memoryMb: positiveNumber(
+      memoryMb: positiveInteger(
         app.memoryMb === undefined ? 512 : app.memoryMb,
         `${path}.memoryMb`,
       ),
@@ -92,7 +98,7 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
   }
   if (config.database !== "postgres" && config.database !== "sqlite")
     fail("database", "deve ser postgres ou sqlite");
-  const deployTimeoutSeconds = positiveNumber(
+  const deployTimeoutSeconds = positiveInteger(
     config.deployTimeoutSeconds,
     "deployTimeoutSeconds",
   );
