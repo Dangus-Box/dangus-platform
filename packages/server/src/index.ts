@@ -130,3 +130,5 @@ export function observability(
     },
   };
 }
+
+export { migratePostgres, migrateSqlite } from "./migrate";

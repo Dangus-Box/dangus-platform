@@ -5,7 +5,6 @@
     "dev": "bun run apps/api/index.ts",
     "dev:web": "vite --config apps/web/vite.config.ts",
     "dev:mobile": "cd apps/mobile && bunx expo start",
-    "db:migrate": "bun run apps/api/migrate.ts",
     "test": "bun test ./test/integration.ts"
   },
   "dependencies": {

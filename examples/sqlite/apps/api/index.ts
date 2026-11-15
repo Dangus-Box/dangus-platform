@@ -1,9 +1,10 @@
-import { observability } from "@dangus-box/server";
+import { migrateSqlite, observability } from "@dangus-box/server";
 import { Elysia, t } from "elysia";
-import { db } from "./db";
+import { db, sqlite } from "./db";
 import { mensagens } from "./schema";
 
 const observacao = observability();
+migrateSqlite(sqlite, "./drizzle");
 
 new Elysia()
   .use(observacao.plugin)
