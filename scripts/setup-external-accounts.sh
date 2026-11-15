@@ -489,10 +489,12 @@ if confirm "Gravar ${#BWS_KEYS[@]} secrets no BWS agora?"; then
     fi
     id=$(jq -r --arg k "$name" '.[] | select(.key==$k) | .id' <<<"$existing_json" | head -n1)
     if [[ -n "$id" ]]; then
-      bws_cli secret edit "$id" --value "$value" -o none
+      # --value=... e "--" evitam que valores começando com "-" (ex.: chat ID
+      # negativo do Telegram) sejam lidos como flags.
+      bws_cli secret edit -o none --value="$value" -- "$id"
       printf '  %s✓ atualizado%s %s\n' "$GREEN" "$RESET" "$name"
     else
-      bws_cli secret create "$name" "$value" "$BWS_OPS_PROJECT_ID" -o none
+      bws_cli secret create -o none -- "$name" "$value" "$BWS_OPS_PROJECT_ID"
       printf '  %s✓ criado%s %s\n' "$GREEN" "$RESET" "$name"
     fi
   done
