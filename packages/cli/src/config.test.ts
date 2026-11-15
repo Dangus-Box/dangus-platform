@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { defineConfig, loadConfig, validateConfig } from "./config";
 
 const valid = defineConfig({
-  name: "Produto",
+  name: "produto",
   apps: { api: { domain: "api.produto.com" } },
   database: "postgres",
   deployTimeoutSeconds: 120,
@@ -38,6 +38,15 @@ test("aceita opções explícitas", () => {
 test("aponta o caminho exato dos campos inválidos", () => {
   for (const [config, path] of [
     [{ ...valid, name: "" }, "name"],
+    [{ ...valid, name: "Produto" }, "name"],
+    [{ ...valid, name: "produto; rm -rf /" }, "name"],
+    [{ ...valid, name: "produto\nservice: outro" }, "name"],
+    [{ ...valid, apps: {} }, "apps"],
+    [
+      { ...valid, apps: { api: { domain: "api.produto.com", memoryMb: 0.5 } } },
+      "apps.api.memoryMb",
+    ],
+    [{ ...valid, deployTimeoutSeconds: 1.5 }, "deployTimeoutSeconds"],
     [
       { ...valid, apps: { api: { domain: "api.staging.produto.com" } } },
       "apps.api.domain",
@@ -56,6 +65,12 @@ test("aponta o caminho exato dos campos inválidos", () => {
     ],
   ] as const)
     expect(() => validateConfig(config)).toThrow(path);
+});
+
+test("nomeia o export default quando a Config não é um objeto", () => {
+  expect(() => validateConfig(undefined)).toThrow(
+    "Config do Produto: export default: deve ser um objeto",
+  );
 });
 
 test("carrega e valida dangus.config.ts do Produto", async () => {
