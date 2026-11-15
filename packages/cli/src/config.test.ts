@@ -74,6 +74,25 @@ test("aponta o caminho exato dos campos inválidos", () => {
     expect(() => validateConfig(config)).toThrow(path);
 });
 
+test("rejeita secrets que colidem com variáveis do deploy ou da Plataforma", () => {
+  for (const name of [
+    "PATH",
+    "HOME",
+    "SSH_AUTH_SOCK",
+    "DOCKER_HOST",
+    "KAMAL_REGISTRY_PASSWORD",
+    "DATABASE_URL",
+    "POSTGRES_PASSWORD",
+    "SQLITE_PATH",
+  ])
+    expect(() =>
+      validateConfig({
+        ...valid,
+        apps: { api: { domain: "api.produto.com", secrets: [name] } },
+      }),
+    ).toThrow("apps.api.secrets");
+});
+
 test("nomeia o export default quando a Config não é um objeto", () => {
   expect(() => validateConfig(undefined)).toThrow(
     "Config do Produto: export default: deve ser um objeto",

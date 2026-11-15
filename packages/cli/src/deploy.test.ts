@@ -2,7 +2,13 @@ import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { loadConfig, validateConfig } from "./config";
-import { deploy, KAMAL_IMAGE, type Runner, withRendered } from "./deploy";
+import {
+  deploy,
+  KAMAL_IMAGE,
+  type Runner,
+  render,
+  withRendered,
+} from "./deploy";
 
 const root = resolve(import.meta.dir, "../../..");
 for (const variant of ["postgres", "sqlite"]) {
@@ -187,4 +193,78 @@ test("render usa recursos, timeout, Host e contexto informados, sem App mobile",
     },
     "../..",
   );
+});
+
+test("falha do Kamal remove a pasta temporária sem expor secrets", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: { api: { domain: "api.produto.com", secrets: ["TOKEN"] } },
+    database: "postgres",
+    deployTimeoutSeconds: 10,
+  });
+  let temp = "";
+  const runner: Runner = async (args) => {
+    if (args[0] === "git") return { code: 0, stdout: "a".repeat(40) };
+    if (args[0] === "bws")
+      return {
+        code: 0,
+        stdout: JSON.stringify([
+          { key: "produto__TOKEN", value: "valor-secreto" },
+          { key: "produto__POSTGRES_PASSWORD", value: "senha-secreta" },
+        ]),
+      };
+    temp = args[args.indexOf("-v", args.indexOf("-w")) + 1].split(":")[0];
+    return { code: 1, stdout: "" };
+  };
+  const error = await deploy(config, "/produto", runner, {
+    SSH_AUTH_SOCK: "/ssh-agent",
+  }).catch((caught: Error) => caught);
+  expect(error).toBeInstanceOf(Error);
+  expect(String(error)).not.toContain("secret");
+  expect(temp).not.toBe("");
+  expect(await Bun.file(join(temp, ".kamal/secrets")).exists()).toBe(false);
+  expect(await Bun.file(temp).exists()).toBe(false);
+});
+
+test("Kamal mostra a saída do deploy no terminal", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: { web: { domain: "web.produto.com" } },
+    database: "sqlite",
+    deployTimeoutSeconds: 10,
+  });
+  const streamed: boolean[] = [];
+  const runner: Runner = async (args, _env, _cwd, stream) => {
+    if (args[0] === "docker") streamed.push(stream === true);
+    return { code: 0, stdout: args[0] === "git" ? "a".repeat(40) : "" };
+  };
+  await deploy(config, "/produto", runner, { SSH_AUTH_SOCK: "/ssh-agent" });
+  expect(streamed).toEqual([true]);
+});
+
+test("Postgres fica só na rede interna, com labels e imagem fixada", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: { api: { domain: "api.produto.com" } },
+    database: "postgres",
+    deployTimeoutSeconds: 10,
+  });
+  const doc = Bun.YAML.parse(render(config, "api")) as {
+    accessories: { db: Record<string, unknown> };
+  };
+  const db = doc.accessories.db;
+  expect(db.port).toBeUndefined();
+  expect(db.options).toBeUndefined();
+  expect(db.labels).toEqual({ product: "produto", app: "postgres" });
+  expect(db.image).toMatch(/^postgres:17\.6@sha256:[0-9a-f]{64}$/);
+});
+
+test("render imprime YAML legível, um campo por linha", () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: { web: { domain: "web.produto.com" } },
+    database: "sqlite",
+    deployTimeoutSeconds: 10,
+  });
+  expect(render(config, "web")).toContain("\nproxy:\n");
 });
