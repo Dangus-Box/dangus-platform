@@ -141,3 +141,20 @@ test("ls sem Apps no Host mostra só o cabeçalho", async () => {
   const runner: Runner = async () => ({ code: 0, stdout: "" });
   expect(await listProducts(".", runner, {})).toBe("PRODUTO\tAPP");
 });
+
+test("ls inclui o stderr do SSH na falha, sem sequências de controle e limitado", async () => {
+  const runner: Runner = async () => ({
+    code: 255,
+    stdout: "",
+    stderr: `ssh: Could not resolve hostname dangus-host\x1b[31m\r\n${"x".repeat(2000)}`,
+  });
+  const error = await listProducts(".", runner, {}).catch((e: Error) => e);
+  expect(error).toBeInstanceOf(Error);
+  const message = (error as Error).message;
+  expect(message).toStartWith(
+    "Falha ao listar Apps no Host: ssh: Could not resolve hostname dangus-host",
+  );
+  expect(message).not.toContain("\x1b");
+  expect(message).not.toContain("\r");
+  expect(message.length).toBeLessThan(600);
+});
