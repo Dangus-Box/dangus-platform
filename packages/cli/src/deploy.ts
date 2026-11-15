@@ -12,7 +12,7 @@ export type Runner = (
   cwd: string,
   stream?: boolean,
   signal?: AbortSignal,
-) => Promise<{ code: number; stdout: string }>;
+) => Promise<{ code: number; stdout: string; stderr?: string }>;
 export const run: Runner = async (args, env, cwd, stream = false, signal) => {
   const output = stream ? "inherit" : "pipe";
   const child = Bun.spawn(args, {
@@ -23,11 +23,11 @@ export const run: Runner = async (args, env, cwd, stream = false, signal) => {
     signal,
     killSignal: "SIGINT",
   });
-  const [stdout] = await Promise.all([
+  const [stdout, stderr] = await Promise.all([
     child.stdout ? new Response(child.stdout).text() : "",
     child.stderr ? new Response(child.stderr).text() : "",
   ]);
-  return { code: await child.exited, stdout };
+  return { code: await child.exited, stdout, stderr };
 };
 
 // Variáveis que o container do Kamal recebe do ambiente para a App.

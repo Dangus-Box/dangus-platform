@@ -26,7 +26,18 @@ export async function listProducts(
     env,
     directory,
   );
-  if (result.code !== 0) throw new Error("Falha ao listar Apps no Host.");
+  if (result.code !== 0) {
+    // Saída do Host: troca caracteres de controle do terminal por espaço e limita o tamanho.
+    const reason = (result.stderr ?? "")
+      .replace(/\p{Cc}+/gu, " ")
+      .trim()
+      .slice(0, 500);
+    throw new Error(
+      reason
+        ? `Falha ao listar Apps no Host: ${reason}`
+        : "Falha ao listar Apps no Host.",
+    );
+  }
   const rows = new Set(
     result.stdout
       .split("\n")
