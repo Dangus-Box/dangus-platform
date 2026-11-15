@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { cp, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 let server: ReturnType<typeof Bun.spawn>;
 const port = 18000 + Math.floor(Math.random() * 10000);
@@ -54,7 +54,7 @@ test("as migrations estão em dia com o schema", async () => {
       "generate",
       "--dialect=sqlite",
       "--schema=apps/api/schema.ts",
-      `--out=${out}`,
+      `--out=${relative(process.cwd(), out)}`,
     ],
     { stdout: "pipe", stderr: "pipe" },
   );
