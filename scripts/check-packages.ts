@@ -5,8 +5,19 @@ import { join } from "node:path";
 const forbidden = [
   /\b(?:\d{1,3}\.){3}\d{1,3}\b/,
   /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
-  /\b(?:npm_[a-z0-9]{20,}|gh[pousr]_[a-z0-9]{20,}|github_pat_[a-z0-9_]{20,}|Bearer\s+[a-z0-9._~-]{20,})\b/i,
-  /\b(?:token|secret|password|api[_-]?key)\s*[:=]\s*["'][^"']{8,}["']/i,
+  /\b(?:npm_[a-z0-9]{20,}|gh[pousr]_[a-z0-9]{20,}|github_pat_[a-z0-9_]{20,}|tskey-[a-z0-9-]{20,}|Bearer\s+[a-z0-9._~-]{20,})\b/i,
+  /\b\d{8,10}:[\w-]{35}\b/,
+  /\b(?:token|secret|password|api[_-]?key)\s*[:=]\s*["'`][^"'`]{8,}["'`]/i,
+];
+
+const publishScripts = [
+  "prepublish",
+  "prepare",
+  "prepublishOnly",
+  "prepack",
+  "postpack",
+  "publish",
+  "postpublish",
 ];
 
 export function checkContent(content: string): boolean {
@@ -14,6 +25,11 @@ export function checkContent(content: string): boolean {
 }
 
 export async function checkPackage(directory: string): Promise<void> {
+  const { scripts = {} } = await Bun.file(
+    join(directory, "package.json"),
+  ).json();
+  const script = publishScripts.find((name) => name in scripts);
+  if (script) throw new Error(`Script de publicação não permitido: ${script}`);
   const temporary = await mkdtemp(join(tmpdir(), "dangus-pack-"));
   try {
     const pack = Bun.spawnSync(
