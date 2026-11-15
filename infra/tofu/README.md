@@ -32,7 +32,14 @@ export AWS_REQUEST_CHECKSUM_CALCULATION=when_required
 export AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
 ```
 
-Confira que todos os valores foram carregados sem imprimi-los. Consulte o catálogo da API Hostinger para selecionar o ID do datacenter no Brasil e o ID de um template de sistema operacional disponível. Informe também o caminho da chave pública SSH; não use a chave privada. O plano é `hostingercom-vps-kvm4-usd-1m` e a configuração recusa um datacenter que o catálogo não identifica como brasileiro.
+Confira que todos os valores foram carregados sem imprimi-los; com `AWS_ENDPOINT_URL_S3` vazio, o backend tentaria a AWS em vez do R2:
+
+```bash
+for v in HOSTINGER_API_TOKEN CLOUDFLARE_API_TOKEN AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_ENDPOINT_URL_S3 TF_VAR_state_passphrase; do
+  [ -n "${!v}" ] || echo "faltando: $v"
+done
+```
+ Consulte o catálogo da API Hostinger para selecionar o ID do datacenter no Brasil e o ID de um template de sistema operacional disponível. Informe também o caminho da chave pública SSH; não use a chave privada. O plano é `hostingercom-vps-kvm4-usd-1m` e a configuração recusa um datacenter que o catálogo não identifica como brasileiro.
 
 ```bash
 export TF_VAR_data_center_id="<id-do-datacenter-no-brasil>"
