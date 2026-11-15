@@ -21,7 +21,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.3
-      - uses: actions/setup-node@436c65619b12c9e37ff20a4700145cc387898a7d # v6.2.0
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
@@ -52,5 +52,6 @@ jobs:
           secret_id=$(bws secret list "$project_id" -o json | jq -er '[.[] | select(.key == "platform__NPM_TOKEN") | .id] | if length == 1 then .[0] else error("token npm não encontrado ou duplicado") end')
           token=$(bws secret get "$secret_id" -o json | jq -er '.value | select(type == "string" and length > 0)')
           echo "::add-mask::$token"
+          unset BWS_ACCESS_TOKEN
           export NODE_AUTH_TOKEN="$token"
           bunx changeset publish

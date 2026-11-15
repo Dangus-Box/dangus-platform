@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "type": "module",
   "bin": {
-    "dangus": "./src/index.ts"
+    "dangus": "src/index.ts"
   },
   "files": [
     "src/index.ts"
