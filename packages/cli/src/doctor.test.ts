@@ -189,8 +189,8 @@ test("lint cobre DDL do Drizzle, blocos DO e informa a linha", () => {
 test("CLI precisa de versão exata no bun.lock", async () => {
   const dir = await fixture();
   const cli = async () =>
-    (await doctor(dir, "HEAD", connected)).find((r) =>
-      r.message.startsWith("CLI") || r.message.includes("CLI fixada"),
+    (await doctor(dir, "HEAD", connected)).find(
+      (r) => r.message.startsWith("CLI") || r.message.includes("CLI fixada"),
     );
   try {
     expect((await cli())?.status).toBe("pass");
