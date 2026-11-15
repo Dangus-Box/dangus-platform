@@ -1,0 +1,8 @@
+{
+  "name": "@dangus-box/cli",
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "dangus": "./src/index.ts"
+  }
+}
