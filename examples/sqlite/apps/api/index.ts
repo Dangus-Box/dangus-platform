@@ -1,8 +1,13 @@
+import { observability } from "@dangus-box/server";
 import { Elysia, t } from "elysia";
 import { db } from "./db";
 import { mensagens } from "./schema";
 
+const observacao = observability();
+observacao.markReady();
+
 new Elysia()
+  .use(observacao.plugin)
   .get("/mensagens", async () => await db.select().from(mensagens))
   .post(
     "/mensagens",
