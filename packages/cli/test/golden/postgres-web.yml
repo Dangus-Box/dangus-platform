@@ -1,1 +1,35 @@
-{service: exemplo-postgres-web,secrets_path: /dangus/.kamal/secrets,image: dangus-box/exemplo-postgres-web,servers: {web: {hosts: [dangus-host],options: {memory: 512m}}},registry: {server: ghcr.io,username: "<%= ENV.fetch('KAMAL_REGISTRY_USERNAME') %>",password: [KAMAL_REGISTRY_PASSWORD]},proxy: {ssl: true,host: web-postgres.exemplo.com,app_port: 3000,healthcheck: {path: /},run: {options: {label: [product=platform,app=proxy]}}},builder: {arch: amd64,dockerfile: apps/web/Dockerfile,context: "."},deploy_timeout: 120,labels: {product: exemplo-postgres,app: web},env: {secret: []}}
+service: exemplo-postgres-web
+secrets_path: /dangus/.kamal/secrets
+image: dangus-box/exemplo-postgres-web
+servers:
+  web:
+    hosts:
+      - dangus-host
+    options:
+      memory: 512m
+registry:
+  server: ghcr.io
+  username: "<%= ENV.fetch('KAMAL_REGISTRY_USERNAME') %>"
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+proxy:
+  ssl: true
+  host: web-postgres.exemplo.com
+  app_port: 3000
+  healthcheck:
+    path: /
+  run:
+    options:
+      label:
+        - product=platform
+        - app=proxy
+builder:
+  arch: amd64
+  dockerfile: apps/web/Dockerfile
+  context: "."
+deploy_timeout: 120
+labels:
+  product: exemplo-postgres
+  app: web
+env:
+  secret: []

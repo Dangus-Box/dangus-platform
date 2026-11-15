@@ -10,15 +10,28 @@ export type Runner = (
   args: string[],
   env: Record<string, string | undefined>,
   cwd: string,
+  stream?: boolean,
 ) => Promise<{ code: number; stdout: string }>;
-export const run: Runner = async (args, env, cwd) => {
-  const child = Bun.spawn(args, { cwd, env, stdout: "pipe", stderr: "pipe" });
+export const run: Runner = async (args, env, cwd, stream = false) => {
+  const output = stream ? "inherit" : "pipe";
+  const child = Bun.spawn(args, { cwd, env, stdout: output, stderr: output });
   const [stdout] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
+    child.stdout ? new Response(child.stdout).text() : "",
+    child.stderr ? new Response(child.stderr).text() : "",
   ]);
   return { code: await child.exited, stdout };
 };
+
+// Variáveis que o container do Kamal recebe do ambiente para a App.
+function kamalSecrets(config: ResolvedProductConfig, app: App): string[] {
+  const names = [
+    "KAMAL_REGISTRY_PASSWORD",
+    ...(config.apps[app]?.secrets ?? []),
+  ];
+  if (app === "api" && config.database === "postgres")
+    names.push("POSTGRES_PASSWORD", "DATABASE_URL");
+  return names;
+}
 
 export function render(
   config: ResolvedProductConfig,
@@ -32,11 +45,7 @@ export function render(
     throw new Error("Host Tailscale inválido.");
   const service = `${config.name}-${app}`;
   const secrets = [...settings.secrets];
-  if (
-    config.database === "postgres" &&
-    app === "api" &&
-    !secrets.includes("DATABASE_URL")
-  )
+  if (config.database === "postgres" && app === "api")
     secrets.push("DATABASE_URL");
   const doc: Record<string, unknown> = {
     service,
@@ -76,7 +85,8 @@ export function render(
   if (config.database === "postgres" && app === "api")
     doc.accessories = {
       db: {
-        image: "postgres:17.6",
+        image:
+          "postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929",
         host,
         labels: { product: config.name, app: "postgres" },
         env: {
@@ -86,7 +96,7 @@ export function render(
         volumes: [`${config.name}-postgres:/var/lib/postgresql/data`],
       },
     };
-  return Bun.YAML.stringify(doc);
+  return Bun.YAML.stringify(doc, null, 2);
 }
 
 export async function withRendered<T>(
@@ -106,17 +116,11 @@ export async function withRendered<T>(
         join(path, "deploy.yml"),
         render(config, app, host, buildContext),
       );
-      const names = new Set([
-        "KAMAL_REGISTRY_PASSWORD",
-        ...(config.apps[app]?.secrets ?? []),
-      ]);
-      if (app === "api" && config.database === "postgres") {
-        names.add("POSTGRES_PASSWORD");
-        names.add("DATABASE_URL");
-      }
       await writeFile(
         join(path, ".kamal", "secrets"),
-        `${[...names].map((name) => `${name}=$${name}`).join("\n")}\n`,
+        `${kamalSecrets(config, app)
+          .map((name) => `${name}=$${name}`)
+          .join("\n")}\n`,
         { mode: 0o600 },
       );
     }
@@ -148,10 +152,8 @@ export async function deploy(
       const names = new Set(
         apps.flatMap((app) => config.apps[app]?.secrets ?? []),
       );
-      if (config.database === "postgres" && config.apps.api) {
-        names.delete("DATABASE_URL");
+      if (config.database === "postgres" && config.apps.api)
         names.add("POSTGRES_PASSWORD");
-      }
       const values: Record<string, string> = {};
       if (names.size) {
         const result = await runner(["bws", "secret", "list"], env, directory);
@@ -186,14 +188,6 @@ export async function deploy(
         values.DATABASE_URL = `postgres://produto:${encodeURIComponent(values.POSTGRES_PASSWORD)}@${config.name}-api-db:5432/produto`;
       for (const app of apps) {
         const path = join(dir, app);
-        const secretNames = new Set([
-          "KAMAL_REGISTRY_PASSWORD",
-          ...(config.apps[app]?.secrets ?? []),
-        ]);
-        if (app === "api" && config.database === "postgres") {
-          secretNames.add("POSTGRES_PASSWORD");
-          secretNames.add("DATABASE_URL");
-        }
         const args = [
           "docker",
           "run",
@@ -214,14 +208,19 @@ export async function deploy(
           "SSH_AUTH_SOCK=/ssh-agent",
           "-e",
           "KAMAL_REGISTRY_USERNAME",
-          ...[...secretNames].flatMap((name) => ["-e", name]),
+          ...kamalSecrets(config, app).flatMap((name) => ["-e", name]),
           KAMAL_IMAGE,
           "setup",
           "--config-file",
           "/dangus/deploy.yml",
           `--version=${version}`,
         ];
-        const result = await runner(args, { ...env, ...values }, directory);
+        const result = await runner(
+          args,
+          { ...env, ...values },
+          directory,
+          true,
+        );
         if (result.code !== 0)
           throw new Error(`Falha no deploy da App ${app}.`);
       }

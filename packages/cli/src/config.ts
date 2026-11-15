@@ -59,6 +59,11 @@ function positiveInteger(value: unknown, path: string): number {
   return value;
 }
 
+// Os secrets viram variáveis de ambiente do Docker e do Kamal no deploy; estes
+// nomes controlam o deploy ou são fornecidos pela Plataforma.
+const RESERVED_SECRET =
+  /^(?:KAMAL_.*|DOCKER_.*|PATH|HOME|SSH_AUTH_SOCK|DATABASE_URL|POSTGRES_PASSWORD|SQLITE_PATH)$/;
+
 export function validateConfig(value: unknown): ResolvedProductConfig {
   const config = object(value, "", [
     "name",
@@ -99,11 +104,16 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
       !Array.isArray(secrets) ||
       !secrets.every(
         (secret) =>
-          typeof secret === "string" && /^[A-Z][A-Z0-9_]*$/.test(secret),
+          typeof secret === "string" &&
+          /^[A-Z][A-Z0-9_]*$/.test(secret) &&
+          !RESERVED_SECRET.test(secret),
       ) ||
       new Set(secrets).size !== secrets.length
     ) {
-      fail(`${path}.secrets`, "deve conter nomes únicos em maiúsculas");
+      fail(
+        `${path}.secrets`,
+        "deve conter nomes únicos em maiúsculas, sem nomes reservados ao deploy",
+      );
     }
     apps[key] = {
       domain: app.domain,
