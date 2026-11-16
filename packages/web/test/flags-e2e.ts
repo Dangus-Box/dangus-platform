@@ -4,16 +4,32 @@ import { OpenFeature } from "@openfeature/web-sdk";
 const server = process.env.UNLEASH_URL;
 const edge = process.env.EDGE_URL;
 const json = { "content-type": "application/json" };
-const login = await fetch(`${server}/auth/simple/login`, {
-  method: "POST",
-  headers: json,
-  body: JSON.stringify({
-    username: "admin",
-    password: process.env.UNLEASH_ADMIN_PASSWORD,
+// O Unleash cria o admin e os tokens iniciais em segundo plano após o boot;
+// /health responde antes disso.
+async function retry(what: string, attempt: () => Promise<Response>) {
+  for (let i = 0; i < 60; i++) {
+    const response = await attempt().catch(() => null);
+    if (response?.ok) return response;
+    await Bun.sleep(1000);
+  }
+  throw new Error(`${what} não ficou disponível`);
+}
+const login = await retry("Login", () =>
+  fetch(`${server}/auth/simple/login`, {
+    method: "POST",
+    headers: json,
+    body: JSON.stringify({
+      username: "admin",
+      password: process.env.UNLEASH_ADMIN_PASSWORD,
+    }),
+    redirect: "manual",
   }),
-  redirect: "manual",
-});
-if (!login.ok) throw new Error(`Login: ${login.status} ${await login.text()}`);
+);
+await retry("Token frontend no Edge", () =>
+  fetch(`${edge}/api/frontend`, {
+    headers: { authorization: process.env.UNLEASH_FRONTEND_TOKEN ?? "" },
+  }),
+);
 const cookie = login.headers.get("set-cookie")?.split(";")[0];
 if (!cookie) throw new Error("Login falhou");
 const headers = { ...json, cookie };
