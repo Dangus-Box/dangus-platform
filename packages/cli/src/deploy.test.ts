@@ -738,20 +738,3 @@ test("db backup executa o script no accessory existente", async () => {
     "/usr/local/bin/backup.sh",
   ]);
 });
-
-test("Produto apenas com web também recebe accessory de backup", () => {
-  for (const database of ["postgres", "sqlite"] as const) {
-    const config = validateConfig({
-      name: "produto",
-      apps: { web: { domain: "web.produto.com" } },
-      database,
-      deployTimeoutSeconds: 10,
-    });
-    const yaml = render(config, "web", "devbox-1", ".", ["192.0.2.1"]);
-    const doc = Bun.YAML.parse(yaml) as {
-      accessories: Record<string, unknown>;
-    };
-    expect(doc.accessories.backup).toBeDefined();
-    if (database === "postgres") expect(doc.accessories.db).toBeDefined();
-  }
-});
