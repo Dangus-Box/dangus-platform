@@ -8,6 +8,8 @@ servers:
 registry:
   server: localhost:5555
 secrets_path: .kamal/secrets
+# O Umami leva ~33 s para ficar pronto com 0,2 vCPU; o padrão é 30 s.
+deploy_timeout: 120
 builder:
   arch: amd64
 accessories:
