@@ -54,3 +54,21 @@ accessories:
         - POSTGRES_PASSWORD
     volumes:
       - exemplo-postgres-postgres:/var/lib/postgresql/data
+  backup:
+    image: ghcr.io/dangus-box/backup:1.0.0
+    host: devbox-1
+    labels:
+      product: exemplo-postgres
+      app: backup
+    env:
+      clear:
+        BACKUP_PRODUCT: exemplo-postgres
+        BACKUP_DATABASE: produto
+        BACKUP_TYPE: postgres
+        AGE_PUBLIC_KEY: age1pcr7wevcd3r75uannynawa9epy74qd2p2d63kuuge6rt2yuld5wqkuq3mw
+      secret:
+        - R2_ACCESS_KEY_ID
+        - R2_SECRET_ACCESS_KEY
+        - R2_ENDPOINT
+        - HEALTHCHECKS_URL
+        - DATABASE_URL

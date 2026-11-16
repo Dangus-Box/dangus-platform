@@ -44,3 +44,24 @@ env:
     - UMAMI_WEBSITE_ID
 volumes:
   - exemplo-sqlite-sqlite:/app/data
+accessories:
+  backup:
+    image: ghcr.io/dangus-box/backup:1.0.0
+    host: devbox-1
+    labels:
+      product: exemplo-sqlite
+      app: backup
+    env:
+      clear:
+        BACKUP_PRODUCT: exemplo-sqlite
+        BACKUP_DATABASE: produto
+        BACKUP_TYPE: sqlite
+        AGE_PUBLIC_KEY: age1pcr7wevcd3r75uannynawa9epy74qd2p2d63kuuge6rt2yuld5wqkuq3mw
+        SQLITE_PATH: /app/data/produto.sqlite
+      secret:
+        - R2_ACCESS_KEY_ID
+        - R2_SECRET_ACCESS_KEY
+        - R2_ENDPOINT
+        - HEALTHCHECKS_URL
+    volumes:
+      - exemplo-sqlite-sqlite:/app/data:ro

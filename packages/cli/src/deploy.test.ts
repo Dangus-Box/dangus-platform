@@ -12,6 +12,19 @@ import {
 } from "./deploy";
 
 const root = resolve(import.meta.dir, "../../..");
+process.env.DANGUS_BACKUP_AGE_PUBLIC_KEY_FILE = join(
+  root,
+  "packages/cli/test/fixtures/age.pub",
+);
+const backupBws = [
+  { key: "ops__R2_BACKUP_ACCESS_KEY_ID", value: "access" },
+  { key: "ops__R2_BACKUP_SECRET_ACCESS_KEY", value: "secret" },
+  { key: "platform__R2_ENDPOINT", value: "https://example.com" },
+  {
+    key: "produto__HEALTHCHECKS_BACKUP_URL",
+    value: "https://example.com/check",
+  },
+];
 for (const variant of ["postgres", "sqlite"]) {
   test(`render da variante ${variant} corresponde aos arquivos de referência`, async () => {
     const product = join(root, "examples", variant);
@@ -89,6 +102,7 @@ test("deploy transmite secrets apenas pelo ambiente e usa comandos exatos", asyn
         stdout: JSON.stringify([
           { key: "produto__TOKEN", value: "valor-secreto" },
           { key: "produto__POSTGRES_PASSWORD", value: "senha-secreta" },
+          ...backupBws,
         ]),
       };
     expect(env.TOKEN).toBe("valor-secreto");
@@ -138,7 +152,20 @@ test("deploy transmite secrets apenas pelo ambiente e usa comandos exatos", asyn
       "-e",
       "KAMAL_REGISTRY_PASSWORD",
       ...(app === "api"
-        ? ["-e", "TOKEN", "-e", "POSTGRES_PASSWORD", "-e", "DATABASE_URL"]
+        ? [
+            "-e",
+            "TOKEN",
+            "-e",
+            "POSTGRES_PASSWORD",
+            "-e",
+            "DATABASE_URL",
+            ...[
+              "R2_ACCESS_KEY_ID",
+              "R2_SECRET_ACCESS_KEY",
+              "R2_ENDPOINT",
+              "HEALTHCHECKS_URL",
+            ].flatMap((name) => ["-e", name]),
+          ]
         : []),
       KAMAL_IMAGE,
       "setup",
@@ -247,6 +274,7 @@ test("falha do Kamal remove a pasta temporária sem expor secrets", async () => 
         stdout: JSON.stringify([
           { key: "produto__TOKEN", value: "valor-secreto" },
           { key: "produto__POSTGRES_PASSWORD", value: "senha-secreta" },
+          ...backupBws,
         ]),
       };
     temp = args[args.indexOf("-v", args.indexOf("-w")) + 1].split(":")[0];
@@ -273,7 +301,15 @@ test("Kamal mostra a saída do deploy no terminal", async () => {
   const streamed: boolean[] = [];
   const runner: Runner = async (args, _env, _cwd, stream) => {
     if (args[0] === "docker") streamed.push(stream === true);
-    return { code: 0, stdout: args[0] === "git" ? "a".repeat(40) : "" };
+    return {
+      code: 0,
+      stdout:
+        args[0] === "git"
+          ? "a".repeat(40)
+          : args[0] === "bws"
+            ? JSON.stringify(backupBws)
+            : "",
+    };
   };
   await deploy(config, "/produto", runner, {
     SSH_AUTH_SOCK: "/ssh-agent",
@@ -326,7 +362,15 @@ test("rollback verifica todas as imagens antes de deployar sem build", async () 
   const calls: string[][] = [];
   const runner: Runner = async (args) => {
     calls.push(args);
-    return { code: 0, stdout: args[0] === "git" ? "a".repeat(40) : "" };
+    return {
+      code: 0,
+      stdout:
+        args[0] === "git"
+          ? "a".repeat(40)
+          : args[0] === "bws"
+            ? JSON.stringify(backupBws)
+            : "",
+    };
   };
   await deploy(
     config,
@@ -335,7 +379,7 @@ test("rollback verifica todas as imagens antes de deployar sem build", async () 
     { SSH_AUTH_SOCK: "/agent", DANGUS_PROXY_BIND_IPS: "192.0.2.1" },
     true,
   );
-  expect(calls.slice(1, 3)).toEqual(
+  expect(calls.slice(2, 4)).toEqual(
     ["api", "web"].map((app) => [
       "docker",
       "manifest",
@@ -343,7 +387,7 @@ test("rollback verifica todas as imagens antes de deployar sem build", async () 
       `ghcr.io/dangus-box/produto-${app}:${"a".repeat(40)}`,
     ]),
   );
-  expect(calls.slice(3).every((args) => args.includes("--skip-push"))).toBe(
+  expect(calls.slice(4).every((args) => args.includes("--skip-push"))).toBe(
     true,
   );
   calls.length = 0;
@@ -376,7 +420,15 @@ test("deploy de push constrói as imagens e ignora DANGUS_SKIP_BUILD do ambiente
   const calls: string[][] = [];
   const runner: Runner = async (args) => {
     calls.push(args);
-    return { code: 0, stdout: args[0] === "git" ? "a".repeat(40) : "" };
+    return {
+      code: 0,
+      stdout:
+        args[0] === "git"
+          ? "a".repeat(40)
+          : args[0] === "bws"
+            ? JSON.stringify(backupBws)
+            : "",
+    };
   };
   await deploy(config, "/produto", runner, {
     SSH_AUTH_SOCK: "/agent",
@@ -607,4 +659,51 @@ test("ordem dos registros DNS não altera o bind_ips", async () => {
     undefined,
     async (domain) => ips[domain] ?? [],
   );
+});
+
+test("accessory protege cada variante e não inclui chave privada", async () => {
+  for (const database of ["postgres", "sqlite"] as const) {
+    const config = validateConfig({
+      name: "produto",
+      apps: { api: { domain: "api.produto.com" } },
+      database,
+      deployTimeoutSeconds: 10,
+    });
+    const yaml = render(config, "api", "devbox-1", ".", ["192.0.2.1"]);
+    const doc = Bun.YAML.parse(yaml) as {
+      accessories: Record<
+        string,
+        {
+          env: { clear: Record<string, string>; secret: string[] };
+          volumes?: string[];
+        }
+      >;
+    };
+    const backup = doc.accessories.backup;
+    expect(backup.env.clear.BACKUP_TYPE).toBe(database);
+    expect(backup.env.clear.AGE_PUBLIC_KEY).toStartWith("age1");
+    expect(backup.env.secret).toContain("R2_SECRET_ACCESS_KEY");
+    expect(yaml).not.toContain("AGE-SECRET-KEY-");
+    if (database === "sqlite")
+      expect(backup.volumes).toContain("produto-sqlite:/app/data:ro");
+    else expect(backup.env.secret).toContain("DATABASE_URL");
+  }
+});
+
+test("render falha claramente sem a chave pública", () => {
+  const previous = process.env.DANGUS_BACKUP_AGE_PUBLIC_KEY_FILE;
+  process.env.DANGUS_BACKUP_AGE_PUBLIC_KEY_FILE = "/nao-existe/age.pub";
+  try {
+    const config = validateConfig({
+      name: "produto",
+      apps: { api: { domain: "api.produto.com" } },
+      database: "sqlite",
+      deployTimeoutSeconds: 10,
+    });
+    expect(() => render(config, "api", "devbox-1", ".", ["192.0.2.1"])).toThrow(
+      "Chave pública age ausente",
+    );
+  } finally {
+    process.env.DANGUS_BACKUP_AGE_PUBLIC_KEY_FILE = previous;
+  }
 });

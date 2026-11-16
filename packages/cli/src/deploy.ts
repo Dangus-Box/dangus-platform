@@ -312,7 +312,7 @@ export async function deploy(
             (item) =>
               item.key ===
               (name === "R2_ACCESS_KEY_ID" || name === "R2_SECRET_ACCESS_KEY"
-                ? `ops__${name}`
+                ? `ops__R2_BACKUP_${name === "R2_ACCESS_KEY_ID" ? "ACCESS_KEY_ID" : "SECRET_ACCESS_KEY"}`
                 : name === "R2_ENDPOINT"
                   ? "platform__R2_ENDPOINT"
                   : name === "HEALTHCHECKS_URL"

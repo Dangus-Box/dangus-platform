@@ -70,6 +70,10 @@ async function deploy(
       },
     );
   secrets.push(
+    { key: "ops__R2_BACKUP_ACCESS_KEY_ID", value: "access" },
+    { key: "ops__R2_BACKUP_SECRET_ACCESS_KEY", value: "secret" },
+    { key: "ops__HEALTHCHECKS_BACKUP_URL", value: "https://example.com/check" },
+    { key: "platform__R2_ENDPOINT", value: "https://example.com" },
     { key: "platform__TELEGRAM_BOT_TOKEN", value: "test-token" },
     { key: "platform__TELEGRAM_CHAT_ID", value: chatId },
   );
@@ -112,7 +116,11 @@ case " $* " in
 esac`,
   );
   const child = Bun.spawn([`${path}deploy.sh`], {
-    env: { PATH: `${bin}:${process.env.PATH}`, SSH_AUTH_SOCK: "/ssh-agent" },
+    env: {
+      PATH: `${bin}:${process.env.PATH}`,
+      SSH_AUTH_SOCK: "/ssh-agent",
+      DANGUS_BACKUP_AGE_PUBLIC_KEY_FILE: `${path}../../packages/cli/test/fixtures/age.pub`,
+    },
     stderr: "pipe",
   });
   const code = await child.exited;
