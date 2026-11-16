@@ -80,3 +80,9 @@ test("deploy da Stack Ops passa a senha só por ambiente, sem Docker socket", as
 test("Stack Ops não faz login em registry", () => {
   expect(config.registry).toEqual({ server: "localhost:5555" });
 });
+
+test('"All" do filtro de Produto é aceito pelo Loki', () => {
+  // O Loki recusa seletores que casam com valor vazio, como product=~".*".
+  const { allValue } = dashboard.templating.list[0];
+  expect(new RegExp(`^(?:${allValue})$`).test("")).toBe(false);
+});
