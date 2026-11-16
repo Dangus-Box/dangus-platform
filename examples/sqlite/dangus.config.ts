@@ -9,7 +9,13 @@ export default defineConfig({
       secrets: ["UNLEASH_TOKEN", "UMAMI_WEBSITE_ID"],
     },
     web: { domain: "web-sqlite.dangus-box.com", memoryMb: 512 },
-    mobile: { domain: "mobile-sqlite.dangus-box.com" },
+    mobile: {
+      domain: "mobile-sqlite.dangus-box.com",
+      secrets: [
+        "EXPO_PUBLIC_UMAMI_WEBSITE_ID",
+        "EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN",
+      ],
+    },
   },
   database: "sqlite",
   deployTimeoutSeconds: 120,
