@@ -1,5 +1,11 @@
 import { expect, test } from "bun:test";
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 
 const path = `${import.meta.dir}/`;
@@ -39,7 +45,7 @@ test("dashboard consulta sinais por Produto", () => {
 
 async function deploy(
   secrets: { key: string; value: string }[],
-  failExec = false,
+  { failExec = false, route = false } = {},
 ) {
   const bin = mkdtempSync(`${tmpdir()}/ops-deploy-`);
   const fake = (name: string, body: string) => {
@@ -47,13 +53,20 @@ async function deploy(
     chmodSync(`${bin}/${name}`, 0o755);
   };
   fake("bws", `echo '${JSON.stringify(secrets)}'`);
-  fake(
-    "bun",
-    `if [ "$1" = "admin.ts" ]; then exit 0; fi; exec ${process.execPath} "$@"`,
-  );
+  if (route) writeFileSync(`${bin}/route`, "");
+  // Imita o Kamal: stop/reboot de accessory com proxy executa
+  // `kamal-proxy remove`, que falha se a rota não existe.
+  const pub = "umami --config-file deploy.yml ";
   fake(
     "docker",
-    `printf '%s\\n' "$@" >> ${bin}/args; env > ${bin}/env; ${failExec ? 'case " $* " in *" accessory exec umami "*) exit 1;; esac' : ":"}`,
+    `printf '%s\\n' "$@" >> ${bin}/args; env > ${bin}/env
+case " $* " in
+  *" accessory exec umami "*) ${failExec ? "exit 1" : ":"} ;;
+  *" accessory stop ${pub}"*|*" accessory reboot ${pub}"*)
+    [ -f ${bin}/route ] || { echo 'Error: service not found' >&2; exit 1; }
+    rm ${bin}/route ;;
+esac
+case " $* " in *" accessory boot ${pub}"*|*" accessory reboot ${pub}"*) touch ${bin}/route ;; esac`,
   );
   const child = Bun.spawn([`${path}deploy.sh`], {
     env: { PATH: `${bin}:${process.env.PATH}`, SSH_AUTH_SOCK: "/ssh-agent" },
@@ -67,7 +80,12 @@ async function deploy(
       return "";
     }
   };
-  return { code, args: read("args"), env: read("env") };
+  return {
+    code,
+    args: read("args"),
+    env: read("env"),
+    routed: existsSync(`${bin}/route`),
+  };
 }
 
 test("deploy da Stack Ops recusa senha do Grafana vazia", async () => {
@@ -101,12 +119,34 @@ test("falha ao configurar senha impede publicação", async () => {
       { key: "ops__UMAMI_DB_PASSWORD", value: "x" },
       { key: "ops__UMAMI_ADMIN_PASSWORD", value: "adminpass" },
     ],
-    true,
+    { failExec: true, route: true },
   );
   expect(run.code).not.toBe(0);
+  expect(run.routed).toBe(false);
   expect(run.args).toContain("accessory\nexec\numami");
-  expect(run.args).not.toContain("accessory\nreboot\numami");
+  expect(run.args).not.toContain(
+    "accessory\nboot\numami\n--config-file\ndeploy.yml",
+  );
+  // O container privado com admin/umami não fica rodando na rede do Host.
+  expect(run.args).toMatch(
+    /accessory\nstop\numami\n--config-file\n\/work\/\.deploy-private\.\w+\n--version=\w+\n$/,
+  );
 });
+
+for (const route of [false, true])
+  test(`deploy publica o Umami ${route ? "no redeploy" : "no primeiro deploy"}`, async () => {
+    const run = await deploy(
+      [
+        { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "x" },
+        { key: "ops__UMAMI_APP_SECRET", value: "x" },
+        { key: "ops__UMAMI_DB_PASSWORD", value: "x" },
+        { key: "ops__UMAMI_ADMIN_PASSWORD", value: "adminpass" },
+      ],
+      { route },
+    );
+    expect(run.code).toBe(0);
+    expect(run.routed).toBe(true);
+  });
 
 test("Umami e banco têm limites, imagens fixas e caminhos neutros", () => {
   const { umami, "umami-db": db } = config.accessories;
