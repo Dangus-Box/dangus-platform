@@ -63,10 +63,16 @@ export async function init(root: string, yes: boolean) {
       console.log("Adoção cancelada.");
       return;
     }
+    // Mesmo formato do Biome e do Prettier: o arquivo formatado continua idêntico ao gerado.
+    const secretList = (app: App) => {
+      const line = `      secrets: [${secrets[app].map((secret) => `"${secret}"`).join(", ")}],`;
+      if (line.length <= 80) return line;
+      return `      secrets: [\n${secrets[app].map((secret) => `        "${secret}",\n`).join("")}      ],`;
+    };
     const configApps = found
       .map(
         (app) =>
-          `    ${app}: { domain: "${app}.${name}.com", secrets: ${JSON.stringify(secrets[app])} },`,
+          `    ${app}: {\n      domain: "${app}.${name}.com",\n${secretList(app)}\n    },`,
       )
       .join("\n");
     const config = `import { defineConfig } from "@dangus-box/cli";\n\nexport default defineConfig({\n  name: "${name}",\n  apps: {\n${configApps}\n  },\n  database: "${database}",\n  deployTimeoutSeconds: 120,\n});\n`;
