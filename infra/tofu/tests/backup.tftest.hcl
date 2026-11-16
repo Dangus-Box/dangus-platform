@@ -29,7 +29,7 @@ run "backup" {
     error_message = "O lifecycle deve excluir cada prefixo após o prazo previsto."
   }
   assert {
-    condition     = length(cloudflare_api_token.backup_host.policies) == 1 && cloudflare_api_token.backup_host.policies[0].effect == "allow" && cloudflare_api_token.backup_host.policies[0].permission_groups[0].id == "2efd5506f9c8494dacb1fa10a3e7d5b6" && length(cloudflare_api_token.backup_host.policies[0].permission_groups) == 1 && jsondecode(cloudflare_api_token.backup_host.policies[0].resources) == { "com.cloudflare.edge.r2.bucket.conta-teste_default_dangus-backups" = "*" }
+    condition     = cloudflare_account_token.backup_host.account_id == "conta-teste" && length(cloudflare_account_token.backup_host.policies) == 1 && cloudflare_account_token.backup_host.policies[0].effect == "allow" && cloudflare_account_token.backup_host.policies[0].permission_groups[0].id == "2efd5506f9c8494dacb1fa10a3e7d5b6" && length(cloudflare_account_token.backup_host.policies[0].permission_groups) == 1 && jsondecode(cloudflare_account_token.backup_host.policies[0].resources) == { "com.cloudflare.edge.r2.bucket.conta-teste_default_dangus-backups" = "*" }
     error_message = "O token deve permitir somente objetos do bucket de Backups."
   }
 }

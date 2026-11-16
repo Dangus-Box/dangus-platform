@@ -34,8 +34,9 @@ resource "cloudflare_r2_bucket_lifecycle" "backups" {
   }]
 }
 
-resource "cloudflare_api_token" "backup_host" {
-  name = "dangus-backup-host"
+resource "cloudflare_account_token" "backup_host" {
+  account_id = var.cloudflare_account_id
+  name       = "dangus-backup-host"
   policies = [{
     effect            = "allow"
     permission_groups = [{ id = "2efd5506f9c8494dacb1fa10a3e7d5b6" }]
@@ -44,11 +45,11 @@ resource "cloudflare_api_token" "backup_host" {
 }
 
 output "r2_backup_access_key_id" {
-  value     = cloudflare_api_token.backup_host.id
+  value     = cloudflare_account_token.backup_host.id
   sensitive = true
 }
 
 output "r2_backup_secret_access_key" {
-  value     = sha256(cloudflare_api_token.backup_host.value)
+  value     = sha256(cloudflare_account_token.backup_host.value)
   sensitive = true
 }
