@@ -1,6 +1,6 @@
 # Provisionamento do Host
 
-Esta configuração gerencia o Host já existente, um VPS Hostinger KVM 4 no Brasil. O Host não é criado aqui: ele entra no state uma única vez por `tofu import`. A configuração impede destruí-lo (`prevent_destroy`), porque destruir cancela a assinatura. Ela também ignora mudanças em plano, datacenter, senha, template e script de pós-instalação: as três primeiras forçariam a recriação do Host, e as duas últimas reinstalariam o sistema. O state usa o bucket R2 dedicado `dangus-tofu-state`, com criptografia AES-GCM nativa do OpenTofu. O mesmo state também contém o bucket R2 de Backups, seus locks, lifecycle e token do Host.
+Esta configuração gerencia o Host já existente, um VPS Hostinger KVM 4 no Brasil. O Host não é criado aqui: ele entra no state uma única vez por `tofu import`. A configuração impede destruí-lo (`prevent_destroy`), porque destruir cancela a assinatura. Ela também ignora mudanças em plano, datacenter, senha, template, script de pós-instalação e chaves SSH: as três primeiras forçariam a recriação do Host, as duas seguintes reinstalariam o sistema, e as chaves SSH não são gerenciadas aqui (o acesso SSH vem do bootstrap). O state usa o bucket R2 dedicado `dangus-tofu-state`, com criptografia AES-GCM nativa do OpenTofu. O mesmo state também contém o bucket R2 de Backups, seus locks, lifecycle e token do Host.
 
 ## Pré-requisitos
 
@@ -8,7 +8,7 @@ Esta configuração gerencia o Host já existente, um VPS Hostinger KVM 4 no Bra
 - Conta Hostinger com acesso à API e o Host já contratado.
 - Bucket R2 privado `dangus-tofu-state` já criado na conta Cloudflare, antes de `tofu init`: um backend não pode criar seu próprio bucket. As credenciais R2 precisam permitir leitura, escrita e listagem desse bucket. A criação do bucket é uma etapa separada, sujeita a autorização.
 - Acesso ao projeto `ops` do BWS com `BWS_ACCESS_TOKEN`. Crie nele o secret `platform__TOFU_STATE_PASSPHRASE` com uma frase aleatória forte de pelo menos 16 caracteres e preserve-a: perdê-la impede a leitura do state. Não troque a frase sem seguir o procedimento de rotação de chaves do OpenTofu.
-- Os secrets existentes no projeto `ops`: `platform__HOSTINGER_API_TOKEN`, `platform__CLOUDFLARE_ACCOUNT_ID`, `platform__CLOUDFLARE_ZONE_ID`, `platform__CLOUDFLARE_DNS_TOKEN`, `platform__CLOUDFLARE_R2_TOKEN`, `platform__R2_ACCESS_KEY_ID`, `platform__R2_SECRET_ACCESS_KEY` e `platform__R2_ENDPOINT`. O token `platform__CLOUDFLARE_R2_TOKEN` usado pelo provider também precisa das permissões Workers Scripts:Edit, Workers KV Storage:Edit e Account API Tokens:Edit, além de gerenciar o bucket R2, locks e lifecycle; confirme as permissões antes de aplicar. As credenciais S3 do backend são distintas das credenciais de Backup.
+- Os secrets existentes no projeto `ops`: `platform__HOSTINGER_API_TOKEN`, `platform__CLOUDFLARE_ACCOUNT_ID`, `platform__CLOUDFLARE_ZONE_ID`, `platform__CLOUDFLARE_DNS_TOKEN`, `platform__CLOUDFLARE_R2_TOKEN`, `platform__R2_ACCESS_KEY_ID`, `platform__R2_SECRET_ACCESS_KEY` e `platform__R2_ENDPOINT`. O token `platform__CLOUDFLARE_R2_TOKEN` usado pelo provider precisa, no escopo **Account** do dashboard, exatamente destas permissões: **Workers R2 Storage: Edit** (bucket, locks e lifecycle), **Workers Scripts: Edit** (Worker de uptime e cron), **Workers KV Storage: Edit** (namespace KV) e **Account API Tokens: Edit** (cria o token de Backup do Host e lista os permission groups; na API ela se chama `Account API Tokens Write`). Confirme as permissões antes de aplicar. As credenciais S3 do backend são distintas das credenciais de Backup.
 
 ## Execução
 
@@ -60,13 +60,13 @@ export TF_VAR_template_id="<id-do-template-do-host>"
 4. `tofu plan`. Revise os recursos a criar, incluindo o Worker, o namespace KV e o cron, e confirme que não há alterações em `hostinger_vps.host`. Se o plano alterar, criar, substituir ou destruir esse recurso, pare e não aplique.
 5. `tofu apply`, após revisar o plano.
 
-Se `hostinger_vps_ssh_key.host` já existir no state após o apply parcial, o próximo plano destruirá esse objeto de chave não anexado; isso é inofensivo. O acesso SSH é configurado pelo bootstrap.
+Se `hostinger_vps_ssh_key.host` já existir no state após o apply parcial, o bloco `removed` da configuração o retira do state sem excluir a chave na Hostinger (o plano mostra `forget`). A chave fica na conta, sem uso, e pode ser apagada no hPanel. O acesso SSH é configurado pelo bootstrap.
 
 Nas execuções seguintes, pule o passo 3; um `tofu plan` sem mudanças confirma que o Host continua como declarado. Nunca rode `tofu apply` com o state vazio: sem o import, o OpenTofu compraria um Host novo.
 
 O R2 deve ser usado por apenas um operador de cada vez: esta configuração não implementa bloqueio distribuído. Não execute operações concorrentes sobre o mesmo state. Não salve planos ou state em arquivos compartilhados; o OpenTofu criptografa ambos, mas comandos de inspeção podem revelar seus conteúdos. Os arquivos locais de state, planos e variáveis, bem como `.terraform/`, são ignorados pelo Git. Ao terminar, remova as variáveis de credenciais do ambiente ou encerre o shell.
 
-Para verificação sem credenciais nem criação de recursos: `tofu init -backend=false`, `tofu validate` e `tofu test`, que usam providers simulados. `tests/import_plan_test.sh` (requer `openssl` e `python3`) roda o provider real contra uma API falsa local, sem contatar a Hostinger. Ele importa um Host cujo plano e template diferem dos declarados e falha se o plano alterar o Host. Nenhum dos testes comprova acesso real aos serviços.
+Para verificação sem credenciais nem criação de recursos: `tofu init -backend=false`, `tofu validate` e `tofu test`, que usam providers simulados. `tests/import_plan_test.sh` (requer `openssl` e `python3`) roda o provider real contra uma API falsa local, sem contatar a Hostinger. Ele importa um Host cujo plano e template diferem dos declarados, simula o state deixado pelo apply parcial (chave SSH e `ssh_key_ids`) e falha se o plano alterar o Host, fizer algo além de esquecer a chave ou chamar a API para algo que não seja leitura. Nenhum dos testes comprova acesso real aos serviços.
 
 ## Firewall da Hostinger e acesso de emergência
 

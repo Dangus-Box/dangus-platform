@@ -19,6 +19,8 @@ ROUTES = {
         "template": {"id": 1077}, "data_center": {"id": 17},
     },
     "/api/billing/v1/subscriptions/sub1": {"id": "sub1", "item_id": "hostingercom-vps-kvm4-usd-24m"},
+    # Chave criada pelo apply parcial anterior, ainda no state.
+    "/api/vps/v1/public-keys": {"data": [{"id": 123, "name": "dangus-host", "key": "ssh-ed25519 AAAA teste"}]},
     "/api/vps/v1/data-centers": [
         {"id": 17, "name": "bnu", "location": "br", "city": "São Paulo", "continent": "South America"},
     ],

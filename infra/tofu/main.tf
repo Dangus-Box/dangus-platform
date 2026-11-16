@@ -47,6 +47,15 @@ provider "cloudflare" {}
 
 data "hostinger_vps_data_centers" "available" {}
 
+# A chave SSH criada pelo apply parcial sai do state sem ser excluída na
+# Hostinger; o acesso SSH vem do bootstrap.
+removed {
+  from = hostinger_vps_ssh_key.host
+  lifecycle {
+    destroy = false
+  }
+}
+
 # O Host já existe e entra no state por `tofu import` (ver README).
 resource "hostinger_vps" "host" {
   plan           = "hostingercom-vps-kvm4-usd-1m"

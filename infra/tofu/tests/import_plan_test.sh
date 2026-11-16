@@ -36,29 +36,41 @@ export TF_VAR_data_center_id=17
 export TF_VAR_template_id=9999
 
 tofu import hostinger_vps.host 777 >/dev/null
-# O apply parcial anterior deixou ssh_key_ids no state: o update falhou após o
-# provider já ter gravado o valor planejado. Sem ignore_changes, o plano tentaria removê-lo.
+# O apply parcial anterior deixou no state a chave SSH e ssh_key_ids no Host: o
+# update falhou após o provider já ter gravado o valor planejado. Sem
+# ignore_changes, o plano tentaria removê-lo; sem o bloco removed, destruiria a chave.
 tofu state pull | python3 -I -c '
 import json, sys
 s = json.load(sys.stdin); s["serial"] += 1
 for r in s["resources"]:
     if r["type"] == "hostinger_vps":
         r["instances"][0]["attributes"]["ssh_key_ids"] = [123]
+s["resources"].append({"mode": "managed", "type": "hostinger_vps_ssh_key", "name": "host",
+    "provider": "provider[\"registry.opentofu.org/hostinger/hostinger\"]",
+    "instances": [{"schema_version": 0, "attributes": {"id": "123", "name": "dangus-host", "key": "ssh-ed25519 AAAA teste"}}]})
 json.dump(s, sys.stdout)' > "$WORK/state.json"
 tofu state push "$WORK/state.json" >/dev/null
 tofu plan -out=plan.tfplan >/dev/null
-changes=$(tofu show -json plan.tfplan | python3 -I -c '
+tofu show -json plan.tfplan > "$WORK/plan.json"
+key_actions=$(python3 -I -c '
 import json, sys
-for c in json.load(sys.stdin)["resource_changes"]:
+for c in json.load(open(sys.argv[1]))["resource_changes"]:
+    if c["address"] == "hostinger_vps_ssh_key.host":
+        print(",".join(c["change"]["actions"]))' "$WORK/plan.json")
+changes=$(python3 -I -c '
+import json, sys
+for c in json.load(open(sys.argv[1]))["resource_changes"]:
     if c["address"] == "hostinger_vps.host":
         ch = c["change"]
         before, after, unknown = ch["before"], ch["after"], ch["after_unknown"]
         changed = sorted(k for k in after.keys() | unknown.keys() if before.get(k) != after.get(k) or unknown.get(k))
-        print(",".join(ch["actions"]) + ":" + ",".join(changed))')
+        print(",".join(ch["actions"]) + ":" + ",".join(changed))' "$WORK/plan.json")
 
 fail=0
 # Nenhuma alteração no Host é aceitável.
 [ "$changes" = "no-op:" ] || { echo "FALHOU: mudanças planejadas no Host: '$changes' (esperado: no-op:)"; fail=1; }
+# A chave sai só do state; a API de exclusão não é chamada.
+[ "$key_actions" = "forget" ] || { echo "FALHOU: chave SSH antiga com ações '$key_actions' (esperado: forget)"; fail=1; }
 if grep -v '^GET ' "$WORK/api.log"; then echo "FALHOU: chamadas acima não são leitura"; fail=1; fi
 [ "$fail" = 0 ] && echo "ok: import do Host existente sem recriar nem reinstalar"
 exit "$fail"
