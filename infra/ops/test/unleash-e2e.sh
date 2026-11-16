@@ -6,8 +6,8 @@ cleanup() { docker rm -f "$id-edge" "$id-server" "$id-db" >/dev/null 2>&1 || tru
 trap cleanup EXIT
 image() { grep -o "$1:[^ ]*" "$root/infra/ops/deploy.yml" | head -1; }
 export UNLEASH_ADMIN_PASSWORD=${UNLEASH_ADMIN_PASSWORD:-test-password-14}
-export UNLEASH_BACKEND_TOKEN='default:development.test-backend-token-14'
-export UNLEASH_FRONTEND_TOKEN='default:development.test-frontend-token-14'
+export UNLEASH_BACKEND_TOKEN='default:production.test-backend-token-14'
+export UNLEASH_FRONTEND_TOKEN='default:production.test-frontend-token-14'
 docker network create "$id" >/dev/null
 docker run -d --memory 256m --cpus 0.1 --name "$id-db" --network "$id" -e POSTGRES_DB=unleash -e POSTGRES_USER=unleash -e POSTGRES_PASSWORD=test "$(image postgres)" >/dev/null
 for _ in {1..60}; do docker exec "$id-db" pg_isready -U unleash >/dev/null 2>&1 && break; sleep 1; done

@@ -31,7 +31,7 @@ const created = await fetch(`${server}/api/admin/projects/default/features`, {
 if (!created.ok)
   throw new Error(`Criar Flag: ${created.status} ${await created.text()}`);
 const enabled = await fetch(
-  `${server}/api/admin/projects/default/features/teste-issue-14/environments/development/on`,
+  `${server}/api/admin/projects/default/features/teste-issue-14/environments/production/on`,
   { method: "POST", headers: admin },
 );
 if (!enabled.ok)

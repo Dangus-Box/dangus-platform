@@ -30,7 +30,7 @@ Para verificar localmente, execute `UMAMI_ADMIN_PASSWORD=<senha-de-teste> infra/
 
 O Unleash server escuta somente em `127.0.0.1:4242` e na rede Docker `kamal`; o Postgres exclusivo usa o volume `dangus-ops-unleash-db`, que deverá ser incluído no Backup da issue #22. O Edge atende em `https://flags.dangus-box.com`. Os limites dos três accessories somam 1152 MiB e 0,3 vCPU.
 
-No projeto `ops` do BWS, preencha `ops__UNLEASH_DB_PASSWORD`, `ops__UNLEASH_ADMIN_PASSWORD`, `ops__UNLEASH_FRONTEND_TOKEN` e `ops__UNLEASH_BACKEND_TOKEN`. Os tokens iniciais precisam seguir o formato `default:development.<segredo>` e ter segredos distintos e aleatórios. A senha e os tokens são inicializados apenas no primeiro boot do banco; mantenha-os sincronizados com o painel em alterações posteriores.
+No projeto `ops` do BWS, preencha `ops__UNLEASH_DB_PASSWORD`, `ops__UNLEASH_ADMIN_PASSWORD`, `ops__UNLEASH_FRONTEND_TOKEN` e `ops__UNLEASH_BACKEND_TOKEN`. Os tokens iniciais precisam seguir o formato `default:production.<segredo>` e ter segredos distintos e aleatórios. A senha e os tokens são inicializados apenas no primeiro boot do banco; mantenha-os sincronizados com o painel em alterações posteriores.
 
 No console de administração Tailscale, crie o Tailscale Service `svc:flags-admin` e autorize o Host a anunciá-lo. No Host execute manualmente:
 

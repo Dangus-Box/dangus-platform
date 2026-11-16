@@ -61,11 +61,11 @@ async function deploy(
       { key: "ops__UNLEASH_ADMIN_PASSWORD", value: "adminpass" },
       {
         key: "ops__UNLEASH_FRONTEND_TOKEN",
-        value: "default:development.frontend",
+        value: "default:production.frontend",
       },
       {
         key: "ops__UNLEASH_BACKEND_TOKEN",
-        value: "default:development.backend",
+        value: "default:production.backend",
       },
     );
   const missing = secrets.find((s) => s.key === missingUnleash);
@@ -272,9 +272,9 @@ const unleashSecrets = () => [
 test("deploy só sobe o Edge depois do Unleash server responder", async () => {
   const run = await deploy(unleashSecrets());
   expect(run.code).toBe(0);
-  for (const secret of ["dbpass", "adminpass", "development."])
+  for (const secret of ["dbpass", "adminpass", "production."])
     expect(run.args).not.toContain(secret);
-  expect(run.env).toContain("TOKENS=default:development.backend");
+  expect(run.env).toContain("TOKENS=default:production.backend");
   const health = run.args.indexOf("accessory\nexec\nunleash\n");
   expect(health).toBeGreaterThan(
     run.args.indexOf("accessory\nboot\nunleash\n"),
