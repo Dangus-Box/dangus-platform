@@ -121,7 +121,13 @@ export function render(
       context: buildContext,
     },
     deploy_timeout: config.deployTimeoutSeconds,
-    labels: { product: config.name, app },
+    labels: {
+      product: config.name,
+      app,
+      ...(app === "api"
+        ? { "prometheus.io.scrape": "true", "prometheus.io.port": "3000" }
+        : {}),
+    },
     env: { secret: secrets },
   };
   if (config.database === "sqlite" && app === "api") {

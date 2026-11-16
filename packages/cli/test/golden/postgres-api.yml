@@ -34,6 +34,8 @@ deploy_timeout: 120
 labels:
   product: exemplo-postgres
   app: api
+  prometheus.io.scrape: "true"
+  prometheus.io.port: "3000"
 env:
   secret:
     - DATABASE_URL
