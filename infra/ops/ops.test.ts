@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 const path = `${import.meta.dir}/`;
 const config = Bun.YAML.parse(readFileSync(`${path}deploy.yml`, "utf8")) as {
   registry: unknown;
+  deploy_timeout?: number;
   accessories: Record<
     string,
     { port?: string; cmd: string; image: string; volumes: string[] }
@@ -160,6 +161,11 @@ test("Umami e banco têm limites, imagens fixas e caminhos neutros", () => {
   expect(yaml).toContain("TRACKER_SCRIPT_NAME: t.js");
   expect(yaml).toContain("COLLECT_API_ENDPOINT: /api/e");
   expect(yaml).toContain("path: /api/heartbeat");
+});
+
+test("kamal-proxy espera o boot do Umami com 0,2 vCPU", () => {
+  // Medido: ~33 s até /api/heartbeat responder; o padrão do Kamal é 30 s.
+  expect(config.deploy_timeout).toBeGreaterThanOrEqual(120);
 });
 
 test("deploy recusa secret ausente antes de chamar Docker", async () => {
