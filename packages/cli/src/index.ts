@@ -3,7 +3,13 @@ import { join } from "node:path";
 import { version } from "../package.json";
 import { bootstrap } from "./bootstrap";
 import { loadConfig } from "./config";
-import { DEFAULT_HOST, deploy, proxyBindIps, withRendered } from "./deploy";
+import {
+  backupNow,
+  DEFAULT_HOST,
+  deploy,
+  proxyBindIps,
+  withRendered,
+} from "./deploy";
 import { dev } from "./dev";
 import { doctor } from "./doctor";
 import { init } from "./init";
@@ -65,6 +71,17 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
     process.exitCode = 1;
   }
 } else if (
+  process.argv[2] === "db" &&
+  process.argv[3] === "backup" &&
+  process.argv.length === 4
+) {
+  try {
+    await backupNow(await loadConfig(), process.cwd());
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : "Falha no Backup.");
+    process.exitCode = 1;
+  }
+} else if (
   (process.argv[2] === "dev" || process.argv[2] === "ls") &&
   process.argv.length === 3
 ) {
@@ -111,7 +128,7 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
   }
 } else {
   console.error(
-    "Uso: dangus init [--yes] | dev | ls | doctor [--base <ref>] | render | deploy [--skip-build] | host bootstrap <host>",
+    "Uso: dangus init [--yes] | dev | ls | doctor [--base <ref>] | render | deploy [--skip-build] | db backup | host bootstrap <host>",
   );
   process.exitCode = 1;
 }

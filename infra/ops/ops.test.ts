@@ -54,6 +54,7 @@ async function deploy(
     failUnleashHealth = false,
     missingUnleash = "",
     chatId = "1234",
+    agePublicKey = "age1pcr7wevcd3r75uannynawa9epy74qd2p2d63kuuge6rt2yuld5wqkuq3mw",
   } = {},
 ) {
   if (secrets.some((s) => s.key === "ops__UMAMI_ADMIN_PASSWORD"))
@@ -70,6 +71,11 @@ async function deploy(
       },
     );
   secrets.push(
+    { key: "ops__R2_BACKUP_ACCESS_KEY_ID", value: "access" },
+    { key: "ops__R2_BACKUP_SECRET_ACCESS_KEY", value: "secret" },
+    { key: "ops__HEALTHCHECKS_BACKUP_URL", value: "https://example.com/check" },
+    { key: "platform__R2_ENDPOINT", value: "https://example.com" },
+    { key: "ops__BACKUP_AGE_PUBLIC_KEY", value: agePublicKey },
     { key: "platform__TELEGRAM_BOT_TOKEN", value: "test-token" },
     { key: "platform__TELEGRAM_CHAT_ID", value: chatId },
   );
@@ -112,7 +118,10 @@ case " $* " in
 esac`,
   );
   const child = Bun.spawn([`${path}deploy.sh`], {
-    env: { PATH: `${bin}:${process.env.PATH}`, SSH_AUTH_SOCK: "/ssh-agent" },
+    env: {
+      PATH: `${bin}:${process.env.PATH}`,
+      SSH_AUTH_SOCK: "/ssh-agent",
+    },
     stderr: "pipe",
   });
   const code = await child.exited;
@@ -218,6 +227,32 @@ test("deploy recusa secret ausente antes de chamar Docker", async () => {
   ]);
   expect(run.code).not.toBe(0);
   expect(run.args).toBe("");
+});
+
+for (const [caso, agePublicKey] of [
+  ["ausente", ""],
+  ["com chave privada", "AGE-SECRET-KEY-1TESTE"],
+]) {
+  test(`deploy recusa chave pública age ${caso} no BWS antes de chamar Docker`, async () => {
+    const run = await deploy(
+      [
+        { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "ok" },
+        { key: "ops__UMAMI_APP_SECRET", value: "secret" },
+        { key: "ops__UMAMI_DB_PASSWORD", value: "dbpass" },
+        { key: "ops__UMAMI_ADMIN_PASSWORD", value: "adminpass" },
+      ],
+      { agePublicKey },
+    );
+    expect(run.code).not.toBe(0);
+    expect(run.args).toBe("");
+  });
+}
+
+test("Backups da Stack Ops recebem a chave pública age como secret", () => {
+  for (const name of ["backup-umami", "backup-unleash", "backup-grafana"]) {
+    expect(config.accessories[name].env.secret).toContain("AGE_PUBLIC_KEY");
+    expect(config.accessories[name].env.clear.AGE_PUBLIC_KEY).toBeUndefined();
+  }
 });
 
 test("Stack Ops não faz login em registry", () => {

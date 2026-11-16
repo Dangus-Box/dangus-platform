@@ -5,6 +5,16 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { ResolvedProductConfig } from "./config";
 
+const BACKUP_IMAGE = "ghcr.io/dangus-box/backup:1.0.0";
+// Secrets do accessory de Backup e suas chaves no BWS.
+const backupSecretKeys = (product: string): Record<string, string> => ({
+  R2_ACCESS_KEY_ID: "ops__R2_BACKUP_ACCESS_KEY_ID",
+  R2_SECRET_ACCESS_KEY: "ops__R2_BACKUP_SECRET_ACCESS_KEY",
+  R2_ENDPOINT: "platform__R2_ENDPOINT",
+  HEALTHCHECKS_URL: `${product}__HEALTHCHECKS_BACKUP_URL`,
+  AGE_PUBLIC_KEY: "ops__BACKUP_AGE_PUBLIC_KEY",
+});
+const backupSecrets = Object.keys(backupSecretKeys(""));
 export const KAMAL_IMAGE =
   "ghcr.io/basecamp/kamal:v2.12.0@sha256:7a3893b47dd328955f86fbf9ba887d08d612b74f96867f077750a53312537625";
 // Nome do Host na tailnet; DANGUS_HOST substitui.
@@ -71,6 +81,7 @@ function kamalSecrets(config: ResolvedProductConfig, app: App): string[] {
   ];
   if (app === "api" && config.database === "postgres")
     names.push("POSTGRES_PASSWORD", "DATABASE_URL");
+  if (app === "api") names.push(...backupSecrets);
   return names;
 }
 
@@ -151,6 +162,40 @@ export function render(
         volumes: [`${config.name}-postgres:/var/lib/postgresql/data`],
       },
     };
+  if (app === "api") {
+    const accessories = (doc.accessories ?? {}) as Record<string, unknown>;
+    accessories.backup = {
+      image: BACKUP_IMAGE,
+      host,
+      labels: { product: config.name, app: "backup" },
+      env: {
+        clear: {
+          BACKUP_PRODUCT: config.name,
+          BACKUP_DATABASE: "produto",
+          BACKUP_TYPE: config.database,
+          ...(config.database === "sqlite"
+            ? { SQLITE_PATH: "/app/data/produto.sqlite" }
+            : {
+                PGHOST: `${config.name}-api-db`,
+                PGUSER: "produto",
+                PGDATABASE: "produto",
+              }),
+        },
+        // pg_dump lê a senha do ambiente; uma URL no argv ficaria visível em /proc.
+        secret: [
+          ...backupSecrets,
+          ...(config.database === "postgres"
+            ? ["PGPASSWORD:POSTGRES_PASSWORD"]
+            : []),
+        ],
+      },
+      // Sem :ro: o SQLite em WAL precisa escrever o -shm para abrir o banco.
+      ...(config.database === "sqlite"
+        ? { volumes: [`${config.name}-sqlite:/app/data`] }
+        : {}),
+    };
+    doc.accessories = accessories;
+  }
   return Bun.YAML.stringify(doc, null, 2);
 }
 
@@ -237,6 +282,7 @@ export async function deploy(
       );
       if (config.database === "postgres" && config.apps.api)
         names.add("POSTGRES_PASSWORD");
+      if (config.apps.api) for (const name of backupSecrets) names.add(name);
       const values: Record<string, string> = {};
       if (names.size) {
         const result = await runner(["bws", "secret", "list"], env, directory);
@@ -256,17 +302,20 @@ export async function deploy(
         } catch {
           throw new Error("Resposta inválida do BWS.");
         }
+        const keys = backupSecretKeys(config.name);
         for (const name of names) {
-          const matches = found.filter(
-            (item) => item.key === `${config.name}__${name}`,
-          );
+          const key = keys[name] ?? `${config.name}__${name}`;
+          const matches = found.filter((item) => item.key === key);
           if (matches.length !== 1 || typeof matches[0].value !== "string")
-            throw new Error(
-              `Secret ${config.name}__${name} ausente ou duplicado no BWS.`,
-            );
+            throw new Error(`Secret ${key} ausente ou duplicado no BWS.`);
           values[name] = matches[0].value;
         }
       }
+      if (
+        values.AGE_PUBLIC_KEY !== undefined &&
+        !/^age1[0-9a-z]+$/.test(values.AGE_PUBLIC_KEY)
+      )
+        throw new Error("Chave pública age inválida no BWS.");
       if (config.database === "postgres" && config.apps.api)
         values.DATABASE_URL = `postgres://produto:${encodeURIComponent(values.POSTGRES_PASSWORD)}@${config.name}-api-db:5432/produto`;
       if (skipBuild) {
@@ -327,5 +376,55 @@ export async function deploy(
     env.DANGUS_BUILD_CONTEXT || ".",
     proxyBindIps(env.DANGUS_PROXY_BIND_IPS),
     resolver,
+  );
+}
+
+export async function backupNow(
+  config: ResolvedProductConfig,
+  directory: string,
+  runner: Runner = run,
+  env: Record<string, string | undefined> = process.env,
+): Promise<void> {
+  if (!config.apps.api) throw new Error("Backup exige uma App API.");
+  if (!env.SSH_AUTH_SOCK) throw new Error("SSH_AUTH_SOCK é obrigatório.");
+  await withRendered(
+    config,
+    env.DANGUS_HOST || DEFAULT_HOST,
+    async (dir) => {
+      const result = await runner(
+        [
+          "docker",
+          "run",
+          "--rm",
+          "--network",
+          "host",
+          "-v",
+          `${join(dir, "api")}:/dangus:ro`,
+          ...(env.DANGUS_SSH_KNOWN_HOSTS
+            ? ["-v", `${env.DANGUS_SSH_KNOWN_HOSTS}:/root/.ssh/known_hosts:ro`]
+            : []),
+          "-v",
+          `${env.SSH_AUTH_SOCK}:/ssh-agent`,
+          "-e",
+          "SSH_AUTH_SOCK=/ssh-agent",
+          "-e",
+          "KAMAL_REGISTRY_USERNAME",
+          KAMAL_IMAGE,
+          "accessory",
+          "exec",
+          "backup",
+          "--reuse",
+          "--config-file",
+          "/dangus/deploy.yml",
+          "/usr/local/bin/backup.sh",
+        ],
+        env,
+        directory,
+        true,
+      );
+      if (result.code !== 0) throw new Error("Falha no Backup.");
+    },
+    env.DANGUS_BUILD_CONTEXT || ".",
+    proxyBindIps(env.DANGUS_PROXY_BIND_IPS),
   );
 }

@@ -1,0 +1,23 @@
+name: Imagem de Backup
+on:
+  push:
+    branches: [main, chore/v1.0.0]
+    paths: [infra/backup/image/**]
+permissions:
+  contents: read
+  packages: write
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Publicar imagem
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker build -t ghcr.io/dangus-box/backup:1.0.0 infra/backup/image
+          docker push ghcr.io/dangus-box/backup:1.0.0

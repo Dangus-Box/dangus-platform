@@ -139,3 +139,57 @@ accessories:
     options:
       memory: 128m
       cpus: 0.1
+
+  backup-umami:
+    image: ghcr.io/dangus-box/backup:1.0.0
+    host: devbox-1
+    env:
+      clear:
+        BACKUP_PRODUCT: ops
+        BACKUP_DATABASE: umami
+        BACKUP_TYPE: postgres
+        PGHOST: dangus-ops-umami-db
+        PGUSER: umami
+        PGDATABASE: umami
+      secret:
+        - R2_ENDPOINT
+        - R2_ACCESS_KEY_ID
+        - R2_SECRET_ACCESS_KEY
+        - HEALTHCHECKS_URL
+        - AGE_PUBLIC_KEY
+        - PGPASSWORD:UMAMI_DB_PASSWORD
+  backup-unleash:
+    image: ghcr.io/dangus-box/backup:1.0.0
+    host: devbox-1
+    env:
+      clear:
+        BACKUP_PRODUCT: ops
+        BACKUP_DATABASE: unleash
+        BACKUP_TYPE: postgres
+        PGHOST: dangus-ops-unleash-db
+        PGUSER: unleash
+        PGDATABASE: unleash
+      secret:
+        - R2_ENDPOINT
+        - R2_ACCESS_KEY_ID
+        - R2_SECRET_ACCESS_KEY
+        - HEALTHCHECKS_URL
+        - AGE_PUBLIC_KEY
+        - PGPASSWORD:UNLEASH_DB_PASSWORD
+  backup-grafana:
+    image: ghcr.io/dangus-box/backup:1.0.0
+    host: devbox-1
+    env:
+      clear:
+        BACKUP_PRODUCT: ops
+        BACKUP_DATABASE: grafana
+        BACKUP_TYPE: sqlite
+        SQLITE_PATH: /var/lib/grafana/grafana.db
+      secret:
+        - R2_ENDPOINT
+        - R2_ACCESS_KEY_ID
+        - R2_SECRET_ACCESS_KEY
+        - HEALTHCHECKS_URL
+        - AGE_PUBLIC_KEY
+    volumes:
+      - dangus-ops-grafana:/var/lib/grafana:ro
