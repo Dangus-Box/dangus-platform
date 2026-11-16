@@ -92,3 +92,40 @@ test("analytics envia evento ao Umami configurado", async () => {
     server.stop(true);
   }
 });
+
+test("Unleash lento não bloqueia o boot e Flags retornam padrões", async () => {
+  const server = Bun.serve({ port: 0, fetch: () => new Promise(() => {}) });
+  try {
+    process.env.UNLEASH_TOKEN = "token-local";
+    process.env.UNLEASH_URL = `${server.url}api`;
+    const start = Date.now();
+    await configureFlags("teste");
+    expect(Date.now() - start).toBeLessThan(5000);
+    expect(await OpenFeature.getClient().getBooleanValue("ativa", true)).toBe(
+      true,
+    );
+  } finally {
+    await OpenFeature.close();
+    server.stop(true);
+  }
+}, 15000);
+
+test("Umami lento, fora do ar ou com erro não rejeita nem bloqueia", async () => {
+  const slow = Bun.serve({ port: 0, fetch: () => new Promise(() => {}) });
+  const failing = Bun.serve({
+    port: 0,
+    fetch: () => new Response("erro", { status: 500 }),
+  });
+  try {
+    process.env.UMAMI_WEBSITE_ID = "website-local";
+    for (const url of [slow.url, failing.url, "http://127.0.0.1:1"]) {
+      process.env.UMAMI_URL = url.toString();
+      const start = Date.now();
+      await trackEvent({ name: "evento", hostname: "teste.local", url: "/" });
+      expect(Date.now() - start).toBeLessThan(5000);
+    }
+  } finally {
+    slow.stop(true);
+    failing.stop(true);
+  }
+}, 20000);
