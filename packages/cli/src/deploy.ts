@@ -287,7 +287,7 @@ export async function deploy(
       );
       if (config.database === "postgres" && config.apps.api)
         names.add("POSTGRES_PASSWORD");
-      if (config.apps.api) backupSecrets.forEach((name) => names.add(name));
+      if (config.apps.api) for (const name of backupSecrets) names.add(name);
       const values: Record<string, string> = {};
       if (names.size) {
         const result = await runner(["bws", "secret", "list"], env, directory);
@@ -386,5 +386,55 @@ export async function deploy(
     env.DANGUS_BUILD_CONTEXT || ".",
     proxyBindIps(env.DANGUS_PROXY_BIND_IPS),
     resolver,
+  );
+}
+
+export async function backupNow(
+  config: ResolvedProductConfig,
+  directory: string,
+  runner: Runner = run,
+  env: Record<string, string | undefined> = process.env,
+): Promise<void> {
+  if (!config.apps.api) throw new Error("Backup exige uma App API.");
+  if (!env.SSH_AUTH_SOCK) throw new Error("SSH_AUTH_SOCK é obrigatório.");
+  await withRendered(
+    config,
+    env.DANGUS_HOST || DEFAULT_HOST,
+    async (dir) => {
+      const result = await runner(
+        [
+          "docker",
+          "run",
+          "--rm",
+          "--network",
+          "host",
+          "-v",
+          `${join(dir, "api")}:/dangus:ro`,
+          ...(env.DANGUS_SSH_KNOWN_HOSTS
+            ? ["-v", `${env.DANGUS_SSH_KNOWN_HOSTS}:/root/.ssh/known_hosts:ro`]
+            : []),
+          "-v",
+          `${env.SSH_AUTH_SOCK}:/ssh-agent`,
+          "-e",
+          "SSH_AUTH_SOCK=/ssh-agent",
+          "-e",
+          "KAMAL_REGISTRY_USERNAME",
+          KAMAL_IMAGE,
+          "accessory",
+          "exec",
+          "backup",
+          "--reuse",
+          "--config-file",
+          "/dangus/deploy.yml",
+          "/usr/local/bin/backup.sh",
+        ],
+        env,
+        directory,
+        true,
+      );
+      if (result.code !== 0) throw new Error("Falha no Backup.");
+    },
+    env.DANGUS_BUILD_CONTEXT || ".",
+    proxyBindIps(env.DANGUS_PROXY_BIND_IPS),
   );
 }
