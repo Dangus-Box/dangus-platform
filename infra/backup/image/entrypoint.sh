@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 umask 077
+if [[ -z ${DATABASE_URL:-} ]]; then
+  case "${BACKUP_DATABASE:-}" in
+    umami) export DATABASE_URL="${UMAMI_BACKUP_DATABASE_URL:-}" ;;
+    unleash) export DATABASE_URL="${UNLEASH_BACKUP_DATABASE_URL:-}" ;;
+  esac
+fi
 : > /etc/backup-env
 for name in BACKUP_PRODUCT BACKUP_DATABASE BACKUP_TYPE DATABASE_URL SQLITE_PATH AGE_PUBLIC_KEY R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY HEALTHCHECKS_URL; do
   printf 'export %s=%q\n' "$name" "${!name-}" >> /etc/backup-env
