@@ -13,4 +13,13 @@
     "react": ">=19.0.0"
   },
   "main": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "!src/**/*.test.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": "./src/index.ts"
 }
