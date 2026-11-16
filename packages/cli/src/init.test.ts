@@ -72,7 +72,9 @@ test("detecta Apps e banco, gera arquivos e preserva edições com --yes", async
     "Apps: api, web, mobile; Banco do Produto: sqlite",
   );
   expect(first.output).toContain("observacao.markReady()");
-  expect(first.output).toContain(`await configureFlags("${basename(root).toLowerCase()}")`);
+  expect(first.output).toContain(
+    `await configureFlags("${basename(root).toLowerCase()}")`,
+  );
   expect(first.output).toContain(`appName="${basename(root).toLowerCase()}"`);
   expect(await read("dangus.config.ts")).toContain(
     '"EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN"',

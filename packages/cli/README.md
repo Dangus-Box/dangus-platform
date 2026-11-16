@@ -20,6 +20,12 @@ Para exercitar o provisionamento localmente, execute `packages/cli/test/bootstra
 
 # Config do Produto
 
+Depois de `dangus init`, revise os domínios da Config do Produto e execute `dangus register` na raiz do Produto. O comando verifica primeiro se o Tailscale está conectado e usa o sufixo MagicDNS da tailnet para acessar o Unleash admin. Ele cria ou reconhece os cadastros do Produto no Umami, Unleash, Healthchecks.io e Cloudflare, grava os secrets no projeto `prod` do BWS e acrescenta as URLs públicas ao KV do Worker de uptime. Uma nova execução não altera cadastros já corretos; divergências ou duplicatas interrompem o comando para revisão.
+
+No Unleash OSS, os tokens `<produto>-backend` e `<produto>-frontend` são individuais e pertencem ao projeto compartilhado `default`, no Ambiente `production`. O prefixo das Flags e suas constraints de `appName` seguem a convenção descrita em `infra/ops/README.md`; essa convenção não impede um Produto de acessar dados de outro.
+
+Instale `tailscale` e `bws`, conecte o Tailscale e use `BWS_ACCESS_TOKEN` de uma conta `operator` com leitura no projeto `ops` e escrita em `prod`. O projeto `ops` deve conter `ops__UMAMI_ADMIN_PASSWORD`, `ops__UNLEASH_ADMIN_PASSWORD`, `platform__HEALTHCHECKS_API_KEY` com escrita, `platform__CLOUDFLARE_DNS_TOKEN`, `platform__CLOUDFLARE_ZONE_ID`, `platform__CLOUDFLARE_ACCOUNT_ID` e `platform__CLOUDFLARE_R2_TOKEN` com permissão de edição do Workers KV. Configure previamente a integração Telegram no projeto do Healthchecks.io. Os IPs A e AAAA vêm do DNS de `analytics.dangus-box.com`; os domínios das Apps precisam pertencer à zona informada. O BWS CLI recebe valores nos argumentos ao criar secrets; execute em uma máquina confiável sem outros usuários locais. Se um token for criado no Unleash e a gravação no BWS falhar, revise o cadastro antes de tentar novamente.
+
 Crie `dangus.config.ts` na raiz do repositório do Produto:
 
 ```ts
