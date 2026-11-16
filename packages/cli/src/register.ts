@@ -145,7 +145,15 @@ async function unleashLogin(
   const cookie = response.headers.get("set-cookie")?.split(";")[0];
   if (!response.ok || !cookie)
     throw new Error("Falha ao autenticar no Unleash.");
-  return { cookie, "content-type": "application/json" };
+  // O Unleash responde ao login antes de persistir a sessão.
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const user = await request(`${base}/api/admin/user`, {
+      headers: { cookie },
+    });
+    if (user.ok) return { cookie, "content-type": "application/json" };
+    await Bun.sleep(250);
+  }
+  throw new Error("Falha ao autenticar no Unleash.");
 }
 
 export async function register(root: string, deps: Dependencies = {}) {
