@@ -1,3 +1,6 @@
+import { OpenFeature } from "../../../packages/server/node_modules/@openfeature/server-sdk";
+import { configureFlags } from "../../../packages/server/src/index";
+
 const required = (name: string) => {
   const value = process.env[name];
   if (!value) throw new Error(`${name} ausente`);
@@ -76,3 +79,26 @@ for (const path of [
   if (response.ok) throw new Error(`Admin respondeu no Edge: ${path}`);
 }
 console.log("Admin API e UI indisponíveis no Edge OK");
+process.env.UNLEASH_TOKEN = required("UNLEASH_BACKEND_TOKEN");
+process.env.UNLEASH_URL = `${server}/api`;
+await configureFlags("teste");
+const flags = OpenFeature.getClient();
+async function waitFlag(expected: boolean) {
+  for (let i = 0; i < 40; i++) {
+    if ((await flags.getBooleanValue("teste-issue-14", !expected)) === expected)
+      return;
+    await Bun.sleep(1000);
+  }
+  throw new Error(
+    `Flag ${expected ? "ligada" : "desligada"} não vista pelo OpenFeature`,
+  );
+}
+await waitFlag(true);
+const disabled = await fetch(
+  `${server}/api/admin/projects/default/features/teste-issue-14/environments/production/off`,
+  { method: "POST", headers: admin },
+);
+if (!disabled.ok) throw new Error(`Desativar Flag: ${disabled.status}`);
+await waitFlag(false);
+await OpenFeature.close();
+console.log("Flag ligada e desligada vista pelo OpenFeature OK");

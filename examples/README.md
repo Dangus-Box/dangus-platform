@@ -21,4 +21,6 @@ A API usa a porta 3000 por padrão; ajuste-a com `PORT=3001 bun dev`. Para inici
 
 Cada variante instala `@dangus-box/server` diretamente de `../../packages/server` por uma dependência `file:`, pois está fora do workspace raiz. Execute `bun install` na raiz antes da instalação da variante. A API expõe `/health`, `/ready` e `/metrics`; as migrations rodam no boot antes de a API aceitar requisições e de a readiness ser marcada.
 
+A Config do Produto SQLite declara `UNLEASH_TOKEN` e `UMAMI_WEBSITE_ID` como secrets da API. Para deploy, cadastre `exemplo-sqlite__UNLEASH_TOKEN` (token backend) e `exemplo-sqlite__UMAMI_WEBSITE_ID` no BWS. Localmente, sem essas variáveis, Flags usam valores padrão e analytics não envia eventos.
+
 No exemplo SQLite, a App mobile usa `@dangus-box/native`. Para ativar analytics e Flags, declare no BWS `exemplo-sqlite__EXPO_PUBLIC_UMAMI_WEBSITE_ID` e `exemplo-sqlite__EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN`, ou exporte as variáveis `EXPO_PUBLIC_*` antes de iniciar o Expo localmente. O botão envia o evento `exemplo-mobile`; a Flag `versao-minima` controla a mensagem de atualização. Consulte `packages/native/README.md` para o formato do payload e a configuração do OpenFeature.

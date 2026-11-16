@@ -24,7 +24,7 @@ O Umami atende em `https://analytics.dangus-box.com` pelo kamal-proxy. Seu Postg
 
 No projeto `ops` do BWS, preencha `ops__UMAMI_APP_SECRET`, `ops__UMAMI_DB_PASSWORD` e `ops__UMAMI_ADMIN_PASSWORD`, além da senha do Grafana. O deploy valida os secrets e substitui a senha inicial do administrador; não use `umami` como senha. Após o primeiro deploy, a senha no BWS deve continuar igual à senha no Umami. Para trocar a senha, atualize-a no painel e no BWS antes do próximo deploy. O script do tracker é `/t.js` e a coleta é `/api/e`; as issues #19 e #20 servirão esses caminhos pelo domínio de cada Produto.
 
-Para verificar localmente, execute `UMAMI_ADMIN_PASSWORD=<senha-de-teste> infra/ops/test/umami-e2e.sh`. O teste cria uma rede e um banco descartáveis e verifica login, tracker e evento pela API. HTTPS e kamal-proxy precisam ser verificados no Host após o deploy.
+Para verificar localmente, execute `UMAMI_ADMIN_PASSWORD=<senha-de-teste> infra/ops/test/umami-e2e.sh`. O teste cria uma rede e um banco descartáveis e verifica login, tracker, evento pela API e evento enviado por `trackEvent` do `@dangus-box/server`. HTTPS e kamal-proxy precisam ser verificados no Host após o deploy.
 
 ## Flags
 
@@ -40,7 +40,7 @@ tailscale serve --service=svc:flags-admin --https=443 http://127.0.0.1:4242
 
 Acesse o painel pela URL HTTPS do serviço na tailnet. Apps de servidor na rede Docker acessam `http://dangus-ops-unleash:4242/api` com token backend; frontend e mobile usam o Edge com token frontend.
 
-Para verificar localmente, execute `infra/ops/test/unleash-e2e.sh`. O teste usa credenciais descartáveis, sobe os containers com os limites configurados e remove a rede e os containers ao terminar. HTTPS e kamal-proxy precisam ser verificados no Host após o deploy.
+Para verificar localmente, execute `infra/ops/test/unleash-e2e.sh`. O teste usa credenciais descartáveis, confere que uma Flag ligada e desligada é vista pelo OpenFeature com `configureFlags` do `@dangus-box/server`, sobe os containers com os limites configurados e remove a rede e os containers ao terminar. HTTPS e kamal-proxy precisam ser verificados no Host após o deploy.
 
 ## Alertas
 
