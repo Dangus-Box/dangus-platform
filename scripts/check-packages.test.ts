@@ -2,7 +2,13 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkPackage } from "./check-packages";
+import { checkContent, checkPackage } from "./check-packages";
+
+test("aceita loopback e 0.0.0.0, mas rejeita outros IPv4", () => {
+  expect(checkContent("listen 127.0.0.1:12345 e 0.0.0.0")).toBe(false);
+  expect(checkContent("127.0.0.1 e 198.51.100.7")).toBe(true);
+  expect(checkContent("10.0.0.1")).toBe(true);
+});
 
 test("verifica o conteúdo empacotado e rejeita valores proibidos", async () => {
   const dir = await mkdtemp(join(tmpdir(), "dangus-test-"));
