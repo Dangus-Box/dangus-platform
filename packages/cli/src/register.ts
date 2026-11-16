@@ -246,33 +246,30 @@ async function registerProduct(
           secret: string;
         }
       | undefined;
-    const existing = vault.prod(key(secretName));
-    let value: string;
-    if (token) {
-      if (
-        token.type !== type ||
+    if (
+      token &&
+      (token.type !== type ||
         token.environment !== "production" ||
         token.projects.length !== 1 ||
-        token.projects[0] !== "default" ||
-        !existing ||
-        token.secret !== existing
-      )
-        throw new Error(`Token ${tokenName} divergente ou ausente no BWS.`);
-      value = existing;
-    } else {
-      if (existing) throw new Error(`Token ${tokenName} ausente no Unleash.`);
-      const created = await api(request, unleash, "/api/admin/api-tokens", {
-        ...json({
-          tokenName,
-          type,
-          environment: "production",
-          projects: ["default"],
-        }),
-        headers: uh,
-      });
-      value = created.secret;
-      await save(secretName, value);
-    }
+        token.projects[0] !== "default")
+    )
+      throw new Error(`Token ${tokenName} diverge da configuração esperada.`);
+    if (!token && vault.prod(key(secretName)))
+      throw new Error(`Token ${tokenName} ausente no Unleash.`);
+    const value =
+      token?.secret ??
+      (
+        await api(request, unleash, "/api/admin/api-tokens", {
+          ...json({
+            tokenName,
+            type,
+            environment: "production",
+            projects: ["default"],
+          }),
+          headers: uh,
+        })
+      ).secret;
+    await save(secretName, value);
     if (type === "frontend" && config.apps.mobile)
       await save("EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN", value);
   }
