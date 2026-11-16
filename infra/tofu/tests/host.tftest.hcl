@@ -11,10 +11,11 @@ mock_provider "hostinger" {
 mock_provider "cloudflare" {}
 
 variables {
-  state_passphrase = "frase-de-teste-sem-segredo"
-  data_center_id   = 42
-  template_id      = 1002
-  ssh_public_key   = "ssh-ed25519 exemplo"
+  cloudflare_account_id = "conta-teste"
+  state_passphrase      = "frase-de-teste-sem-segredo"
+  data_center_id        = 42
+  template_id           = 1002
+  ssh_public_key        = "ssh-ed25519 exemplo"
 }
 
 run "host_no_brasil" {
