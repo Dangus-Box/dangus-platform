@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
+# Uso: bootstrap-container.sh [docker-ce]
+# Com docker-ce, o container imita um Host existente: Docker do repositório oficial
+# e ufw ativo com uma regra que não é do provisionamento.
 set -euo pipefail
+scenario=${1:-}
 root=$(cd "$(dirname "$0")/../../.." && pwd)
 name="dangus-bootstrap-test-$$"
-trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+errlog=$(mktemp)
+trap 'docker rm -f "$name" >/dev/null 2>&1 || true; rm -f "$errlog"' EXIT
 docker build -t dangus-bootstrap-test -f "$root/packages/cli/test/Dockerfile" "$root/packages/cli/test"
 docker run -d --privileged --name "$name" --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw dangus-bootstrap-test >/dev/null
 docker exec "$name" sh -c 'mkdir -p /etc/docker; printf "%s\n" '\''{"storage-driver":"vfs","features":{"containerd-snapshotter":false}}'\'' > /etc/docker/daemon.json'
@@ -11,7 +16,28 @@ run() {
   docker exec -i -e DANGUS_TEST_SKIP_TAILSCALE_JOIN=1 "$name" bash -s \
     < <(printf "DANGUS_TAILSCALE_AUTH_KEY='tskey-auth-teste'\n"; cat "$root/packages/cli/src/bootstrap.sh")
 }
-run
+if [[ $scenario == docker-ce ]]; then
+  docker exec "$name" bash -euc '
+    apt-get update
+    apt-get install -y ca-certificates curl ufw
+    install -d -m 755 /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    echo "deb [signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    ufw allow 8080/tcp
+    ufw --force enable'
+fi
+run 2>"$errlog"
+cat "$errlog" >&2
+if [[ $scenario == docker-ce ]]; then
+  # O Docker existente é mantido e as regras descartadas do ufw aparecem antes do reset.
+  docker exec "$name" dpkg-query -W -f='${db:Status-Status}\n' docker-ce containerd.io | grep -cx installed | grep -qx 2
+  if docker exec "$name" dpkg-query -W -f='${db:Status-Status}' docker.io 2>/dev/null | grep -qx installed; then
+    echo 'docker.io instalado sobre o docker-ce.' >&2; exit 1
+  fi
+  grep -Fqx 'ufw allow 8080/tcp' "$errlog"
+fi
 # Espere o Docker baixar e executar o Alloy antes da segunda execução.
 for _ in {1..180}; do
   if docker exec "$name" docker inspect -f '{{.State.Running}}' dangus-alloy 2>/dev/null | grep -qx true; then break; fi
@@ -27,7 +53,7 @@ for setting in 'passwordauthentication no' 'kbdinteractiveauthentication no' 'pu
 done
 printf '%s\n' "$ssh_config" | grep -E '^(passwordauthentication|kbdinteractiveauthentication|pubkeyauthentication|authenticationmethods) '
 ufw_status=$(docker exec "$name" ufw status verbose)
-for rule in 'Status: active' 'Default: deny (incoming)' '80/tcp ' '443/tcp ' '22/tcp on tailscale0' '80/tcp (v6)' '443/tcp (v6)' '22/tcp (v6) on tailscale0'; do
+for rule in 'Status: active' 'Default: deny (incoming)' '80/tcp ' '443/tcp ' "Anywhere on tailscale0" '80/tcp (v6)' '443/tcp (v6)' 'Anywhere (v6) on tailscale0'; do
   grep -Fq "$rule" <<< "$ufw_status"
 done
 printf '%s\n' "$ufw_status"

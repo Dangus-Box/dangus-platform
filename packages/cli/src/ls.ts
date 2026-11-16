@@ -1,11 +1,11 @@
-import { type Runner, run } from "./deploy";
+import { DEFAULT_HOST, type Runner, run } from "./deploy";
 
 export async function listProducts(
   directory: string,
   runner: Runner = run,
   env: Record<string, string | undefined> = process.env,
 ): Promise<string> {
-  const host = env.DANGUS_HOST || "dangus-host";
+  const host = env.DANGUS_HOST || DEFAULT_HOST;
   if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(host))
     throw new Error("Host Tailscale inválido.");
   const result = await runner(

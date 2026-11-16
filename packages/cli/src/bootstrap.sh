@@ -37,11 +37,14 @@ if [[ $skip_join == 1 ]]; then
   systemd-detect-virt --quiet --container || { echo 'DANGUS_TEST_SKIP_TAILSCALE_JOIN só é aceito em container de teste.' >&2; exit 1; }
   echo 'Aviso: entrada na tailnet ignorada (teste).' >&2
 fi
-packages=(openssh-server fail2ban unattended-upgrades ufw docker.io curl ca-certificates)
+packages=(openssh-server fail2ban unattended-upgrades ufw curl ca-certificates)
 missing=()
 for package in "${packages[@]}"; do
   dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null | grep -qx installed || missing+=("$package")
 done
+# Um Docker já instalado (por exemplo, docker-ce do repositório oficial) é mantido:
+# instalar docker.io por cima removeria o docker-ce e o containerd.io.
+if ! command -v docker >/dev/null || ! command -v dockerd >/dev/null; then missing+=(docker.io); fi
 if ((${#missing[@]})); then
   apt-get update
   apt-get install -y "${missing[@]}"
@@ -97,12 +100,15 @@ apply_pending restart fail2ban.service
 service_on fail2ban.service
 service_on unattended-upgrades.service
 service_on docker.service
-expected=$'Added user rules (see \'ufw status\' for running firewall):\nufw allow 80/tcp\nufw allow 443/tcp\nufw allow in on tailscale0 to any port 22 proto tcp'
-if [[ $(ufw show added) != "$expected" ]]; then
+rules=$'ufw allow 80/tcp\nufw allow 443/tcp\nufw allow in on tailscale0'
+added=$(ufw show added)
+if [[ $added != "Added user rules (see 'ufw status' for running firewall):"$'\n'"$rules" ]]; then
+  discarded=$(tail -n +2 <<< "$added" | grep -vxF -e '(None)' -f <(printf '%s\n' "$rules") || true)
+  if [[ -n $discarded ]]; then printf 'Regras do ufw descartadas pelo reset:\n%s\n' "$discarded" >&2; fi
   ufw --force reset
   ufw allow 80/tcp
   ufw allow 443/tcp
-  ufw allow in on tailscale0 to any port 22 proto tcp
+  ufw allow in on tailscale0
   mark
 fi
 if ! grep -q '^DEFAULT_INPUT_POLICY="DROP"' /etc/default/ufw; then ufw default deny incoming; mark; fi

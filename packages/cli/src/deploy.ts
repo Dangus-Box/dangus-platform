@@ -5,6 +5,8 @@ import type { ResolvedProductConfig } from "./config";
 
 export const KAMAL_IMAGE =
   "ghcr.io/basecamp/kamal:v2.12.0@sha256:7a3893b47dd328955f86fbf9ba887d08d612b74f96867f077750a53312537625";
+// Nome do Host na tailnet; DANGUS_HOST substitui.
+export const DEFAULT_HOST = "devbox-1";
 type App = "api" | "web";
 export type Runner = (
   args: string[],
@@ -44,7 +46,7 @@ function kamalSecrets(config: ResolvedProductConfig, app: App): string[] {
 export function render(
   config: ResolvedProductConfig,
   app: App,
-  host = "dangus-host",
+  host = DEFAULT_HOST,
   buildContext = ".",
 ): string {
   const settings = config.apps[app];
@@ -146,7 +148,7 @@ export async function deploy(
 ): Promise<void> {
   await withRendered(
     config,
-    env.DANGUS_HOST || "dangus-host",
+    env.DANGUS_HOST || DEFAULT_HOST,
     async (dir, apps) => {
       if (!env.SSH_AUTH_SOCK) throw new Error("SSH_AUTH_SOCK é obrigatório.");
       const git = await runner(
