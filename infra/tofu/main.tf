@@ -52,6 +52,7 @@ resource "hostinger_vps_ssh_key" "host" {
   key  = var.ssh_public_key
 }
 
+# O Host já existe e entra no state por `tofu import` (ver README).
 resource "hostinger_vps" "host" {
   plan           = "hostingercom-vps-kvm4-usd-1m"
   data_center_id = var.data_center_id
@@ -59,6 +60,12 @@ resource "hostinger_vps" "host" {
   ssh_key_ids    = [hostinger_vps_ssh_key.host.id]
 
   lifecycle {
+    # Destruir cancela a assinatura do Host.
+    prevent_destroy = true
+    # Mudar plano, datacenter ou senha força a recriação do Host, e mudar o
+    # template (ou o script de pós-instalação usado junto) reinstala o sistema.
+    ignore_changes = [plan, data_center_id, password, template_id, post_install_script_id]
+
     precondition {
       condition = anytrue([
         for dc in data.hostinger_vps_data_centers.available.data_centers :
