@@ -4,10 +4,9 @@ servers:
   web:
     hosts:
       - devbox-1
+# Sem imagem própria: registry local para o Kamal não fazer login no Host.
 registry:
-  username: unused
-  password:
-    - KAMAL_REGISTRY_PASSWORD
+  server: localhost:5555
 secrets_path: .kamal/secrets
 builder:
   arch: amd64
