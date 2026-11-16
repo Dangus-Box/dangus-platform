@@ -89,8 +89,10 @@ fails postgres --target 'postgresql://postgres:testpass@pg/alvo' < /dev/null
 dangus postgres --target 'postgresql://postgres:testpass@pg/alvo' --yes >/dev/null
 [[ $(docker exec "$name-pg" psql -U postgres -d alvo -tAc 'SELECT texto FROM mensagens') == postgres ]]
 # Um segundo restore no mesmo destino falha inteiro, sem aplicar parte do dump.
-docker exec "$name-pg" psql -U postgres -d alvo -c "DROP TABLE mensagens; CREATE TABLE mensagens (id int)" >/dev/null
+# A sequência conflita depois do CREATE TABLE: sem transação única, a tabela ficaria criada.
+docker exec "$name-pg" psql -U postgres -d alvo -c "DROP TABLE mensagens; CREATE SEQUENCE mensagens_id_seq" >/dev/null
 fails postgres --target 'postgresql://postgres:testpass@pg/alvo' --yes
+[[ $(docker exec "$name-pg" psql -U postgres -d alvo -tAc "SELECT count(*) FROM pg_tables WHERE tablename = 'mensagens'") == 0 ]]
 echo 'Postgres: destino explícito exige confirmação e restaura atomicamente.'
 age-keygen() { docker run --rm --entrypoint age-keygen "$image" 2>/dev/null; }
 other=$(age-keygen | sed -n 's/^# public key: //p')
@@ -106,8 +108,9 @@ for key in wrongkey badsql truncated; do
   [[ $(tail -1 "$tmp/pings") == /check/fail ]]
 done
 echo 'Chave errada, SQL inválido e objeto truncado: falha e ping /fail confirmados.'
-fails postgres --from daily/exemplo-sqlite/produto/x.sqlite.gz.age --verify
-fails postgres --from daily/exemplo-postgres/produto/../../exemplo-sqlite/produto/x --verify
+for key in daily/exemplo-sqlite/produto/x.sqlite.gz.age daily/exemplo-postgres/produto/../../exemplo-sqlite/produto/x; do
+  { dangus postgres --from "$key" 2>&1 || true; } | grep -q 'fora do Produto'
+done
 echo '--from fora do Produto recusado.'
 printf 'corrompido' > "$tmp/corrupt"
 docker run --rm --network "$name" -v "$tmp:/data" --entrypoint sh "$minio" -c 'mc alias set local http://minio:9000 testaccess testsecret >/dev/null; mc cp /data/corrupt local/dangus-backups/daily/exemplo-sqlite/produto/corrupt.sqlite.gz.age >/dev/null'
