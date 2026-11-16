@@ -43,6 +43,7 @@ else process.exit(1);
   );
   await chmod(bws, 0o700);
   let connected = true;
+  let pendingSessions = 0;
   let calls = 0;
   let writes = 0;
   const commands: string[] = [];
@@ -105,7 +106,7 @@ else process.exit(1);
         return new Response(null, { status: 401 });
       if (
         path.startsWith("/unleash/") &&
-        req.headers.get("cookie") !== "session=ok"
+        (req.headers.get("cookie") !== "session=ok" || pendingSessions-- > 0)
       )
         return new Response(null, { status: 401 });
       if (
@@ -127,6 +128,7 @@ else process.exit(1);
         sites.push(site);
         return Response.json(site);
       }
+      if (path === "/unleash/api/admin/user") return Response.json({});
       if (path.startsWith("/unleash/api/admin/api-tokens/"))
         return Response.json({
           tokens: tokens.filter(
@@ -231,6 +233,9 @@ else process.exit(1);
     commands,
     disconnect() {
       connected = false;
+    },
+    delayUnleashSession(requests: number) {
+      pendingSessions = requests;
     },
     async bws() {
       return JSON.parse(await readFile(statePath, "utf8"));
@@ -376,6 +381,18 @@ test("CLI recusa Registro sem Tailscale antes de consultar BWS", async () => {
     expect(error).toContain("Tailscale desconectado");
     expect(f.calls).toBe(0);
     expect((await f.bws()).writes).toBe(0);
+  } finally {
+    f.server.stop(true);
+  }
+});
+
+test("aguarda a sessão do Unleash ficar válida após o login", async () => {
+  const f = await fixture();
+  try {
+    // Unleash 6.9.1 responde ao login antes de persistir a sessão.
+    f.delayUnleashSession(2);
+    await register(f.dir, f.deps);
+    expect(f.tokens).toHaveLength(2);
   } finally {
     f.server.stop(true);
   }
