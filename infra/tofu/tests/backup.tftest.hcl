@@ -19,6 +19,10 @@ run "backup" {
     error_message = "Os locks devem proteger cada prefixo pelo prazo previsto."
   }
   assert {
+    condition     = toset([for rule in cloudflare_r2_bucket_lock.backups.rules : rule.prefix]) == toset(["daily/", "weekly/", "monthly/"]) && toset([for rule in cloudflare_r2_bucket_lifecycle.backups.rules : rule.conditions.prefix]) == toset(["daily/", "weekly/", "monthly/"])
+    error_message = "Locks e lifecycle devem cobrir cada prefixo exatamente uma vez."
+  }
+  assert {
     condition     = length(cloudflare_r2_bucket_lifecycle.backups.rules) == 3 && alltrue([for rule in cloudflare_r2_bucket_lifecycle.backups.rules : rule.enabled && rule.delete_objects_transition.condition.type == "Age" && lookup({ "daily/" = 604800, "weekly/" = 2419200, "monthly/" = 7776000 }, rule.conditions.prefix, -1) == rule.delete_objects_transition.condition.max_age])
     error_message = "O lifecycle deve excluir cada prefixo após o prazo previsto."
   }
