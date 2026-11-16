@@ -58,7 +58,9 @@ resource "hostinger_vps" "host" {
     prevent_destroy = true
     # Mudar plano, datacenter ou senha força a recriação do Host, e mudar o
     # template (ou o script de pós-instalação usado junto) reinstala o sistema.
-    ignore_changes = [plan, data_center_id, password, template_id, post_install_script_id]
+    # ssh_key_ids: o apply parcial deixou o valor no state; removê-lo chamaria
+    # uma rota inexistente da Hostinger (404). O acesso SSH vem do bootstrap.
+    ignore_changes = [plan, data_center_id, password, template_id, post_install_script_id, ssh_key_ids]
 
     precondition {
       condition = anytrue([

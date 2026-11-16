@@ -1,6 +1,6 @@
 # Provisionamento do Host
 
-Esta configuração gerencia o Host já existente, um VPS Hostinger KVM 4 no Brasil,. O Host não é criado aqui: ele entra no state uma única vez por `tofu import`. A configuração impede destruí-lo (`prevent_destroy`), porque destruir cancela a assinatura. Ela também ignora mudanças em plano, datacenter, senha, template e script de pós-instalação: as três primeiras forçariam a recriação do Host, e as duas últimas reinstalariam o sistema. O state usa o bucket R2 dedicado `dangus-tofu-state`, com criptografia AES-GCM nativa do OpenTofu. O mesmo state também contém o bucket R2 de Backups, seus locks, lifecycle e token do Host.
+Esta configuração gerencia o Host já existente, um VPS Hostinger KVM 4 no Brasil. O Host não é criado aqui: ele entra no state uma única vez por `tofu import`. A configuração impede destruí-lo (`prevent_destroy`), porque destruir cancela a assinatura. Ela também ignora mudanças em plano, datacenter, senha, template e script de pós-instalação: as três primeiras forçariam a recriação do Host, e as duas últimas reinstalariam o sistema. O state usa o bucket R2 dedicado `dangus-tofu-state`, com criptografia AES-GCM nativa do OpenTofu. O mesmo state também contém o bucket R2 de Backups, seus locks, lifecycle e token do Host.
 
 ## Pré-requisitos
 

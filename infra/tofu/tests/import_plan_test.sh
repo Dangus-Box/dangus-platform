@@ -36,6 +36,16 @@ export TF_VAR_data_center_id=17
 export TF_VAR_template_id=9999
 
 tofu import hostinger_vps.host 777 >/dev/null
+# O apply parcial anterior deixou ssh_key_ids no state: o update falhou após o
+# provider já ter gravado o valor planejado. Sem ignore_changes, o plano tentaria removê-lo.
+tofu state pull | python3 -I -c '
+import json, sys
+s = json.load(sys.stdin); s["serial"] += 1
+for r in s["resources"]:
+    if r["type"] == "hostinger_vps":
+        r["instances"][0]["attributes"]["ssh_key_ids"] = [123]
+json.dump(s, sys.stdout)' > "$WORK/state.json"
+tofu state push "$WORK/state.json" >/dev/null
 tofu plan -out=plan.tfplan >/dev/null
 changes=$(tofu show -json plan.tfplan | python3 -I -c '
 import json, sys
