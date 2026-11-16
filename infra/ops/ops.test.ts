@@ -53,6 +53,7 @@ async function deploy(
     edgeRoute = route,
     failUnleashHealth = false,
     missingUnleash = "",
+    chatId = "1234",
   } = {},
 ) {
   if (secrets.some((s) => s.key === "ops__UMAMI_ADMIN_PASSWORD"))
@@ -70,7 +71,7 @@ async function deploy(
     );
   secrets.push(
     { key: "platform__TELEGRAM_BOT_TOKEN", value: "test-token" },
-    { key: "platform__TELEGRAM_CHAT_ID", value: "1234" },
+    { key: "platform__TELEGRAM_CHAT_ID", value: chatId },
   );
   const missing = secrets.find((s) => s.key === missingUnleash);
   if (missing) missing.value = "";
@@ -89,6 +90,7 @@ async function deploy(
   fake(
     "docker",
     `printf '%s\\n' "$@" >> ${bin}/args; env > ${bin}/env
+cp .alerts-generated.yml ${bin}/alerts 2>/dev/null
 case " $* " in
   *" accessory exec umami "*) ${failExec ? "exit 1" : ":"} ;;
   *" accessory stop ${pub}"*|*" accessory reboot ${pub}"*)
@@ -125,6 +127,7 @@ esac`,
     code,
     args: read("args"),
     env: read("env"),
+    alerts: read("alerts"),
     routed: existsSync(`${bin}/route`),
     edgeRouted: existsSync(`${bin}/edge-route`),
   };
@@ -304,3 +307,32 @@ for (const [name, state] of [
     expect(run.code).toBe(0);
     expect(run.edgeRouted).toBe(true);
   });
+
+test("deploy provisiona o Telegram sem gravar o token", async () => {
+  const run = await deploy(unleashSecrets());
+  expect(run.code).toBe(0);
+  expect(run.env).toContain("TELEGRAM_BOT_TOKEN=test-token");
+  expect(run.args).not.toContain("test-token");
+  expect(run.alerts).not.toContain("test-token");
+  expect(run.alerts).toContain("bottoken: $TELEGRAM_BOT_TOKEN");
+  expect(run.alerts).toContain('chatid: "1234"');
+  expect(existsSync(`${path}.alerts-generated.yml`)).toBe(false);
+});
+
+test("deploy recusa chat ID do Telegram inválido antes de chamar Docker", async () => {
+  const run = await deploy(unleashSecrets(), { chatId: '1"\nbottoken: x' });
+  expect(run.code).not.toBe(0);
+  expect(run.args).toBe("");
+});
+
+// O boot do Kamal pula container existente: sem recriar, o Grafana já no Host
+// não recebe o arquivo de alertas nem o TELEGRAM_BOT_TOKEN.
+test("redeploy recria o Grafana para aplicar os alertas", async () => {
+  const run = await deploy(unleashSecrets());
+  expect(run.code).toBe(0);
+  const remove = run.args.indexOf("accessory\nremove_container\ngrafana\n");
+  expect(remove).toBeGreaterThanOrEqual(0);
+  expect(run.args.indexOf("accessory\nboot\ngrafana\n")).toBeGreaterThan(
+    remove,
+  );
+});
