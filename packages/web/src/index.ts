@@ -8,7 +8,6 @@ export function Analytics({ websiteId }: { websiteId?: string }) {
         defer: true,
         src: "/t.js",
         "data-website-id": websiteId,
-        "data-host-url": "",
       })
     : null;
 }
