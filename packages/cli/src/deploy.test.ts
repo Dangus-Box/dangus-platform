@@ -7,6 +7,7 @@ import {
   KAMAL_IMAGE,
   type Runner,
   render,
+  resolveDomain,
   withRendered,
 } from "./deploy";
 
@@ -15,29 +16,40 @@ for (const variant of ["postgres", "sqlite"]) {
   test(`render da variante ${variant} corresponde aos arquivos de referência`, async () => {
     const product = join(root, "examples", variant);
     const config = await loadConfig(product);
-    await withRendered(config, "devbox-1", async (dir, apps) => {
-      expect(apps).toEqual(["api", "web"]);
-      for (const app of apps) {
-        for (const [source, suffix] of [
-          ["deploy.yml", "yml"],
-          [".kamal/secrets", "secrets"],
-        ]) {
-          expect(await readFile(join(dir, app, source), "utf8")).toBe(
-            await readFile(
-              join(
-                root,
-                "packages/cli/test/golden",
-                `${variant}-${app}.${suffix}`,
+    await withRendered(
+      config,
+      "devbox-1",
+      async (dir, apps) => {
+        expect(apps).toEqual(["api", "web"]);
+        for (const app of apps) {
+          for (const [source, suffix] of [
+            ["deploy.yml", "yml"],
+            [".kamal/secrets", "secrets"],
+          ]) {
+            expect(await readFile(join(dir, app, source), "utf8")).toBe(
+              await readFile(
+                join(
+                  root,
+                  "packages/cli/test/golden",
+                  `${variant}-${app}.${suffix}`,
+                ),
+                "utf8",
               ),
-              "utf8",
-            ),
-          );
+            );
+          }
         }
-      }
-    });
+      },
+      ".",
+      ["192.0.2.1", "2001:db8::1"],
+    );
     const cli = Bun.spawn(
       ["bun", join(root, "packages/cli/src/index.ts"), "render"],
-      { cwd: product, stdout: "pipe", stderr: "pipe" },
+      {
+        cwd: product,
+        env: { ...process.env, DANGUS_PROXY_BIND_IPS: "192.0.2.1,2001:db8::1" },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
     );
     const output = await new Response(cli.stdout).text();
     expect(await cli.exited).toBe(0);
@@ -94,6 +106,7 @@ test("deploy transmite secrets apenas pelo ambiente e usa comandos exatos", asyn
   };
   await deploy(config, "/produto", runner, {
     SSH_AUTH_SOCK: "/ssh-agent",
+    DANGUS_PROXY_BIND_IPS: "192.0.2.1",
     KAMAL_REGISTRY_USERNAME: "usuario",
     KAMAL_REGISTRY_PASSWORD: "registro-secreto",
   });
@@ -152,7 +165,10 @@ test("secret ausente interrompe deploy antes de chamar Docker", async () => {
     return { code: 0, stdout: args[0] === "git" ? "a".repeat(40) : "[]" };
   };
   await expect(
-    deploy(config, "/produto", runner, { SSH_AUTH_SOCK: "/ssh-agent" }),
+    deploy(config, "/produto", runner, {
+      SSH_AUTH_SOCK: "/ssh-agent",
+      DANGUS_PROXY_BIND_IPS: "192.0.2.1",
+    }),
   ).rejects.toThrow("produto__TOKEN");
   expect(calls).toEqual([
     ["git", "rev-parse", "--verify", "HEAD"],
@@ -165,7 +181,11 @@ test("DANGUS_HOST substitui o Host padrão devbox-1", async () => {
     ["bun", join(root, "packages/cli/src/index.ts"), "render"],
     {
       cwd: join(root, "examples/sqlite"),
-      env: { ...process.env, DANGUS_HOST: "outro-host" },
+      env: {
+        ...process.env,
+        DANGUS_HOST: "outro-host",
+        DANGUS_PROXY_BIND_IPS: "192.0.2.1",
+      },
       stdout: "pipe",
     },
   );
@@ -207,6 +227,7 @@ test("render usa recursos, timeout, Host e contexto informados, sem App mobile",
       expect(doc.volumes).toEqual(["produto-sqlite:/app/data"]);
     },
     "../..",
+    ["192.0.2.1"],
   );
 });
 
@@ -233,6 +254,7 @@ test("falha do Kamal remove a pasta temporária sem expor secrets", async () => 
   };
   const error = await deploy(config, "/produto", runner, {
     SSH_AUTH_SOCK: "/ssh-agent",
+    DANGUS_PROXY_BIND_IPS: "192.0.2.1",
   }).catch((caught: Error) => caught);
   expect(error).toBeInstanceOf(Error);
   expect(String(error)).not.toContain("secret");
@@ -253,7 +275,10 @@ test("Kamal mostra a saída do deploy no terminal", async () => {
     if (args[0] === "docker") streamed.push(stream === true);
     return { code: 0, stdout: args[0] === "git" ? "a".repeat(40) : "" };
   };
-  await deploy(config, "/produto", runner, { SSH_AUTH_SOCK: "/ssh-agent" });
+  await deploy(config, "/produto", runner, {
+    SSH_AUTH_SOCK: "/ssh-agent",
+    DANGUS_PROXY_BIND_IPS: "192.0.2.1",
+  });
   expect(streamed).toEqual([true]);
 });
 
@@ -264,7 +289,9 @@ test("Postgres fica só na rede interna, com labels e imagem fixada", async () =
     database: "postgres",
     deployTimeoutSeconds: 10,
   });
-  const doc = Bun.YAML.parse(render(config, "api")) as {
+  const doc = Bun.YAML.parse(
+    render(config, "api", undefined, undefined, ["192.0.2.1"]),
+  ) as {
     accessories: { db: Record<string, unknown> };
   };
   const db = doc.accessories.db;
@@ -281,23 +308,38 @@ test("render imprime YAML legível, um campo por linha", () => {
     database: "sqlite",
     deployTimeoutSeconds: 10,
   });
-  expect(render(config, "web")).toContain("\nproxy:\n");
+  expect(render(config, "web", undefined, undefined, ["192.0.2.1"])).toContain(
+    "\nproxy:\n",
+  );
 });
 
-test("render publica o proxy nos IPs públicos padrão do Host", () => {
+test("render usa os registros DNS do domínio de cada App", async () => {
   const config = validateConfig({
     name: "produto",
     apps: { web: { domain: "web.produto.com" } },
     database: "sqlite",
     deployTimeoutSeconds: 10,
   });
-  const doc = Bun.YAML.parse(render(config, "web")) as {
-    proxy: { run: { bind_ips: string[] } };
-  };
-  expect(doc.proxy.run.bind_ips).toEqual([
-    "179.198.100.144",
-    "2a02:4780:c6:bdc::1",
-  ]);
+  const domains: string[] = [];
+  await withRendered(
+    config,
+    "host",
+    async (dir) => {
+      const doc = Bun.YAML.parse(
+        await Bun.file(join(dir, "web/deploy.yml")).text(),
+      ) as {
+        proxy: { run: { bind_ips: string[] } };
+      };
+      expect(doc.proxy.run.bind_ips).toEqual(["192.0.2.1", "2001:db8::1"]);
+    },
+    ".",
+    undefined,
+    async (domain) => {
+      domains.push(domain);
+      return ["192.0.2.1", "2001:db8::1"];
+    },
+  );
+  expect(domains).toEqual(["web.produto.com"]);
 });
 
 test("DANGUS_PROXY_BIND_IPS substitui os IPs padrão no render", async () => {
@@ -316,7 +358,6 @@ test("DANGUS_PROXY_BIND_IPS substitui os IPs padrão no render", async () => {
   expect(await cli.exited).toBe(0);
   expect(output).toContain("- 192.0.2.1");
   expect(output).toContain("- 2001:db8::1");
-  expect(output).not.toContain("179.198.100.144");
 });
 
 test("DANGUS_PROXY_BIND_IPS inválido ou vazio interrompe o render", async () => {
@@ -361,4 +402,135 @@ test("deploy usa DANGUS_PROXY_BIND_IPS", async () => {
     DANGUS_PROXY_BIND_IPS: " 192.0.2.5 ",
   });
   expect(found).toBe(true);
+});
+
+test("DNS sem registros informa domínio e override", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: { web: { domain: "web.produto.com" } },
+    database: "sqlite",
+    deployTimeoutSeconds: 10,
+  });
+  await expect(
+    withRendered(
+      config,
+      "host",
+      async () => {},
+      ".",
+      undefined,
+      async () => [],
+    ),
+  ).rejects.toThrow(/web\.produto\.com.*DANGUS_PROXY_BIND_IPS/);
+});
+
+test("override dispensa consulta DNS", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: { web: { domain: "web.produto.com" } },
+    database: "sqlite",
+    deployTimeoutSeconds: 10,
+  });
+  await withRendered(
+    config,
+    "host",
+    async (dir) => {
+      const doc = Bun.YAML.parse(
+        await Bun.file(join(dir, "web/deploy.yml")).text(),
+      ) as {
+        proxy: { run: { bind_ips: string[] } };
+      };
+      expect(doc.proxy.run.bind_ips).toEqual(["192.0.2.5"]);
+    },
+    ".",
+    ["192.0.2.5"],
+    async () => {
+      throw new Error("DNS consultado");
+    },
+  );
+});
+
+const dnsError = (code: string) =>
+  Object.assign(new Error(`query ${code}`), { code });
+
+test("domínio só com A ou só com AAAA usa os registros existentes", async () => {
+  const onlyA = await resolveDomain("a.produto.com", [
+    async () => ["192.0.2.1"],
+    async () => {
+      throw dnsError("ENODATA");
+    },
+  ]);
+  const onlyAaaa = await resolveDomain("aaaa.produto.com", [
+    async () => {
+      throw dnsError("ENODATA");
+    },
+    async () => ["2001:db8::1"],
+  ]);
+  expect([onlyA, onlyAaaa]).toEqual([["192.0.2.1"], ["2001:db8::1"]]);
+});
+
+test("NXDOMAIN resulta em lista vazia e outras falhas de DNS propagam", async () => {
+  const nx = async () => {
+    throw dnsError("ENOTFOUND");
+  };
+  expect(await resolveDomain("x.produto.com", [nx, nx])).toEqual([]);
+  await expect(
+    resolveDomain("x.produto.com", [
+      async () => {
+        throw dnsError("ETIMEOUT");
+      },
+      nx,
+    ]),
+  ).rejects.toThrow("ETIMEOUT");
+});
+
+const twoApps = () =>
+  validateConfig({
+    name: "produto",
+    apps: {
+      api: { domain: "api.produto.com" },
+      web: { domain: "web.outro.com" },
+    },
+    database: "sqlite",
+    deployTimeoutSeconds: 10,
+  });
+
+test("Apps com IPs diferentes no DNS interrompem o render", async () => {
+  const ips: Record<string, string[]> = {
+    "api.produto.com": ["192.0.2.1"],
+    "web.outro.com": ["192.0.2.2"],
+  };
+  await expect(
+    withRendered(
+      twoApps(),
+      "host",
+      async () => {},
+      ".",
+      undefined,
+      async (domain) => ips[domain] ?? [],
+    ),
+  ).rejects.toThrow(
+    /api\.produto\.com.*web\.outro\.com.*DANGUS_PROXY_BIND_IPS/,
+  );
+});
+
+test("ordem dos registros DNS não altera o bind_ips", async () => {
+  const ips: Record<string, string[]> = {
+    "api.produto.com": ["2001:db8::1", "192.0.2.1"],
+    "web.outro.com": ["192.0.2.1", "2001:db8::1"],
+  };
+  await withRendered(
+    twoApps(),
+    "host",
+    async (dir, apps) => {
+      for (const app of apps) {
+        const doc = Bun.YAML.parse(
+          await Bun.file(join(dir, app, "deploy.yml")).text(),
+        ) as { proxy: { run: { bind_ips: string[] } } };
+        expect(doc.proxy.run.bind_ips).toEqual(["192.0.2.1", "2001:db8::1"]);
+      }
+    },
+    ".",
+    undefined,
+    async (domain) => ips[domain] ?? [],
+  );
 });
