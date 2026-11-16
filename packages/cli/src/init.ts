@@ -1,6 +1,7 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import { createInterface } from "node:readline/promises";
+import { createInterface } from "node:readline";
+import { version } from "../package.json";
 
 const apps = ["api", "web", "mobile"] as const;
 type App = (typeof apps)[number];
@@ -30,7 +31,10 @@ export async function init(root: string, yes: boolean) {
     throw new Error(
       "Nenhuma App encontrada em apps/api, apps/web ou apps/mobile.",
     );
-  const drizzle = await readFile(join(root, "drizzle.config.ts"), "utf8");
+  const drizzlePath = join(root, "drizzle.config.ts");
+  if (!(await exists(drizzlePath)))
+    throw new Error("drizzle.config.ts não encontrado na raiz do Produto.");
+  const drizzle = await readFile(drizzlePath, "utf8");
   const matches = [
     ...drizzle.matchAll(/\bdialect\s*:\s*["'](sqlite|postgresql)["']/g),
   ];
@@ -44,12 +48,14 @@ export async function init(root: string, yes: boolean) {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") || "produto";
-  const rl = yes
-    ? undefined
-    : createInterface({ input: process.stdin, output: process.stdout });
+  // O iterador guarda as linhas já lidas: respostas por pipe não se perdem.
+  const rl = yes ? undefined : createInterface({ input: process.stdin });
+  const answers = rl?.[Symbol.asyncIterator]();
   const confirm = async (question: string) => {
-    if (!rl) return false;
-    return /^(s|sim)$/i.test((await rl.question(`${question} [s/N] `)).trim());
+    if (!answers) return false;
+    process.stdout.write(`${question} [s/N] `);
+    const answer = await answers.next();
+    return !answer.done && /^(s|sim)$/i.test(answer.value.trim());
   };
   try {
     console.log(`Apps: ${found.join(", ")}; Banco do Produto: ${database}.`);
@@ -80,6 +86,12 @@ export async function init(root: string, yes: boolean) {
     for (const app of ["api", "web"] as const)
       if (found.includes(app))
         files.push([`apps/${app}/Dockerfile`, docker(app)]);
+    // O contexto do build é a raiz do Produto: segredos e dados locais ficam fora das imagens.
+    if (found.includes("api") || found.includes("web"))
+      files.push([
+        ".dockerignore",
+        ".git\n.dangus\n**/node_modules\n**/.env\n**/.env.*\n**/*.sqlite*\n",
+      ]);
     for (const [path, content] of files) {
       const target = join(root, path);
       if (await exists(target)) {
@@ -108,10 +120,10 @@ export async function init(root: string, yes: boolean) {
       console.log(".gitignore: .dangus/ incluído.");
     }
     const deps = [
-      "@dangus-box/cli@0.0.0",
+      `@dangus-box/cli@${version}`,
       ...found.map(
         (app) =>
-          `@dangus-box/${app === "api" ? "server" : app === "mobile" ? "native" : "web"}@0.0.0`,
+          `@dangus-box/${app === "api" ? "server" : app === "mobile" ? "native" : "web"}@${version}`,
       ),
       ...(found.includes("api") ? ["@openfeature/server-sdk@1.23.0"] : []),
     ];
