@@ -56,8 +56,12 @@ until_data() {
   echo "Sem dados para $query" >&2
   exit 1
 }
-until_data prometheus api/v1/query 'node_filesystem_avail_bytes{mountpoint="/"}' >/dev/null
-until_data prometheus api/v1/query 'node_filesystem_size_bytes{mountpoint="/"}' >/dev/null
+# A regra de disco precisa ver só o `/` do Host (Alloy lê /rootfs), não o overlay do container.
+disk_expr=$(grep -o "expr: '.*'" "$ops/provisioning/alerting/alerts.yml" | sed "s/^expr: '//;s/'$//")
+disk=$(until_data prometheus api/v1/query "$disk_expr" | bun -e 'const r=(await Bun.stdin.json()).data.result;if(r.length!==1){console.error(JSON.stringify(r));process.exit(1)}console.log(r[0].value[1])')
+host_disk=$(df -B1 --output=size,avail / | awk 'NR==2{print 100*(1-$2/$1)}')
+awk -v a="$disk" -v b="$host_disk" 'BEGIN{d=a-b; exit !(d<1 && d>-1)}' ||
+  { echo "Disco da regra ($disk%) difere do / do Host ($host_disk%)." >&2; exit 1; }
 until_data loki loki/api/v1/query_range "{product=\"$id\"}" >/dev/null
 until_data prometheus api/v1/query "http_server_requests_total{product=\"$id\"}" >/dev/null
 until_data prometheus api/v1/query "container_memory_working_set_bytes{product=\"$id\",name=\"$product\"}" >/dev/null
