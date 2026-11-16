@@ -35,4 +35,6 @@ labels:
   product: exemplo-sqlite
   app: web
 env:
-  secret: []
+  secret:
+    - UMAMI_WEBSITE_ID
+    - FLAGS_FRONTEND_TOKEN
