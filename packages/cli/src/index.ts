@@ -4,8 +4,10 @@ import { version } from "../package.json";
 import { bootstrap } from "./bootstrap";
 import { loadConfig } from "./config";
 import { DEFAULT_HOST, deploy, proxyBindIps, withRendered } from "./deploy";
+import { dev } from "./dev";
 import { doctor } from "./doctor";
 import { init } from "./init";
+import { listProducts } from "./ls";
 
 if (process.argv[2] === "--version" && process.argv.length === 3) {
   console.log(version);
@@ -63,6 +65,38 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
     process.exitCode = 1;
   }
 } else if (
+  (process.argv[2] === "dev" || process.argv[2] === "ls") &&
+  process.argv.length === 3
+) {
+  const controller = new AbortController();
+  try {
+    if (process.argv[2] === "dev") {
+      // Ctrl-C ou SIGTERM interrompem a App; aguardamos a limpeza do Postgres.
+      const onInterrupt = () => controller.abort();
+      process.on("SIGINT", onInterrupt);
+      process.on("SIGTERM", onInterrupt);
+      try {
+        await dev(
+          await loadConfig(),
+          process.cwd(),
+          undefined,
+          undefined,
+          controller.signal,
+        );
+      } finally {
+        process.off("SIGINT", onInterrupt);
+        process.off("SIGTERM", onInterrupt);
+      }
+    } else console.log(await listProducts(process.cwd()));
+  } catch (error) {
+    if (!controller.signal.aborted) {
+      console.error(
+        error instanceof Error ? error.message : "Falha no comando.",
+      );
+      process.exitCode = 1;
+    }
+  }
+} else if (
   process.argv[2] === "host" &&
   process.argv[3] === "bootstrap" &&
   process.argv.length === 5
@@ -77,7 +111,7 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
   }
 } else {
   console.error(
-    "Uso: dangus init [--yes] | doctor [--base <ref>] | render | deploy [--skip-build] | host bootstrap <host>",
+    "Uso: dangus init [--yes] | dev | ls | doctor [--base <ref>] | render | deploy [--skip-build] | host bootstrap <host>",
   );
   process.exitCode = 1;
 }
