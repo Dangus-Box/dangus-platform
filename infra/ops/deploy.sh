@@ -40,19 +40,22 @@ runner accessory exec umami-db --reuse --config-file deploy.yml "sh -c 'for i in
 private="/work/$(basename "$private_config")"
 # A config privada não tem proxy: o stop do Kamal não chama `kamal-proxy remove`,
 # que falha quando a rota não existe. A rota antiga aponta para o container removido.
-replace_umami() {
-  runner accessory stop umami --config-file "$private"
-  runner accessory remove_container umami --config-file "$private"
-  runner accessory boot umami --config-file "$1"
+# O boot do Kamal pula container existente; removê-lo garante a rota a cada deploy.
+replace() {
+  runner accessory stop "$1" --config-file "$private"
+  runner accessory remove_container "$1" --config-file "$private"
+  runner accessory boot "$1" --config-file "$2"
 }
-replace_umami "$private"
+replace umami "$private"
 program=$(base64 -w0 admin.js)
 runner accessory exec umami --reuse --config-file "$private" "node -e 'eval(Buffer.from(\"$program\",\"base64\").toString())'" ||
   { runner accessory stop umami --config-file "$private"; exit 1; }
 # O boot público executa `kamal-proxy deploy`, que cria ou substitui a rota.
-replace_umami deploy.yml
+replace umami deploy.yml
 
 POSTGRES_PASSWORD="$UNLEASH_DB_PASSWORD" runner accessory boot unleash-db --config-file deploy.yml
 runner accessory exec unleash-db --reuse --config-file deploy.yml "sh -c 'for i in \$(seq 1 120); do pg_isready -U unleash && exit 0; sleep 1; done; exit 1'"
 DATABASE_URL="$unleash_url" runner accessory boot unleash --config-file deploy.yml
-runner accessory boot unleash-edge --config-file deploy.yml
+# O Edge encerra se não valida TOKENS no Unleash server ao iniciar.
+runner accessory exec unleash --reuse --config-file deploy.yml "sh -c 'for i in \$(seq 1 300); do wget -qO /dev/null http://localhost:4242/health 2>/dev/null && exit 0; sleep 1; done; exit 1'"
+replace unleash-edge deploy.yml

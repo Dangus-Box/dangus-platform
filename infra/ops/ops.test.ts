@@ -272,6 +272,9 @@ const unleashSecrets = () => [
 test("deploy só sobe o Edge depois do Unleash server responder", async () => {
   const run = await deploy(unleashSecrets());
   expect(run.code).toBe(0);
+  for (const secret of ["dbpass", "adminpass", "development."])
+    expect(run.args).not.toContain(secret);
+  expect(run.env).toContain("TOKENS=default:development.backend");
   const health = run.args.indexOf("accessory\nexec\nunleash\n");
   expect(health).toBeGreaterThan(
     run.args.indexOf("accessory\nboot\nunleash\n"),
