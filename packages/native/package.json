@@ -2,11 +2,22 @@
   "name": "@dangus-box/native",
   "version": "0.0.0",
   "type": "module",
+  "dependencies": {
+    "@openfeature/react-sdk": "1.4.1",
+    "@openfeature/unleash-web-provider": "0.1.1",
+    "@openfeature/web-sdk": "1.10.0",
+    "unleash-proxy-client": "3.8.2"
+  },
+  "peerDependencies": {
+    "react": ">=19.0.0"
+  },
+  "main": "./src/index.ts",
+  "exports": "./src/index.ts",
   "files": [
-    "src/index.ts"
+    "src",
+    "!src/**/*.test.ts"
   ],
   "publishConfig": {
     "access": "public"
-  },
-  "exports": "./src/index.ts"
+  }
 }
