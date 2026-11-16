@@ -1,5 +1,4 @@
 import { resolve4, resolve6 } from "node:dns/promises";
-import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import { tmpdir } from "node:os";
@@ -7,26 +6,15 @@ import { join, resolve } from "node:path";
 import type { ResolvedProductConfig } from "./config";
 
 const BACKUP_IMAGE = "ghcr.io/dangus-box/backup:1.0.0";
-const backupSecrets = [
-  "R2_ACCESS_KEY_ID",
-  "R2_SECRET_ACCESS_KEY",
-  "R2_ENDPOINT",
-  "HEALTHCHECKS_URL",
-];
-function publicKey(): string {
-  const path =
-    process.env.DANGUS_BACKUP_AGE_PUBLIC_KEY_FILE ||
-    resolve(import.meta.dir, "../../../infra/backup/age.pub");
-  let key: string;
-  try {
-    key = readFileSync(path, "utf8").trim();
-  } catch {
-    throw new Error(`Chave pública age ausente: ${path}.`);
-  }
-  if (!/^age1[0-9a-z]+$/.test(key))
-    throw new Error("Chave pública age inválida.");
-  return key;
-}
+// Secrets do accessory de Backup e suas chaves no BWS.
+const backupSecretKeys = (product: string): Record<string, string> => ({
+  R2_ACCESS_KEY_ID: "ops__R2_BACKUP_ACCESS_KEY_ID",
+  R2_SECRET_ACCESS_KEY: "ops__R2_BACKUP_SECRET_ACCESS_KEY",
+  R2_ENDPOINT: "platform__R2_ENDPOINT",
+  HEALTHCHECKS_URL: `${product}__HEALTHCHECKS_BACKUP_URL`,
+  AGE_PUBLIC_KEY: "ops__BACKUP_AGE_PUBLIC_KEY",
+});
+const backupSecrets = Object.keys(backupSecretKeys(""));
 export const KAMAL_IMAGE =
   "ghcr.io/basecamp/kamal:v2.12.0@sha256:7a3893b47dd328955f86fbf9ba887d08d612b74f96867f077750a53312537625";
 // Nome do Host na tailnet; DANGUS_HOST substitui.
@@ -185,7 +173,6 @@ export function render(
           BACKUP_PRODUCT: config.name,
           BACKUP_DATABASE: "produto",
           BACKUP_TYPE: config.database,
-          AGE_PUBLIC_KEY: publicKey(),
           ...(config.database === "sqlite"
             ? { SQLITE_PATH: "/app/data/produto.sqlite" }
             : {
@@ -315,25 +302,20 @@ export async function deploy(
         } catch {
           throw new Error("Resposta inválida do BWS.");
         }
+        const keys = backupSecretKeys(config.name);
         for (const name of names) {
-          const matches = found.filter(
-            (item) =>
-              item.key ===
-              (name === "R2_ACCESS_KEY_ID" || name === "R2_SECRET_ACCESS_KEY"
-                ? `ops__R2_BACKUP_${name === "R2_ACCESS_KEY_ID" ? "ACCESS_KEY_ID" : "SECRET_ACCESS_KEY"}`
-                : name === "R2_ENDPOINT"
-                  ? "platform__R2_ENDPOINT"
-                  : name === "HEALTHCHECKS_URL"
-                    ? `${config.name}__HEALTHCHECKS_BACKUP_URL`
-                    : `${config.name}__${name}`),
-          );
+          const key = keys[name] ?? `${config.name}__${name}`;
+          const matches = found.filter((item) => item.key === key);
           if (matches.length !== 1 || typeof matches[0].value !== "string")
-            throw new Error(
-              `Secret ${config.name}__${name} ausente ou duplicado no BWS.`,
-            );
+            throw new Error(`Secret ${key} ausente ou duplicado no BWS.`);
           values[name] = matches[0].value;
         }
       }
+      if (
+        values.AGE_PUBLIC_KEY !== undefined &&
+        !/^age1[0-9a-z]+$/.test(values.AGE_PUBLIC_KEY)
+      )
+        throw new Error("Chave pública age inválida no BWS.");
       if (config.database === "postgres" && config.apps.api)
         values.DATABASE_URL = `postgres://produto:${encodeURIComponent(values.POSTGRES_PASSWORD)}@${config.name}-api-db:5432/produto`;
       if (skipBuild) {

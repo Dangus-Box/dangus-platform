@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 : "${SSH_AUTH_SOCK:?SSH agent obrigatório}"
 secrets=$(bws secret list)
-for name in GRAFANA_ADMIN_PASSWORD UMAMI_APP_SECRET UMAMI_DB_PASSWORD UMAMI_ADMIN_PASSWORD UNLEASH_DB_PASSWORD UNLEASH_ADMIN_PASSWORD UNLEASH_FRONTEND_TOKEN UNLEASH_BACKEND_TOKEN R2_BACKUP_ACCESS_KEY_ID R2_BACKUP_SECRET_ACCESS_KEY HEALTHCHECKS_BACKUP_URL; do
+for name in GRAFANA_ADMIN_PASSWORD UMAMI_APP_SECRET UMAMI_DB_PASSWORD UMAMI_ADMIN_PASSWORD UNLEASH_DB_PASSWORD UNLEASH_ADMIN_PASSWORD UNLEASH_FRONTEND_TOKEN UNLEASH_BACKEND_TOKEN R2_BACKUP_ACCESS_KEY_ID R2_BACKUP_SECRET_ACCESS_KEY HEALTHCHECKS_BACKUP_URL BACKUP_AGE_PUBLIC_KEY; do
   value=$(printf '%s' "$secrets" | bun -e 'const a=await Bun.stdin.json();const key=`ops__${process.argv[1]}`;const s=a.filter(x=>x.key===key);if(s.length!==1||typeof s[0].value!=="string"||!s[0].value){console.error(`Secret ${key} ausente ou vazio no BWS.`);process.exit(1)}process.stdout.write(s[0].value)' "$name")
   export "$name=$value"
 done
@@ -15,9 +15,8 @@ done
 R2_ENDPOINT=$(printf '%s' "$secrets" | bun -e 'const a=await Bun.stdin.json();const s=a.filter(x=>x.key==="platform__R2_ENDPOINT");if(s.length!==1||!s[0].value)process.exit(1);process.stdout.write(s[0].value)')
 export R2_ACCESS_KEY_ID="$R2_BACKUP_ACCESS_KEY_ID" R2_SECRET_ACCESS_KEY="$R2_BACKUP_SECRET_ACCESS_KEY"
 export R2_ENDPOINT HEALTHCHECKS_URL="$HEALTHCHECKS_BACKUP_URL"
-AGE_PUBLIC_KEY=$(cat "${DANGUS_BACKUP_AGE_PUBLIC_KEY_FILE:-../backup/age.pub}") || { echo 'Chave pública age ausente.' >&2; exit 1; }
-[[ $AGE_PUBLIC_KEY =~ ^age1[0-9a-z]+$ ]] || { echo 'Chave pública age inválida.' >&2; exit 1; }
-export AGE_PUBLIC_KEY
+[[ $BACKUP_AGE_PUBLIC_KEY =~ ^age1[0-9a-z]+$ ]] || { echo 'Chave pública age inválida no BWS.' >&2; exit 1; }
+export AGE_PUBLIC_KEY="$BACKUP_AGE_PUBLIC_KEY"
 unset secrets value
 [[ $UNLEASH_ADMIN_PASSWORD != unleash4all ]] || { echo 'Senha admin do Unleash não pode ser a senha inicial.' >&2; exit 1; }
 [[ $UMAMI_ADMIN_PASSWORD != umami ]] || { echo 'Senha admin não pode ser a senha inicial.' >&2; exit 1; }

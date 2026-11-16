@@ -167,6 +167,7 @@ test("deploy transmite secrets apenas pelo ambiente e usa comandos exatos", asyn
               "R2_SECRET_ACCESS_KEY",
               "R2_ENDPOINT",
               "HEALTHCHECKS_URL",
+              "AGE_PUBLIC_KEY",
             ].flatMap((name) => ["-e", name]),
           ]
         : []),

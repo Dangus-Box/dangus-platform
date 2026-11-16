@@ -94,7 +94,7 @@ Instale o `age-keygen` oficial versão 1.2.1 conforme [instruções de instalaç
 git add ../backup/age.pub
 ```
 
-A chave privada é criada no BWS como `ops__BACKUP_AGE_PRIVATE_KEY`, fora do state; a chave pública fica em `infra/backup/age.pub` e deve ser commitada para o Host. O arquivo ainda não existe: gere-o durante o rollout. O script recusa sobrescrever qualquer uma das duas chaves. Se a escrita do arquivo público falhar após criar o secret, recupere a chave pública da identidade no BWS em vez de gerar outra. A chave privada também passa como argumento ao processo `bws`.
+A chave privada é criada no BWS como `ops__BACKUP_AGE_PRIVATE_KEY`, fora do state. A chave pública é criada como `ops__BACKUP_AGE_PUBLIC_KEY`, que é de onde os deploys a leem, e também é gravada em `infra/backup/age.pub` como referência no monorepo. O arquivo ainda não existe: gere-o durante o rollout. O script recusa sobrescrever qualquer uma das chaves, no BWS ou no arquivo. Se a criação da chave pública ou a escrita do arquivo falhar depois de criar a chave privada, recupere a chave pública da identidade no BWS em vez de gerar outra. A chave privada também passa como argumento ao processo `bws`.
 
 Verificações locais: `tofu validate`, `tofu test` (providers simulados) e `../backup/tests/scripts.sh` (BWS simulado). Após o apply, envie um objeto de teste a cada prefixo com a credencial do Host e confirme que a tentativa de apagá-lo dentro do prazo falha. Essa verificação exige recursos e credenciais reais e não é substituída pelos testes simulados.
 
