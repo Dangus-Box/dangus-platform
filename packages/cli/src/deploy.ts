@@ -55,6 +55,8 @@ export async function resolveDomain(
   return records.flat();
 }
 type App = "api" | "web";
+const backupOwner = (config: ResolvedProductConfig): App =>
+  config.apps.api ? "api" : "web";
 export type Runner = (
   args: string[],
   env: Record<string, string | undefined>,
@@ -91,9 +93,9 @@ function kamalSecrets(config: ResolvedProductConfig, app: App): string[] {
     "KAMAL_REGISTRY_PASSWORD",
     ...(config.apps[app]?.secrets ?? []),
   ];
-  if (app === "api" && config.database === "postgres")
+  if (app === backupOwner(config) && config.database === "postgres")
     names.push("POSTGRES_PASSWORD", "DATABASE_URL");
-  if (app === "api") names.push(...backupSecrets);
+  if (app === backupOwner(config)) names.push(...backupSecrets);
   return names;
 }
 
@@ -114,7 +116,7 @@ export function render(
     );
   const service = `${config.name}-${app}`;
   const secrets = [...settings.secrets];
-  if (config.database === "postgres" && app === "api")
+  if (config.database === "postgres" && app === backupOwner(config))
     secrets.push("DATABASE_URL");
   const doc: Record<string, unknown> = {
     service,
@@ -153,14 +155,14 @@ export function render(
     },
     env: { secret: secrets },
   };
-  if (config.database === "sqlite" && app === "api") {
+  if (config.database === "sqlite" && app === backupOwner(config)) {
     doc.volumes = [`${config.name}-sqlite:/app/data`];
     doc.env = {
       clear: { SQLITE_PATH: "/app/data/produto.sqlite" },
       secret: secrets,
     };
   }
-  if (config.database === "postgres" && app === "api")
+  if (config.database === "postgres" && app === backupOwner(config))
     doc.accessories = {
       db: {
         image:
@@ -174,7 +176,7 @@ export function render(
         volumes: [`${config.name}-postgres:/var/lib/postgresql/data`],
       },
     };
-  if (app === "api") {
+  if (app === backupOwner(config)) {
     const accessories = (doc.accessories ?? {}) as Record<string, unknown>;
     accessories.backup = {
       image: BACKUP_IMAGE,
@@ -285,9 +287,13 @@ export async function deploy(
       const names = new Set(
         apps.flatMap((app) => config.apps[app]?.secrets ?? []),
       );
-      if (config.database === "postgres" && config.apps.api)
+      if (
+        config.database === "postgres" &&
+        (config.apps.api || config.apps.web)
+      )
         names.add("POSTGRES_PASSWORD");
-      if (config.apps.api) for (const name of backupSecrets) names.add(name);
+      if (config.apps.api || config.apps.web)
+        for (const name of backupSecrets) names.add(name);
       const values: Record<string, string> = {};
       if (names.size) {
         const result = await runner(["bws", "secret", "list"], env, directory);
@@ -326,8 +332,11 @@ export async function deploy(
           values[name] = matches[0].value;
         }
       }
-      if (config.database === "postgres" && config.apps.api)
-        values.DATABASE_URL = `postgres://produto:${encodeURIComponent(values.POSTGRES_PASSWORD)}@${config.name}-api-db:5432/produto`;
+      if (
+        config.database === "postgres" &&
+        (config.apps.api || config.apps.web)
+      )
+        values.DATABASE_URL = `postgres://produto:${encodeURIComponent(values.POSTGRES_PASSWORD)}@${config.name}-${backupOwner(config)}-db:5432/produto`;
       if (skipBuild) {
         for (const app of apps) {
           const image = `ghcr.io/dangus-box/${config.name}-${app}:${version}`;
@@ -395,7 +404,8 @@ export async function backupNow(
   runner: Runner = run,
   env: Record<string, string | undefined> = process.env,
 ): Promise<void> {
-  if (!config.apps.api) throw new Error("Backup exige uma App API.");
+  if (!config.apps.api && !config.apps.web)
+    throw new Error("Backup exige uma App de servidor.");
   if (!env.SSH_AUTH_SOCK) throw new Error("SSH_AUTH_SOCK é obrigatório.");
   await withRendered(
     config,
@@ -409,7 +419,7 @@ export async function backupNow(
           "--network",
           "host",
           "-v",
-          `${join(dir, "api")}:/dangus:ro`,
+          `${join(dir, backupOwner(config))}:/dangus:ro`,
           ...(env.DANGUS_SSH_KNOWN_HOSTS
             ? ["-v", `${env.DANGUS_SSH_KNOWN_HOSTS}:/root/.ssh/known_hosts:ro`]
             : []),
