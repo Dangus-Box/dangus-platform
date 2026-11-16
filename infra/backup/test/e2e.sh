@@ -20,7 +20,7 @@ HTTPServer(('0.0.0.0', 8000), Handler).serve_forever()
 PY
 docker run -d --name "$name-health" --network "$name" --network-alias health -v "$tmp:/data" python:3.13-alpine python /data/health.py >/dev/null
 for _ in $(seq 1 90); do
-  if docker run --rm --network "$name" --entrypoint sh ghcr.io/l33tlamer/minio-backup@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e -c 'mc alias set local http://minio:9000 testaccess testsecret >/dev/null && mc mb --ignore-existing local/dangus-backups >/dev/null' 2>/dev/null && docker exec "$name-pg" pg_isready -U postgres >/dev/null 2>&1; then break; fi
+  if docker run --rm --network "$name" --entrypoint sh ghcr.io/l33tlamer/minio-backup@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e -c 'mc alias set local http://minio:9000 testaccess testsecret >/dev/null && mc mb --ignore-existing local/dangus-backups >/dev/null' 2>/dev/null && docker exec "$name-pg" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then break; fi
   sleep 1
 done
 docker exec "$name-pg" psql -U postgres -d produto -c "CREATE TABLE items (value text); INSERT INTO items VALUES ('backup postgres');" >/dev/null

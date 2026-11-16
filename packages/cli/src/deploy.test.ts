@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { loadConfig, validateConfig } from "./config";
 import {
+  backupNow,
   deploy,
   KAMAL_IMAGE,
   type Runner,
@@ -706,4 +707,32 @@ test("render falha claramente sem a chave pública", () => {
   } finally {
     process.env.DANGUS_BACKUP_AGE_PUBLIC_KEY_FILE = previous;
   }
+});
+
+test("db backup executa o script no accessory existente", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: { api: { domain: "api.produto.com" } },
+    database: "sqlite",
+    deployTimeoutSeconds: 10,
+  });
+  let command: string[] = [];
+  await backupNow(
+    config,
+    "/produto",
+    async (args) => {
+      command = args;
+      return { code: 0, stdout: "" };
+    },
+    { SSH_AUTH_SOCK: "/agent", DANGUS_PROXY_BIND_IPS: "192.0.2.1" },
+  );
+  expect(command.slice(-7)).toEqual([
+    "accessory",
+    "exec",
+    "backup",
+    "--reuse",
+    "--config-file",
+    "/dangus/deploy.yml",
+    "/usr/local/bin/backup.sh",
+  ]);
 });
