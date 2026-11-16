@@ -39,6 +39,8 @@ labels:
 env:
   clear:
     SQLITE_PATH: /app/data/produto.sqlite
-  secret: []
+  secret:
+    - UNLEASH_TOKEN
+    - UMAMI_WEBSITE_ID
 volumes:
   - exemplo-sqlite-sqlite:/app/data
