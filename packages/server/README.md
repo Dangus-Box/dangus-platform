@@ -47,8 +47,8 @@ await trackEvent({ name: "pedido", hostname: "produto.com", url: "/pedidos" });
 // No encerramento da App: await OpenFeature.close();
 ```
 
-`UNLEASH_TOKEN` ativa o provider com um token backend. `UNLEASH_URL` é opcional e usa `http://dangus-ops-unleash:4242/api` por padrão. Sem token, o OpenFeature retorna os valores padrão sem acessar a rede. Aguarde `configureFlags` antes de avaliar; uma falha de conexão durante o boot é informada à App.
+`UNLEASH_TOKEN` ativa o provider com um token backend. `UNLEASH_URL` é opcional e usa `http://dangus-ops-unleash:4242/api` por padrão. Sem token, o OpenFeature retorna os valores padrão sem acessar a rede. Aguarde `configureFlags` antes de avaliar: ele espera a primeira sincronização por até 3 segundos e nunca falha. Com o Unleash fora do ar ou lento, as Flags retornam os valores padrão até a sincronização.
 
-`UMAMI_WEBSITE_ID` ativa o envio de eventos; `UMAMI_URL` é opcional e usa `http://dangus-ops-umami:3000` por padrão. Sem ID, `trackEvent` não faz nada. Informe o hostname e caminho associados ao evento; `data` pode conter propriedades adicionais. Falhas HTTP ou de rede são propagadas à App.
+`UMAMI_WEBSITE_ID` ativa o envio de eventos; `UMAMI_URL` é opcional e usa `http://dangus-ops-umami:3000` por padrão. Sem ID, `trackEvent` não faz nada. Informe o hostname e caminho associados ao evento; `data` pode conter propriedades adicionais. O envio tem timeout de 3 segundos e falhas HTTP ou de rede só geram um aviso no log, sem rejeitar a Promise; por isso `trackEvent` pode ser chamado sem `await` para não atrasar a resposta.
 
 Declare os valores necessários em `secrets` da App na Config do Produto e guarde-os no BWS como `<produto>__<CHAVE>`. URLs alternativas também podem ser declaradas como secrets quando necessárias.
