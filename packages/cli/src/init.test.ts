@@ -72,6 +72,7 @@ test("detecta Apps e banco, gera arquivos e preserva edições com --yes", async
     "Apps: api, web, mobile; Banco do Produto: sqlite",
   );
   expect(first.output).toContain("observacao.markReady()");
+  expect(first.output).toContain("execute `dangus register`");
   expect(first.output).toContain(
     `await configureFlags("${basename(root).toLowerCase()}")`,
   );

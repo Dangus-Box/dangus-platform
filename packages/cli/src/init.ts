@@ -169,6 +169,9 @@ import { configurarFlags, enviarEvento, OpenFeature, OpenFeatureProvider } from 
 await configurarFlags("${name}", undefined, process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN);
 <OpenFeatureProvider client={OpenFeature.getClient()}>{/* App */}</OpenFeatureProvider>
 await enviarEvento("evento", undefined, undefined, process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID);`);
+    console.log(
+      "Para concluir a Adoção, conecte o Tailscale e execute `dangus register` para o Registro na Stack Ops.",
+    );
   } finally {
     rl?.close();
   }
