@@ -13,3 +13,7 @@ tailscale serve --service=svc:ops --https=443 http://127.0.0.1:3300
 ```
 
 Acesse a URL HTTPS do serviço na tailnet. O volume nomeado `dangus-ops-grafana` guarda os dados do Grafana e deverá ser incluído no Backup da issue #22; esta configuração não implementa Backup.
+
+## Teste
+
+Execute `infra/ops/test/stack-ops-e2e.sh` com Docker. Ele sobe a Stack Ops, o Alloy do provisionamento e o Produto de exemplo SQLite numa rede descartável e confere pelo Grafana logs, requisições, CPU, RAM e latência do Produto. O Docker local precisa usar a mesma configuração de armazenamento do Host.
