@@ -19,6 +19,9 @@ proxy:
   healthcheck:
     path: /ready
   run:
+    bind_ips:
+      - 179.198.100.144
+      - 2a02:4780:c6:bdc::1
     options:
       label:
         - product=platform
