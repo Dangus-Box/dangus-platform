@@ -1,5 +1,16 @@
 {
   "name": "@dangus-box/native",
   "version": "0.0.0",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@openfeature/react-sdk": "1.4.1",
+    "@openfeature/unleash-web-provider": "0.1.1",
+    "@openfeature/web-sdk": "1.10.0",
+    "unleash-proxy-client": "3.8.2"
+  },
+  "exports": "./src/index.ts",
+  "peerDependencies": {
+    "react": ">=19.0.0"
+  },
+  "main": "./src/index.ts"
 }
