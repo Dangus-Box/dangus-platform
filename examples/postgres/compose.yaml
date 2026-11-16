@@ -1,0 +1,9 @@
+services:
+  postgres:
+    image: postgres:17.6
+    environment:
+      POSTGRES_USER: produto
+      POSTGRES_PASSWORD: produto
+      POSTGRES_DB: produto
+    ports:
+      - "127.0.0.1:55432:5432"
