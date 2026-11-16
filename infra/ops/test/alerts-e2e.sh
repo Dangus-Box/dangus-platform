@@ -10,7 +10,8 @@ openssl req -x509 -newkey rsa:2048 -nodes -keyout "$tmp/key.pem" -out "$tmp/cert
 chmod 644 "$tmp/key.pem" "$tmp/cert.pem"
 cat > "$tmp/fake.js" <<'JS'
 Bun.serve({port: 8080, fetch() {
-  return new Response('node_filesystem_size_bytes{mountpoint="/"} 100\nnode_filesystem_avail_bytes{mountpoint="/"} 10\n');
+  // Raiz do Host a 90%; outro mountpoint cheio não pode entrar no alerta.
+  return new Response('node_filesystem_size_bytes{mountpoint="/"} 100\nnode_filesystem_avail_bytes{mountpoint="/"} 10\nnode_filesystem_size_bytes{mountpoint="/boot"} 100\nnode_filesystem_avail_bytes{mountpoint="/boot"} 1\n');
 }});
 Bun.serve({port: 443, tls: {key: Bun.file('/tmp/key.pem'), cert: Bun.file('/tmp/cert.pem')}, async fetch(request) {
   if (new URL(request.url).pathname !== '/botfake-token/sendMessage') return new Response('unexpected path', {status: 404});
@@ -30,7 +31,7 @@ scrape_configs:
 EOF2
 python3 - "$ops/provisioning/alerting/alerts.yml" "$tmp/alerts.yml" "$id" <<'PY'
 import sys
-s=open(sys.argv[1]).read().replace('__TELEGRAM_CHAT_ID__', '123').replace('interval: 1m', 'interval: 10s').replace('for: 1m', 'for: 0s').replace('params: [85]', 'params: [1]').replace('group_wait: 10s', 'group_wait: 1s')
+s=open(sys.argv[1]).read().replace('__TELEGRAM_CHAT_ID__', '123').replace('interval: 1m', 'interval: 10s').replace('for: 1m', 'for: 0s').replace('group_wait: 10s', 'group_wait: 1s')
 open(sys.argv[2], 'w').write(s)
 PY
 docker network create "$id" >/dev/null
@@ -39,8 +40,11 @@ docker run -d --name "$id-prometheus" --network "$id" --network-alias dangus-ops
 docker run -d --name "$id-grafana" --network "$id" -e GF_UNIFIED_ALERTING_ALERTMANAGER_CONFIG_POLL_INTERVAL=5s -e GF_SECURITY_ADMIN_PASSWORD=test -e TELEGRAM_BOT_TOKEN=fake-token -e SSL_CERT_FILE=/tmp/test-ca.pem -v "$tmp/cert.pem:/tmp/test-ca.pem:ro" -v "$ops/provisioning/datasources/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro" -v "$tmp/alerts.yml:/etc/grafana/provisioning/alerting/alerts.yml:ro" grafana/grafana:11.6.3 >/dev/null
 for _ in {1..90}; do
   if docker exec "$id-fake" test -s /tmp/received; then
-    docker exec "$id-fake" cat /tmp/received | grep -q 'Disco do Host acima de 85%'
-    docker exec "$id-fake" cat /tmp/received | grep -q '123'
+    received=$(docker exec "$id-fake" cat /tmp/received)
+    grep -q '^123 ' <<<"$received"
+    grep -q 'Disco do Host acima de 85%' <<<"$received"
+    grep -q 'mountpoint = /$' <<<"$received"
+    if grep -q '/boot' <<<"$received"; then echo "Alerta incluiu outro mountpoint: $received" >&2; exit 1; fi
     echo 'Grafana avaliou disco e enviou mensagem Telegram ao servidor local.'
     exit 0
   fi
