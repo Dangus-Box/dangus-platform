@@ -24,6 +24,15 @@
     "packages/native": {
       "name": "@dangus-box/native",
       "version": "0.0.0",
+      "dependencies": {
+        "@openfeature/react-sdk": "1.4.1",
+        "@openfeature/unleash-web-provider": "0.1.1",
+        "@openfeature/web-sdk": "1.10.0",
+        "unleash-proxy-client": "3.8.2",
+      },
+      "peerDependencies": {
+        "react": ">=19.0.0",
+      },
     },
     "packages/server": {
       "name": "@dangus-box/server",
@@ -158,7 +167,7 @@
 
     "@openfeature/unleash-web-provider": ["@openfeature/unleash-web-provider@0.1.1", "", { "peerDependencies": { "@openfeature/web-sdk": "^1.0.0", "unleash-proxy-client": "^3.6.0" } }, "sha512-GaP8NpJ41FaVB/5PK38rOG+GD9VxvXvd54NcW9bnTgDw2KO/glvSUgqkWP3i38hK5X4XjXxOC3MiwZLCNJHN2w=="],
 
-    "@openfeature/web-sdk": ["@openfeature/web-sdk@1.9.0", "", { "peerDependencies": { "@openfeature/core": "^1.11.0" } }, "sha512-FCrNfqvE/thHVfCNU0KKx1SD7rk+1wE2UaR5B5OPZl917QJv6AsKRwaI3N+SVgwXWI07GgtXP6hNlTVb49PGhg=="],
+    "@openfeature/web-sdk": ["@openfeature/web-sdk@1.10.0", "", { "peerDependencies": { "@openfeature/core": "^1.12.0" } }, "sha512-qf+JmJSnaslhegNwoDDLn2Cf72P6cIobuAQPUb61MSkzJOZuVLU6f9pv/90FlLcK6UDtp6od//xZHW712rBrmg=="],
 
     "@opentelemetry/api": ["@opentelemetry/api@1.9.0", "", {}, "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="],
 
@@ -546,7 +555,7 @@
 
     "unleash-client": ["unleash-client@6.8.0", "", { "dependencies": { "http-proxy-agent": "^7.0.2", "https-proxy-agent": "^7.0.5", "ip-address": "^9.0.5", "launchdarkly-eventsource": "2.2.0", "make-fetch-happen": "^13.0.1", "murmurhash3js": "^3.0.1", "proxy-from-env": "^1.1.0", "semver": "^7.6.2" } }, "sha512-f0azC/3hxCsqqyE8a1+cKSnN+sUlakMymhXGJePAfurdRq1ZFX099Qu1U4y248Hw7r4+aMFD5L592zbPWU9TqQ=="],
 
-    "unleash-proxy-client": ["unleash-proxy-client@3.6.0", "", { "dependencies": { "tiny-emitter": "^2.1.0", "uuid": "^9.0.1" } }, "sha512-CEAPctUkvqzuPRgWM8UvNAYFuKWU0vDNyx+gYNeIHCAcOX9pWiqJ3sEW3emVm0dX8v0TgboeQM/RVdbq6iX/dw=="],
+    "unleash-proxy-client": ["unleash-proxy-client@3.8.2", "", { "dependencies": { "tiny-emitter": "^2.1.0" } }, "sha512-xwFk4Zq7mdZxWU69g9On1TT3VSARBm2c+U1oY6PbaBA+FZrODpUHw7xMhIg74Ai56w0RlPMZ4znzHZ3R9PBGpA=="],
 
     "uuid": ["uuid@9.0.1", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA=="],
 
@@ -559,6 +568,10 @@
     "wrappy": ["wrappy@1.0.2", "", {}, "sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ=="],
 
     "yallist": ["yallist@4.0.0", "", {}, "sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A=="],
+
+    "@dangus-box/web/@openfeature/web-sdk": ["@openfeature/web-sdk@1.9.0", "", { "peerDependencies": { "@openfeature/core": "^1.11.0" } }, "sha512-FCrNfqvE/thHVfCNU0KKx1SD7rk+1wE2UaR5B5OPZl917QJv6AsKRwaI3N+SVgwXWI07GgtXP6hNlTVb49PGhg=="],
+
+    "@dangus-box/web/unleash-proxy-client": ["unleash-proxy-client@3.6.0", "", { "dependencies": { "tiny-emitter": "^2.1.0", "uuid": "^9.0.1" } }, "sha512-CEAPctUkvqzuPRgWM8UvNAYFuKWU0vDNyx+gYNeIHCAcOX9pWiqJ3sEW3emVm0dX8v0TgboeQM/RVdbq6iX/dw=="],
 
     "@isaacs/cliui/strip-ansi": ["strip-ansi@7.2.0", "", { "dependencies": { "ansi-regex": "^6.2.2" } }, "sha512-yDPMNjp4WyfYBkHnjIRLfca1i6KMyGCtsVgoKe/z1+6vukgaENdgGBZt+ZmKPc4gavvEZ5OgHfHdrazhgNyG7w=="],
 
