@@ -14,7 +14,7 @@ registry:
     - KAMAL_REGISTRY_PASSWORD
 proxy:
   ssl: true
-  host: api-sqlite.exemplo.com
+  host: api-sqlite.dangus-box.com
   app_port: 3000
   healthcheck:
     path: /ready
