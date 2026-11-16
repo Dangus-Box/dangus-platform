@@ -47,9 +47,13 @@ provider "cloudflare" {}
 
 data "hostinger_vps_data_centers" "available" {}
 
-resource "hostinger_vps_ssh_key" "host" {
-  name = "dangus-host"
-  key  = var.ssh_public_key
+# A chave SSH criada pelo apply parcial sai do state sem ser excluída na
+# Hostinger; o acesso SSH vem do bootstrap.
+removed {
+  from = hostinger_vps_ssh_key.host
+  lifecycle {
+    destroy = false
+  }
 }
 
 # O Host já existe e entra no state por `tofu import` (ver README).
@@ -57,14 +61,15 @@ resource "hostinger_vps" "host" {
   plan           = "hostingercom-vps-kvm4-usd-1m"
   data_center_id = var.data_center_id
   template_id    = var.template_id
-  ssh_key_ids    = [hostinger_vps_ssh_key.host.id]
 
   lifecycle {
     # Destruir cancela a assinatura do Host.
     prevent_destroy = true
     # Mudar plano, datacenter ou senha força a recriação do Host, e mudar o
     # template (ou o script de pós-instalação usado junto) reinstala o sistema.
-    ignore_changes = [plan, data_center_id, password, template_id, post_install_script_id]
+    # ssh_key_ids: o apply parcial deixou o valor no state; removê-lo chamaria
+    # uma rota inexistente da Hostinger (404). O acesso SSH vem do bootstrap.
+    ignore_changes = [plan, data_center_id, password, template_id, post_install_script_id, ssh_key_ids]
 
     precondition {
       condition = anytrue([

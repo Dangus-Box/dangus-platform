@@ -1,16 +1,18 @@
 mock_provider "hostinger" {
-  mock_resource "hostinger_vps_ssh_key" { defaults = { id = "123" } }
   mock_data "hostinger_vps_data_centers" {
     defaults = { data_centers = [{ id = 42, name = "Brasil", location = "Brazil", city = "São Paulo", continent = "South America" }] }
   }
 }
-mock_provider "cloudflare" {}
+mock_provider "cloudflare" {
+  mock_data "cloudflare_account_api_token_permission_groups_list" {
+    defaults = { result = [{ id = "2efd5506f9c8494dacb1fa10a3e7d5b6", name = "Workers R2 Storage Bucket Item Write", scopes = ["com.cloudflare.edge.r2.bucket"], is_selectable = true, category = "developer_platform" }] }
+  }
+}
 variables {
   state_passphrase      = "frase-de-teste-sem-segredo"
   cloudflare_account_id = "conta-teste"
   data_center_id        = 42
   template_id           = 1002
-  ssh_public_key        = "ssh-ed25519 exemplo"
   telegram_bot_token    = "token-teste"
   telegram_chat_id      = "chat-teste"
 }
@@ -29,7 +31,26 @@ run "backup" {
     error_message = "O lifecycle deve excluir cada prefixo após o prazo previsto."
   }
   assert {
-    condition     = length(cloudflare_api_token.backup_host.policies) == 1 && cloudflare_api_token.backup_host.policies[0].effect == "allow" && cloudflare_api_token.backup_host.policies[0].permission_groups[0].id == "2efd5506f9c8494dacb1fa10a3e7d5b6" && length(cloudflare_api_token.backup_host.policies[0].permission_groups) == 1 && jsondecode(cloudflare_api_token.backup_host.policies[0].resources) == { "com.cloudflare.edge.r2.bucket.conta-teste_default_dangus-backups" = "*" }
+    condition     = cloudflare_account_token.backup_host.account_id == "conta-teste" && length(cloudflare_account_token.backup_host.policies) == 1 && cloudflare_account_token.backup_host.policies[0].effect == "allow" && cloudflare_account_token.backup_host.policies[0].permission_groups[0].id == "2efd5506f9c8494dacb1fa10a3e7d5b6" && length(cloudflare_account_token.backup_host.policies[0].permission_groups) == 1 && jsondecode(cloudflare_account_token.backup_host.policies[0].resources) == { "com.cloudflare.edge.r2.bucket.conta-teste_default_dangus-backups" = "*" }
     error_message = "O token deve permitir somente objetos do bucket de Backups."
   }
+}
+
+# O ID fixo precisa existir na conta e ter escopo de bucket R2; senão o plano para.
+run "permission_group_sem_escopo_de_bucket" {
+  command = plan
+  override_data {
+    target = data.cloudflare_account_api_token_permission_groups_list.all
+    values = { result = [{ id = "2efd5506f9c8494dacb1fa10a3e7d5b6", name = "Workers R2 Storage Bucket Item Write", scopes = ["com.cloudflare.api.account"], is_selectable = true, category = "developer_platform" }] }
+  }
+  expect_failures = [cloudflare_account_token.backup_host]
+}
+
+run "permission_group_inexistente" {
+  command = plan
+  override_data {
+    target = data.cloudflare_account_api_token_permission_groups_list.all
+    values = { result = [] }
+  }
+  expect_failures = [cloudflare_account_token.backup_host]
 }

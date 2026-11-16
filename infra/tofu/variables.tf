@@ -14,7 +14,3 @@ variable "template_id" {
   type        = number
 }
 
-variable "ssh_public_key" {
-  description = "Chave pública SSH a cadastrar no Host."
-  type        = string
-}
