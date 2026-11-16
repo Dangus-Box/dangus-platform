@@ -37,14 +37,24 @@ test("dashboard consulta sinais por Produto", () => {
     expect(panel.targets[0].expr).toContain("$product");
 });
 
-async function deploy(secrets: { key: string; value: string }[]) {
+async function deploy(
+  secrets: { key: string; value: string }[],
+  failExec = false,
+) {
   const bin = mkdtempSync(`${tmpdir()}/ops-deploy-`);
   const fake = (name: string, body: string) => {
     writeFileSync(`${bin}/${name}`, `#!/bin/sh\n${body}\n`);
     chmodSync(`${bin}/${name}`, 0o755);
   };
   fake("bws", `echo '${JSON.stringify(secrets)}'`);
-  fake("docker", `printf '%s\\n' "$@" > ${bin}/args; env > ${bin}/env`);
+  fake(
+    "bun",
+    `if [ "$1" = "admin.ts" ]; then exit 0; fi; exec ${process.execPath} "$@"`,
+  );
+  fake(
+    "docker",
+    `printf '%s\\n' "$@" >> ${bin}/args; env > ${bin}/env; ${failExec ? 'case " $* " in *" accessory exec umami "*) exit 1;; esac' : ":"}`,
+  );
   const child = Bun.spawn([`${path}deploy.sh`], {
     env: { PATH: `${bin}:${process.env.PATH}`, SSH_AUTH_SOCK: "/ssh-agent" },
     stderr: "pipe",
@@ -69,12 +79,54 @@ test("deploy da Stack Ops recusa senha do Grafana vazia", async () => {
 test("deploy da Stack Ops passa a senha só por ambiente, sem Docker socket", async () => {
   const run = await deploy([
     { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "s3nt1nel" },
+    { key: "ops__UMAMI_APP_SECRET", value: "secret" },
+    { key: "ops__UMAMI_DB_PASSWORD", value: "dbpass" },
+    { key: "ops__UMAMI_ADMIN_PASSWORD", value: "adminpass" },
   ]);
   expect(run.code).toBe(0);
   expect(run.args).not.toContain("s3nt1nel");
   expect(run.args).not.toContain("docker.sock");
-  expect(run.args).toContain("accessory\nboot\nall");
+  expect(run.args).toContain("accessory\nexec\numami");
+  expect(run.args).toContain("accessory\nreboot\numami");
+  expect(run.env).toContain("UMAMI_ADMIN_PASSWORD=adminpass");
+  expect(run.args).not.toContain("adminpass");
   expect(run.env).toContain("GF_SECURITY_ADMIN_PASSWORD=s3nt1nel");
+});
+
+test("falha ao configurar senha impede publicação", async () => {
+  const run = await deploy(
+    [
+      { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "x" },
+      { key: "ops__UMAMI_APP_SECRET", value: "x" },
+      { key: "ops__UMAMI_DB_PASSWORD", value: "x" },
+      { key: "ops__UMAMI_ADMIN_PASSWORD", value: "adminpass" },
+    ],
+    true,
+  );
+  expect(run.code).not.toBe(0);
+  expect(run.args).toContain("accessory\nexec\numami");
+  expect(run.args).not.toContain("accessory\nreboot\numami");
+});
+
+test("Umami e banco têm limites, imagens fixas e caminhos neutros", () => {
+  const { umami, "umami-db": db } = config.accessories;
+  expect(umami.port).toBeUndefined();
+  expect(db.port).toBeUndefined();
+  expect(db.volumes).toContain("dangus-ops-umami-db:/var/lib/postgresql/data");
+  for (const item of [umami, db])
+    expect(item.image).toMatch(/:[^@]+@sha256:[a-f0-9]{64}$/);
+  const yaml = readFileSync(`${path}deploy.yml`, "utf8");
+  expect(yaml).toContain("TRACKER_SCRIPT_NAME: t.js");
+  expect(yaml).toContain("COLLECT_API_ENDPOINT: /api/e");
+  expect(yaml).toContain("path: /api/heartbeat");
+});
+
+test("deploy recusa secret ausente antes de chamar Docker", async () => {
+  const run = await deploy([
+    { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "ok" },
+  ]);
+  expect(run.code).not.toBe(0);
+  expect(run.args).toBe("");
 });
 
 test("Stack Ops não faz login em registry", () => {

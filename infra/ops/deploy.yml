@@ -49,3 +49,36 @@ accessories:
     options:
       memory: 896m
       cpus: 0.4
+  umami-db:
+    image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
+    host: devbox-1
+    env:
+      clear:
+        POSTGRES_DB: umami
+        POSTGRES_USER: umami
+      secret:
+        - POSTGRES_PASSWORD
+    volumes:
+      - dangus-ops-umami-db:/var/lib/postgresql/data
+    options:
+      memory: 256m
+      cpus: 0.1
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-v2.19.0@sha256:77264ce6951c6b131a91d99f1cfd720d9efac1eaaa12e104f21cf49408dd77e0
+    host: devbox-1
+    proxy:
+      host: analytics.dangus-box.com
+      app_port: 3000
+      ssl: true
+      healthcheck:
+        path: /api/heartbeat
+    env:
+      clear:
+        TRACKER_SCRIPT_NAME: t.js
+        COLLECT_API_ENDPOINT: /api/e
+      secret:
+        - DATABASE_URL
+        - APP_SECRET
+    options:
+      memory: 512m
+      cpus: 0.2
