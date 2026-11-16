@@ -6,10 +6,12 @@ import {
   readdir,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { loadConfig } from "./config";
 
 const cli = join(import.meta.dir, "index.ts");
 const packages = join(import.meta.dir, "../..");
@@ -198,4 +200,30 @@ test("instala as versões publicadas junto com o CLI", async () => {
   expect(await read("bun-args")).toContain(
     `@openfeature/server-sdk@${(await pkg("server")).dependencies["@openfeature/server-sdk"]}`,
   );
+});
+
+test("Config gerada é válida e já está no formato do Biome", async () => {
+  const { root, run, read } = await product(["api", "web", "mobile"]);
+  expect((await run(["--yes"])).code).toBe(0);
+  await mkdir(join(root, "node_modules/@dangus-box"), { recursive: true });
+  await symlink(
+    join(packages, "cli"),
+    join(root, "node_modules/@dangus-box/cli"),
+  );
+  const config = await loadConfig(root);
+  expect(config.database).toBe("sqlite");
+  expect(config.apps.web?.secrets).toEqual([
+    "UMAMI_WEBSITE_ID",
+    "FLAGS_FRONTEND_TOKEN",
+  ]);
+  const generated = await read("dangus.config.ts");
+  const biome = Bun.spawn(
+    [
+      join(packages, "../node_modules/.bin/biome"),
+      "format",
+      "--stdin-file-path=dangus.config.ts",
+    ],
+    { stdin: new TextEncoder().encode(generated), stdout: "pipe" },
+  );
+  expect(await new Response(biome.stdout).text()).toBe(generated);
 });
