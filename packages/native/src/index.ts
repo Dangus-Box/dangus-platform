@@ -1,5 +1,6 @@
 import { UnleashWebProvider } from "@openfeature/unleash-web-provider";
 import { OpenFeature } from "@openfeature/web-sdk";
+import { Platform } from "react-native";
 import { InMemoryStorageProvider } from "unleash-proxy-client";
 
 export { OpenFeatureProvider, useFlag } from "@openfeature/react-sdk";
@@ -7,8 +8,12 @@ export { OpenFeature } from "@openfeature/web-sdk";
 
 const analyticsUrl = "https://analytics.dangus-box.com";
 const flagsUrl = "https://flags.dangus-box.com/api/frontend";
-const userAgent =
-  "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36";
+// O Umami descarta UAs de bot (como o `okhttp/…` padrão do Android); este UA
+// mínimo identifica só o sistema, sem fingir um navegador.
+const userAgent = () =>
+  Platform.OS === "ios"
+    ? "Mozilla/5.0 (iPhone; CPU iPhone OS like Mac OS X)"
+    : "Mozilla/5.0 (Linux; Android)";
 
 export async function enviarEvento(
   name: string,
@@ -17,14 +22,21 @@ export async function enviarEvento(
   website = process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID,
 ): Promise<void> {
   if (!website) return;
-  await fetch(`${servidor}/api/send`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "user-agent": userAgent },
-    body: JSON.stringify({
-      type: "event",
-      payload: { website, hostname: "app", url, name },
-    }),
-  });
+  try {
+    await fetch(`${servidor}/api/send`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "user-agent": userAgent(),
+      },
+      body: JSON.stringify({
+        type: "event",
+        payload: { website, hostname: "app", url, name },
+      }),
+    });
+  } catch {
+    // Analytics nunca quebra a App, por exemplo sem rede.
+  }
 }
 
 export async function configurarFlags(

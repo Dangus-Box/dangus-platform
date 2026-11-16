@@ -9,5 +9,5 @@ case "${1:-}" in
   *) echo 'Uso: packages/native/e2e.sh umami|unleash' >&2; exit 1 ;;
 esac
 cp "$root/infra/ops/test/$source_script.sh" "$tmp"
-printf '\nbun "$root/packages/native/src/%s.ts"\n' "$native_script" >> "$tmp"
+printf '\nbun --preload "$root/packages/native/test/react-native.ts" "$root/packages/native/src/%s.ts"\n' "$native_script" >> "$tmp"
 bash "$tmp"
