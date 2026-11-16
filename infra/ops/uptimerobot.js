@@ -16,8 +16,11 @@ const base =
 async function request(method, params = {}) {
   const response = await fetch(`${base}/${method}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ api_key: keys[0].value, ...params }),
+    body: new URLSearchParams({
+      api_key: keys[0].value,
+      format: "json",
+      ...params,
+    }),
   });
   const body = await response.json();
   if (!response.ok || body.stat !== "ok")
@@ -31,7 +34,9 @@ async function list(method, field, params = {}) {
   for (let offset = 0; ; offset += 50) {
     const page = await request(method, { ...params, offset, limit: 50 });
     all.push(...page[field]);
-    if (all.length >= page.pagination.total) return all;
+    // getAlertContacts traz `total` no topo; getMonitors, em `pagination`.
+    const total = page.pagination?.total ?? page.total;
+    if (page[field].length === 0 || all.length >= total) return all;
   }
 }
 const contacts = await list("getAlertContacts", "alert_contacts");
@@ -55,13 +60,9 @@ for (const [friendly_name, url] of [
 ]) {
   const matches = monitors.filter((monitor) => monitor.url === url);
   if (matches.length > 1) throw new Error(`Monitores duplicados: ${url}`);
-  const params = {
-    friendly_name,
-    url,
-    type: 1,
-    alert_contacts: `${contactId}_0_0`,
-  };
-  if (matches.length === 0) await request("newMonitor", params);
+  const params = { friendly_name, url, alert_contacts: `${contactId}_0_0` };
+  // O tipo (1 = HTTP(s)) só é aceito na criação; editMonitor o rejeita.
+  if (matches.length === 0) await request("newMonitor", { ...params, type: 1 });
   else
     await request("editMonitor", { ...params, id: matches[0].id, status: 1 });
   console.log(`Monitor configurado: ${friendly_name}`);
