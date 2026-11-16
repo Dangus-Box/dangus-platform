@@ -14,6 +14,7 @@ import { dev } from "./dev";
 import { doctor } from "./doctor";
 import { init } from "./init";
 import { listProducts } from "./ls";
+import { parseRestoreArgs, restore } from "./restore";
 
 if (process.argv[2] === "--version" && process.argv.length === 3) {
   console.log(version);
@@ -81,6 +82,13 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
     console.error(error instanceof Error ? error.message : "Falha no Backup.");
     process.exitCode = 1;
   }
+} else if (process.argv[2] === "db" && process.argv[3] === "restore") {
+  try {
+    await restore(await loadConfig(), parseRestoreArgs(process.argv.slice(4)));
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : "Falha no Restore.");
+    process.exitCode = 1;
+  }
 } else if (
   (process.argv[2] === "dev" || process.argv[2] === "ls") &&
   process.argv.length === 3
@@ -128,7 +136,7 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
   }
 } else {
   console.error(
-    "Uso: dangus init [--yes] | dev | ls | doctor [--base <ref>] | render | deploy [--skip-build] | db backup | host bootstrap <host>",
+    "Uso: dangus init [--yes] | dev | ls | doctor [--base <ref>] | render | deploy [--skip-build] | db backup | db restore | host bootstrap <host>",
   );
   process.exitCode = 1;
 }
