@@ -239,7 +239,7 @@ bws_cli() { bws --server-url "$BWS_SERVER_URL" --access-token "$BWS_OPERATOR_TOK
 
 run_wizard() {
 
-TOTAL_STAGES=18
+TOTAL_STAGES=17
 
 banner "Contas e credenciais externas da Plataforma"
 
@@ -412,7 +412,7 @@ step "Settings do projeto → API Access → Create API key (a de leitura e escr
 require_value HEALTHCHECKS_API_KEY "Cole a API key (read-write):" secret
 pause "Enter para continuar"
 
-# ── 13 ────────────────────────────────────────────────────────────────────
+# ── 12 ────────────────────────────────────────────────────────────────────
 stage "Telegram: bot de alertas"
 open_url "https://t.me/BotFather"
 step "No chat com o @BotFather, envie /newbot."
@@ -426,7 +426,7 @@ else
 fi
 pause "Enter para continuar"
 
-# ── 14 ────────────────────────────────────────────────────────────────────
+# ── 13 ────────────────────────────────────────────────────────────────────
 stage "Telegram: chat dos alertas"
 step "No Telegram, crie um grupo 'Dangus Alerts' com o time e adicione o bot."
 step "No grupo, envie a mensagem: /start"
@@ -451,7 +451,7 @@ else
 fi
 pause "Enter para continuar"
 
-# ── 15 ────────────────────────────────────────────────────────────────────
+# ── 14 ────────────────────────────────────────────────────────────────────
 stage "npm: organização @dangus-box e token de publicação"
 say "Pacotes públicos do Kit de Integração (ADR-0014, issue #4)."
 open_url "https://www.npmjs.com/org/create"
@@ -464,7 +464,7 @@ step "Generate token → copie."
 require_value NPM_TOKEN "Cole o token do npm:" secret
 pause "Enter para continuar"
 
-# ── 16 ────────────────────────────────────────────────────────────────────
+# ── 15 ────────────────────────────────────────────────────────────────────
 stage "Enviar as credenciais ao BWS (projeto ops)"
 say "Cada valor vira o secret ${BWS_PREFIX}<CHAVE> no projeto 'ops'."
 say "Os que já existirem com o mesmo nome têm o valor atualizado."
@@ -493,7 +493,7 @@ else
 fi
 pause "Enter para continuar"
 
-# ── 17 ────────────────────────────────────────────────────────────────────
+# ── 16 ────────────────────────────────────────────────────────────────────
 stage "GitHub: token do CI como secret da organização"
 say "O único secret no GitHub é o token da machine account 'ci' (ADR-0005)."
 warn "No GitHub Free, secrets de organização não chegam a repositórios privados."
@@ -516,7 +516,7 @@ else
 fi
 pause "Enter para continuar"
 
-# ── 18 ────────────────────────────────────────────────────────────────────
+# ── 17 ────────────────────────────────────────────────────────────────────
 stage "Documentar no issue e limpar o cache"
 comment="Credenciais criadas pelo \`scripts/setup-external-accounts.sh\`.
 
