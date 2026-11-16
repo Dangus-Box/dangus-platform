@@ -150,7 +150,7 @@ import { observability, ${database === "sqlite" ? "migrateSqlite" : "migratePost
 import { OpenFeature } from "@openfeature/server-sdk";
 const observacao = observability();
 ${database === "sqlite" ? 'migrateSqlite(sqlite, "./drizzle");' : 'await migratePostgres(databaseUrl, "./drizzle");'}
-await configureFlags("${name}-api");
+await configureFlags("${name}");
 // Adicione .use(observacao.plugin) ao Elysia e chame observacao.markReady() após o boot.
 // Avalie Flags com OpenFeature.getClient() e envie eventos com trackEvent(...).`);
     if (found.includes("web"))
@@ -158,7 +158,7 @@ await configureFlags("${name}-api");
 import { Analytics, Flags } from "@dangus-box/web";
 // Passe UMAMI_WEBSITE_ID e FLAGS_FRONTEND_TOKEN pelo loader do servidor:
 <Analytics websiteId={websiteId} />
-<Flags token={token}><Outlet /></Flags>
+<Flags token={token} appName="${name}"><Outlet /></Flags>
 // No servidor, antes das demais rotas:
 import { proxyAnalytics } from "@dangus-box/web/server";
 const proxy = await proxyAnalytics(request, { websiteId: process.env.UMAMI_WEBSITE_ID });
