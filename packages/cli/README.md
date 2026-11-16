@@ -10,7 +10,7 @@ dangus host bootstrap root@host
 
 Antes de executar, confira o acesso de emergência pelo Browser terminal da Hostinger e confirme que o operador está conectado à tailnet. O provisionamento fecha o SSH público; execuções posteriores devem usar o endereço Tailscale. Configure o firewall da Hostinger seguindo [as instruções de infraestrutura](../../infra/tofu/README.md), pois o provider atual não o configura. Confirme o SSH pela tailnet e teste externamente que os endereços públicos IPv4 e IPv6 não respondem na porta 22. No ufw, apenas 80/tcp e 443/tcp ficam públicos; a interface `tailscale0` aceita todas as portas, pois a tailnet é a rede administrativa (ADR-0009). Se o ufw tiver regras diferentes dessas, o provisionamento lista as que serão descartadas e então redefine o ufw. Um Docker já instalado, como o `docker-ce` do repositório oficial, é mantido; o `docker.io` só é instalado quando não há Docker no Host.
 
-O Alloy começa sem destino remoto. Containers que disponibilizam métricas devem ter as labels Docker `prometheus.io.scrape=true` e `prometheus.io.port=<porta>`; o endpoint é `/metrics`. O Alloy coleta logs e métricas, mas as descarta até que um destino seja configurado em trabalho futuro. O timer de limpeza remove imagens não utilizadas com mais de sete dias.
+O Alloy envia logs e métricas para a Stack Ops pela rede Docker `kamal`. As APIs deployadas pelo CLI anunciam `/metrics` pelas labels Docker `prometheus.io.scrape=true` e `prometheus.io.port=3000`. O timer de limpeza remove imagens não utilizadas com mais de sete dias.
 
 Para exercitar o provisionamento localmente, execute `packages/cli/test/bootstrap-container.sh` com Docker. O teste cria um container privilegiado descartável com systemd, usa o driver Docker `vfs` para permitir Docker aninhado e pula apenas a entrada real na tailnet (`DANGUS_TEST_SKIP_TAILSCALE_JOIN=1`, recusado fora de container). Ele verifica as regras locais, os serviços e a segunda execução; a conectividade pública, a entrada real na tailnet e o Browser terminal precisam de um Host real.
 
@@ -51,6 +51,12 @@ Nos exemplos deste monorepo, execute `DANGUS_BUILD_CONTEXT=../.. dangus render` 
 Na raiz do Produto, execute `dangus doctor` antes do deploy, inclusive no CI. O comando verifica a integração da API em `apps/api/index.ts`, a versão exata do CLI em `bun.lock` (instale com `bun add --dev --exact @dangus-box/cli`), a conexão com Tailscale e as migrations SQL em `drizzle/`. Ele retorna código 1 para falhas; avisos não impedem o deploy. Instale e conecte o Tailscale também no ambiente de CI.
 
 O lint considera novas as migrations cujos caminhos não existem na ref Git `origin/main`. Garanta que a ref esteja disponível no CI, ou informe a ref que representa o estado deployado com `dangus doctor --base <ref>`. Arquivos já existentes nessa ref não são analisados, mesmo se alterados.
+
+# Desenvolvimento local e inventário
+
+Na raiz do Produto, execute `dangus dev` para iniciar `bun run dev` com `NODE_ENV=development`, que ativa os logs formatados de `@dangus-box/server`. Para Postgres, o comando inicia somente o Banco do Produto via Docker Compose na porta local 55432 e o para quando a App termina, inclusive por Ctrl-C ou SIGTERM; os dados ficam num volume Docker por diretório do Produto e persistem entre execuções. Para SQLite, não inicia containers. `DANGUS_DEV_POSTGRES_PORT` altera a porta local e `DATABASE_URL` pode substituir a conexão padrão. O comando define `DANGUS_DEV=1` para os futuros SDKs de analytics e Flags usarem modo no-op ou valores padrão; eles ainda não estão implementados.
+
+Execute `dangus ls` para consultar, por SSH no Host `DANGUS_HOST` (padrão `devbox-1`), as labels Docker `product` e `app` dos containers em execução, mostrando só as Apps `api` e `web` (sem o proxy da Plataforma nem o Banco do Produto). O inventário vem do próprio Host, sem registro central.
 
 # Workflow de deploy
 

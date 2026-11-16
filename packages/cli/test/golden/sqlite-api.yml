@@ -34,6 +34,8 @@ deploy_timeout: 120
 labels:
   product: exemplo-sqlite
   app: api
+  prometheus.io.scrape: "true"
+  prometheus.io.port: "3000"
 env:
   clear:
     SQLITE_PATH: /app/data/produto.sqlite

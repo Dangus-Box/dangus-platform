@@ -1,0 +1,2 @@
+[test]
+preload = ["./packages/native/test/react-native.ts"]
