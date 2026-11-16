@@ -8,11 +8,6 @@ const port = 18000 + Math.floor(Math.random() * 10000);
 const url = `http://localhost:${port}/mensagens`;
 
 beforeAll(async () => {
-  const migration = Bun.spawn(["bun", "run", "db:migrate"], {
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-  expect(await migration.exited).toBe(0);
   server = Bun.spawn(["bun", "dev"], {
     env: { ...process.env, PORT: String(port) },
     stdout: "ignore",
