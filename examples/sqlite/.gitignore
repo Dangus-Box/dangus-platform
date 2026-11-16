@@ -4,3 +4,4 @@ produto.sqlite*
 .output/
 .expo/
 apps/web/src/routeTree.gen.ts
+apps/web/dist/
