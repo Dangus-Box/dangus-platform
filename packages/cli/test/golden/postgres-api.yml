@@ -65,7 +65,6 @@ accessories:
         BACKUP_PRODUCT: exemplo-postgres
         BACKUP_DATABASE: produto
         BACKUP_TYPE: postgres
-        AGE_PUBLIC_KEY: age1pcr7wevcd3r75uannynawa9epy74qd2p2d63kuuge6rt2yuld5wqkuq3mw
         PGHOST: exemplo-postgres-api-db
         PGUSER: produto
         PGDATABASE: produto
@@ -74,4 +73,5 @@ accessories:
         - R2_SECRET_ACCESS_KEY
         - R2_ENDPOINT
         - HEALTHCHECKS_URL
+        - AGE_PUBLIC_KEY
         - PGPASSWORD:POSTGRES_PASSWORD
