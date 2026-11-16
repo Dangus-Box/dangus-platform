@@ -1,8 +1,9 @@
 import { Database } from "bun:sqlite";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { existsSync, rmSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createInterface } from "node:readline/promises";
+import { createInterface } from "node:readline";
 import type { ResolvedProductConfig } from "./config";
 
 export type RestoreOptions = {
@@ -93,23 +94,22 @@ export async function restore(
   options: RestoreOptions,
 ): Promise<void> {
   if (options.target && !options.yes) {
-    const prompt = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    try {
-      if (
-        !/^(s|sim)$/i.test(
-          (
-            await prompt.question("Restaurar no destino informado? [s/N] ")
-          ).trim(),
-        )
-      )
-        throw new Error("Restore cancelado.");
-    } finally {
-      prompt.close();
-    }
+    process.stdout.write("Restaurar no destino informado? [s/N] ");
+    // Sem resposta (stdin fechado) conta como não, em vez de travar.
+    const prompt = createInterface({ input: process.stdin });
+    const answer = await prompt[Symbol.asyncIterator]().next();
+    prompt.close();
+    if (answer.done || !/^(s|sim)$/i.test(answer.value.trim()))
+      throw new Error("Restore cancelado.");
   }
+  const prefix = `daily/${config.name}/produto/`;
+  if (
+    options.from &&
+    !new RegExp(
+      `^(daily|weekly|monthly)/${config.name}/produto/(?!\\.\\.?$)[^/]+$`,
+    ).test(options.from)
+  )
+    throw new Error(`Backup ${options.from} fora do Produto ${config.name}.`);
   const entries = JSON.parse(await command(["bws", "secret", "list"])) as {
     key: string;
     value: string;
@@ -142,6 +142,13 @@ export async function restore(
   await ping("/start").catch(() => {});
   let dir = "";
   let container = "";
+  // Ctrl-C ou SIGTERM não deixam o dump em texto nem o container para trás.
+  const abort = () => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+    if (container) Bun.spawnSync(["docker", "rm", "-f", container]);
+    process.exit(130);
+  };
+  process.once("SIGINT", abort).once("SIGTERM", abort);
   try {
     const identity = secret("ops__BACKUP_AGE_PRIVATE_KEY");
     const endpoint = secret("platform__R2_ENDPOINT").replace(/\/$/, "");
@@ -162,7 +169,6 @@ export async function restore(
         ],
         `user = ${quote(`${access}:${password}`)}\nurl = ${quote(url)}\n`,
       );
-    const prefix = `daily/${config.name}/produto/`;
     let key = options.from;
     if (!key) {
       let token = "";
@@ -185,22 +191,16 @@ export async function restore(
     if (!key) throw new Error("Nenhum Backup diário encontrado.");
     dir = await mkdtemp(join(tmpdir(), "dangus-restore-"));
     const encrypted = join(dir, "backup.age");
-    const privateKey = join(dir, "identity");
     const data = join(dir, "data");
-    await writeFile(privateKey, identity, { mode: 0o600 });
     await curl(
       `${endpoint}/dangus-backups/${key.split("/").map(encodeURIComponent).join("/")}`,
       encrypted,
     );
-    await command([
-      "age",
-      "-d",
-      "-i",
-      privateKey,
-      "-o",
-      join(dir, "backup.gz"),
-      encrypted,
-    ]);
+    // A identidade vai pelo stdin: a chave privada nunca é gravada em disco.
+    await command(
+      ["age", "-d", "-i", "-", "-o", join(dir, "backup.gz"), encrypted],
+      identity,
+    );
     const decompressed = Bun.spawn(["gzip", "-dc", join(dir, "backup.gz")], {
       stdout: Bun.file(data),
       stderr: "pipe",
@@ -220,15 +220,25 @@ export async function restore(
       } finally {
         db.close();
       }
-      if (options.target) await Bun.write(options.target, Bun.file(data));
+      if (options.target) {
+        // Um -wal antigo seria reaplicado sobre o banco restaurado.
+        if (existsSync(`${options.target}-wal`))
+          throw new Error("Pare a App: o destino SQLite está em uso.");
+        await Bun.write(options.target, Bun.file(data));
+      }
     } else {
       const sql = await Bun.file(data).text();
-      if (options.target)
-        await command(["psql", "-v", "ON_ERROR_STOP=1"], sql, {
-          ...process.env,
-          PGDATABASE: options.target,
-        });
-      else {
+      if (options.target) {
+        // libpq não lê URL em PGDATABASE; a senha sai do argv e vai pelo ambiente.
+        const url = new URL(options.target);
+        const password = decodeURIComponent(url.password);
+        url.password = "";
+        await command(
+          ["psql", "-v", "ON_ERROR_STOP=1", "-1", "-d", url.href],
+          sql,
+          { ...process.env, PGPASSWORD: password },
+        );
+      } else {
         container = `dangus-restore-${crypto.randomUUID()}`;
         await command([
           "docker",
@@ -269,6 +279,7 @@ export async function restore(
             "postgres",
             "-v",
             "ON_ERROR_STOP=1",
+            "-1",
           ],
           sql,
         );
@@ -292,6 +303,7 @@ export async function restore(
     await ping("/fail").catch(() => {});
     throw error;
   } finally {
+    process.off("SIGINT", abort).off("SIGTERM", abort);
     if (container)
       await command(["docker", "rm", "-f", container]).catch(() => {});
     if (dir) await rm(dir, { recursive: true, force: true });
