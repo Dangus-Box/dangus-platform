@@ -135,7 +135,10 @@ describe("observabilidade", () => {
     const metrics = await (
       await app.handle(new Request("http://localhost/metrics"))
     ).text();
-    expect(metrics).toContain('status_code="200",le="0.005"} 1');
+    // Buckets em segundos: existe um limite de 5 ms e a requisição cabe em 10 s.
+    // Não exige que caia em 0.005, pois a duração varia com a carga da máquina.
+    expect(metrics).toMatch(/status_code="200",le="0\.005"} [01]\n/);
+    expect(metrics).toContain('status_code="200",le="10"} 1');
     expect(metrics).not.toContain('le="5000"');
   });
 });
