@@ -8,7 +8,7 @@ Esta configuração gerencia o Host já existente, um VPS Hostinger KVM 4 no Bra
 - Conta Hostinger com acesso à API e o Host já contratado.
 - Bucket R2 privado `dangus-tofu-state` já criado na conta Cloudflare, antes de `tofu init`: um backend não pode criar seu próprio bucket. As credenciais R2 precisam permitir leitura, escrita e listagem desse bucket. A criação do bucket é uma etapa separada, sujeita a autorização.
 - Acesso ao projeto `ops` do BWS com `BWS_ACCESS_TOKEN`. Crie nele o secret `platform__TOFU_STATE_PASSPHRASE` com uma frase aleatória forte de pelo menos 16 caracteres e preserve-a: perdê-la impede a leitura do state. Não troque a frase sem seguir o procedimento de rotação de chaves do OpenTofu.
-- Os secrets existentes no projeto `ops`: `platform__HOSTINGER_API_TOKEN`, `platform__CLOUDFLARE_ACCOUNT_ID`, `platform__CLOUDFLARE_ZONE_ID`, `platform__CLOUDFLARE_DNS_TOKEN`, `platform__CLOUDFLARE_R2_TOKEN`, `platform__R2_ACCESS_KEY_ID`, `platform__R2_SECRET_ACCESS_KEY` e `platform__R2_ENDPOINT`. O token Cloudflare usado pelo provider precisa gerenciar o bucket R2, locks, lifecycle e tokens de API; confirme as permissões antes de aplicar. As credenciais S3 do backend são distintas das credenciais de Backup.
+- Os secrets existentes no projeto `ops`: `platform__HOSTINGER_API_TOKEN`, `platform__CLOUDFLARE_ACCOUNT_ID`, `platform__CLOUDFLARE_ZONE_ID`, `platform__CLOUDFLARE_DNS_TOKEN`, `platform__CLOUDFLARE_R2_TOKEN`, `platform__R2_ACCESS_KEY_ID`, `platform__R2_SECRET_ACCESS_KEY` e `platform__R2_ENDPOINT`. O token `platform__CLOUDFLARE_R2_TOKEN` usado pelo provider também precisa das permissões Workers Scripts:Edit e Workers KV Storage:Edit, além de gerenciar o bucket R2, locks, lifecycle e tokens de API; confirme as permissões antes de aplicar. As credenciais S3 do backend são distintas das credenciais de Backup.
 
 ## Execução
 
@@ -24,6 +24,8 @@ secret() {
 }
 export HOSTINGER_API_TOKEN="$(secret platform__HOSTINGER_API_TOKEN)"
 export CLOUDFLARE_API_TOKEN="$(secret platform__CLOUDFLARE_R2_TOKEN)"
+export TF_VAR_telegram_bot_token="$(secret platform__TELEGRAM_BOT_TOKEN)"
+export TF_VAR_telegram_chat_id="$(secret platform__TELEGRAM_CHAT_ID)"
 export TF_VAR_cloudflare_account_id="$(secret platform__CLOUDFLARE_ACCOUNT_ID)"
 export AWS_ACCESS_KEY_ID="$(secret platform__R2_ACCESS_KEY_ID)"
 export AWS_SECRET_ACCESS_KEY="$(secret platform__R2_SECRET_ACCESS_KEY)"
@@ -36,7 +38,7 @@ export AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
 Confira que todos os valores foram carregados sem imprimi-los; com `AWS_ENDPOINT_URL_S3` vazio, o backend tentaria a AWS em vez do R2:
 
 ```bash
-for v in HOSTINGER_API_TOKEN CLOUDFLARE_API_TOKEN TF_VAR_cloudflare_account_id AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_ENDPOINT_URL_S3 TF_VAR_state_passphrase; do
+for v in HOSTINGER_API_TOKEN CLOUDFLARE_API_TOKEN TF_VAR_cloudflare_account_id TF_VAR_telegram_bot_token TF_VAR_telegram_chat_id AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_ENDPOINT_URL_S3 TF_VAR_state_passphrase; do
   [ -n "${!v}" ] || echo "faltando: $v"
 done
 ```
@@ -56,7 +58,7 @@ export TF_VAR_ssh_public_key="$(cat ~/.ssh/id_ed25519.pub)"
 1. Crie o bucket R2 e o secret `platform__TOFU_STATE_PASSPHRASE` (ver Pré-requisitos) e carregue as variáveis acima.
 2. `tofu init`
 3. `tofu import hostinger_vps.host "$VPS_ID"`, só uma vez: o Host passa a constar do state criptografado no R2.
-4. `tofu plan`. O resultado esperado é `1 to add, 1 to change, 0 to destroy`: criar `hostinger_vps_ssh_key.host` e anexá-la ao Host (`ssh_key_ids`), sem nenhuma outra mudança no Host. Se o plano criar, substituir ou destruir `hostinger_vps.host`, ou mudar outro atributo dele, pare e não aplique.
+4. `tofu plan`. Revise os recursos a criar, incluindo o Worker, o namespace KV e o cron, e confirme que a única alteração no Host é anexar `hostinger_vps_ssh_key.host` (`ssh_key_ids`). Se o plano criar, substituir ou destruir `hostinger_vps.host`, ou mudar outro atributo dele, pare e não aplique.
 5. `tofu apply`, após revisar o plano.
 
 Nas execuções seguintes, pule o passo 3; um `tofu plan` sem mudanças confirma que o Host continua como declarado. Nunca rode `tofu apply` com o state vazio: sem o import, o OpenTofu compraria um Host novo.
@@ -95,3 +97,7 @@ git add ../backup/age.pub
 A chave privada é criada no BWS como `ops__BACKUP_AGE_PRIVATE_KEY`, fora do state; a chave pública fica em `infra/backup/age.pub` e deve ser commitada para o Host. O arquivo ainda não existe: gere-o durante o rollout. O script recusa sobrescrever qualquer uma das duas chaves. Se a escrita do arquivo público falhar após criar o secret, recupere a chave pública da identidade no BWS em vez de gerar outra. A chave privada também passa como argumento ao processo `bws`.
 
 Verificações locais: `tofu validate`, `tofu test` (providers simulados) e `../backup/tests/scripts.sh` (BWS simulado). Após o apply, envie um objeto de teste a cada prefixo com a credencial do Host e confirme que a tentativa de apagá-lo dentro do prazo falha. Essa verificação exige recursos e credenciais reais e não é substituída pelos testes simulados.
+
+## Uptime externo
+
+O Worker consulta o Umami e o Unleash Edge a cada minuto. Duas falhas consecutivas geram alerta no Telegram; a recuperação gera outra mensagem. O estado fica em Workers KV. Os secrets `platform__TELEGRAM_BOT_TOKEN` e `platform__TELEGRAM_CHAT_ID` vêm do projeto `ops` do BWS e também ficam no state criptografado. A entrega real requer verificação após o apply; execute `bun test infra/uptime` para testar a lógica localmente.

@@ -220,7 +220,6 @@ BWS_KEYS=(
   CLOUDFLARE_R2_TOKEN R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_ENDPOINT
   TAILSCALE_TAILNET TAILSCALE_OAUTH_CLIENT_ID TAILSCALE_OAUTH_CLIENT_SECRET
   HEALTHCHECKS_API_KEY
-  UPTIMEROBOT_API_KEY
   TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID
   NPM_TOKEN
 )
@@ -411,15 +410,6 @@ step "Crie a conta no plano Hobbyist (grátis)."
 step "Renomeie o projeto padrão para 'Dangus Platform'."
 step "Settings do projeto → API Access → Create API key (a de leitura e escrita)."
 require_value HEALTHCHECKS_API_KEY "Cole a API key (read-write):" secret
-pause "Enter para continuar"
-
-# ── 12 ────────────────────────────────────────────────────────────────────
-stage "UptimeRobot"
-say "Uptime externo de analytics e flags (issue #15)."
-open_url "https://dashboard.uptimerobot.com/sign-up"
-step "Crie a conta no plano Free."
-step "Menu Integrations & API → API → Main API key → Create/Show → copie."
-require_value UPTIMEROBOT_API_KEY "Cole a Main API key:" secret
 pause "Enter para continuar"
 
 # ── 13 ────────────────────────────────────────────────────────────────────
