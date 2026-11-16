@@ -46,7 +46,14 @@ test("dashboard consulta sinais por Produto", () => {
 
 async function deploy(
   secrets: { key: string; value: string }[],
-  { failExec = false, route = false, missingUnleash = "" } = {},
+  {
+    failExec = false,
+    route = false,
+    edgeContainer = route,
+    edgeRoute = route,
+    failUnleashHealth = false,
+    missingUnleash = "",
+  } = {},
 ) {
   if (secrets.some((s) => s.key === "ops__UMAMI_ADMIN_PASSWORD"))
     secrets.push(
@@ -70,6 +77,8 @@ async function deploy(
   };
   fake("bws", `echo '${JSON.stringify(secrets)}'`);
   if (route) writeFileSync(`${bin}/route`, "");
+  if (edgeContainer) writeFileSync(`${bin}/edge-container`, "");
+  if (edgeRoute) writeFileSync(`${bin}/edge-route`, "");
   // Imita o Kamal: stop/reboot de accessory com proxy executa
   // `kamal-proxy remove`, que falha se a rota não existe.
   const pub = "umami --config-file deploy.yml ";
@@ -82,7 +91,19 @@ case " $* " in
     [ -f ${bin}/route ] || { echo 'Error: service not found' >&2; exit 1; }
     rm ${bin}/route ;;
 esac
-case " $* " in *" accessory boot ${pub}"*|*" accessory reboot ${pub}"*) touch ${bin}/route ;; esac`,
+case " $* " in *" accessory boot ${pub}"*|*" accessory reboot ${pub}"*) touch ${bin}/route ;; esac
+# Imita o Kamal: boot pula accessory cujo container já existe.
+case " $* " in
+  *" accessory exec unleash "*) ${failUnleashHealth ? "exit 1" : ":"} ;;
+  *" accessory stop unleash-edge --config-file deploy.yml "*)
+    [ -f ${bin}/edge-route ] || { echo 'Error: service not found' >&2; exit 1; }
+    rm ${bin}/edge-route ;;
+  *" accessory remove_container unleash-edge "*) rm -f ${bin}/edge-container ;;
+  *" accessory boot unleash-edge "*)
+    [ -f ${bin}/edge-container ] && exit 0
+    touch ${bin}/edge-container
+    case " $* " in *" deploy.yml "*) touch ${bin}/edge-route ;; esac ;;
+esac`,
   );
   const child = Bun.spawn([`${path}deploy.sh`], {
     env: { PATH: `${bin}:${process.env.PATH}`, SSH_AUTH_SOCK: "/ssh-agent" },
@@ -101,6 +122,7 @@ case " $* " in *" accessory boot ${pub}"*|*" accessory reboot ${pub}"*) touch ${
     args: read("args"),
     env: read("env"),
     routed: existsSync(`${bin}/route`),
+    edgeRouted: existsSync(`${bin}/edge-route`),
   };
 }
 
@@ -237,4 +259,41 @@ for (const name of [
     );
     expect(run.code).not.toBe(0);
     expect(run.args).toBe("");
+  });
+
+const unleashSecrets = () => [
+  { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "x" },
+  { key: "ops__UMAMI_APP_SECRET", value: "x" },
+  { key: "ops__UMAMI_DB_PASSWORD", value: "x" },
+  { key: "ops__UMAMI_ADMIN_PASSWORD", value: "adminpass" },
+];
+
+// O Edge encerra se não valida TOKENS no upstream ao iniciar.
+test("deploy só sobe o Edge depois do Unleash server responder", async () => {
+  const run = await deploy(unleashSecrets());
+  expect(run.code).toBe(0);
+  const health = run.args.indexOf("accessory\nexec\nunleash\n");
+  expect(health).toBeGreaterThan(
+    run.args.indexOf("accessory\nboot\nunleash\n"),
+  );
+  expect(health).toBeLessThan(
+    run.args.indexOf("accessory\nboot\nunleash-edge\n"),
+  );
+});
+
+test("Unleash server sem resposta impede o boot do Edge", async () => {
+  const run = await deploy(unleashSecrets(), { failUnleashHealth: true });
+  expect(run.code).not.toBe(0);
+  expect(run.args).not.toContain("accessory\nboot\nunleash-edge\n");
+});
+
+for (const [name, state] of [
+  ["no primeiro deploy", { edgeContainer: false, edgeRoute: false }],
+  ["no redeploy", { edgeContainer: true, edgeRoute: true }],
+  ["após primeiro deploy sem rota", { edgeContainer: true, edgeRoute: false }],
+] as const)
+  test(`deploy publica o Edge ${name}`, async () => {
+    const run = await deploy(unleashSecrets(), state);
+    expect(run.code).toBe(0);
+    expect(run.edgeRouted).toBe(true);
   });
