@@ -126,4 +126,16 @@ describe("observabilidade", () => {
     expect(metrics).toContain("http_server_duration_seconds");
     expect(metrics).toContain("http_server_errors");
   });
+
+  test("latência usa buckets em segundos", async () => {
+    const obs = observability();
+    const app = new Elysia().use(obs.plugin).get("/", () => "ok");
+    await app.handle(new Request("http://localhost/"));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const metrics = await (
+      await app.handle(new Request("http://localhost/metrics"))
+    ).text();
+    expect(metrics).toContain('status_code="200",le="0.005"} 1');
+    expect(metrics).not.toContain('le="5000"');
+  });
 });
