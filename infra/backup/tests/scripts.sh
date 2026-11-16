@@ -13,6 +13,7 @@ import json, os, sys
 path = os.environ['FAKE_STORE']
 a = sys.argv[1:]
 with open(path) as f: data = json.load(f)
+if os.environ.get('FAKE_BWS_FAIL') == a[1]: sys.exit(1)
 if a[:2] == ['secret', 'list']:
  print(json.dumps([{'key': k, 'id': k} for k in data]))
 elif a[:2] == ['secret', 'get']:
@@ -47,4 +48,16 @@ jq -e '.ops__BACKUP_AGE_PRIVATE_KEY | contains("AGE-SECRET-KEY-EXAMPLE")' "$FAKE
 if "$tmp/infra/backup/generate-age-key.sh" 2>/dev/null; then exit 1; fi
 rm "$tmp/infra/backup/age.pub"
 if "$tmp/infra/backup/generate-age-key.sh" 2>/dev/null; then exit 1; fi
+# Falha ao listar o BWS não pode levar a criar uma segunda chave privada.
+printf '{}\n' > "$FAKE_STORE"
+if FAKE_BWS_FAIL=list "$tmp/infra/backup/generate-age-key.sh" 2>/dev/null; then exit 1; fi
+[[ ! -e "$tmp/infra/backup/age.pub" ]] && jq -e '. == {}' "$FAKE_STORE" >/dev/null
+# Conflito em um secret impede criar o outro.
+printf '{"ops__R2_BACKUP_SECRET_ACCESS_KEY":"different"}\n' > "$FAKE_STORE"
+if "$tmp/infra/backup/copy-r2-credentials.sh" 2>/dev/null; then exit 1; fi
+jq -e 'has("ops__R2_BACKUP_ACCESS_KEY_ID") | not' "$FAKE_STORE" >/dev/null
+# Nenhum valor secreto aparece na saída.
+printf '{}\n' > "$FAKE_STORE"
+out=$("$tmp/infra/backup/copy-r2-credentials.sh" 2>&1; "$tmp/infra/backup/generate-age-key.sh" 2>&1)
+[[ $out != *test-secret* && $out != *AGE-SECRET-KEY* ]]
 echo 'Scripts: criação, repetição, conflitos e proteção contra sobrescrita passaram.'
