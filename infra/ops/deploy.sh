@@ -25,7 +25,6 @@ export GF_SECURITY_ADMIN_PASSWORD="$GRAFANA_ADMIN_PASSWORD" APP_SECRET="$UMAMI_A
 export UNLEASH_DEFAULT_ADMIN_PASSWORD="$UNLEASH_ADMIN_PASSWORD" INIT_FRONTEND_API_TOKENS="$UNLEASH_FRONTEND_TOKEN" INIT_CLIENT_API_TOKENS="$UNLEASH_BACKEND_TOKEN" TOKENS="$UNLEASH_BACKEND_TOKEN"
 unleash_url="postgresql://unleash:$(bun -e 'process.stdout.write(encodeURIComponent(process.env.UNLEASH_DB_PASSWORD))')@dangus-ops-unleash-db:5432/unleash"
 export DATABASE_URL="postgresql://umami:$(bun -e 'process.stdout.write(encodeURIComponent(process.env.UMAMI_DB_PASSWORD))')@dangus-ops-umami-db:5432/umami"
-export UMAMI_BACKUP_DATABASE_URL="$DATABASE_URL" UNLEASH_BACKUP_DATABASE_URL="$unleash_url"
 version=$(git rev-parse --verify HEAD)
 # O primeiro boot do Umami não tem proxy nem porta publicada. Assim, mesmo que
 # a inicialização ou a troca de senha falhe, a senha inicial não fica pública.
@@ -42,7 +41,7 @@ awk '
 ' deploy.yml > "$private_config"
 runner() {
   docker run --rm --network host -v "$PWD:/work" -w /work -v "$SSH_AUTH_SOCK:/ssh-agent" \
-    -e SSH_AUTH_SOCK=/ssh-agent -e AGE_PUBLIC_KEY -e R2_ENDPOINT -e R2_ACCESS_KEY_ID -e R2_SECRET_ACCESS_KEY -e HEALTHCHECKS_URL -e UMAMI_BACKUP_DATABASE_URL -e UNLEASH_BACKUP_DATABASE_URL -e GF_SECURITY_ADMIN_PASSWORD -e TELEGRAM_BOT_TOKEN -e APP_SECRET \
+    -e SSH_AUTH_SOCK=/ssh-agent -e AGE_PUBLIC_KEY -e R2_ENDPOINT -e R2_ACCESS_KEY_ID -e R2_SECRET_ACCESS_KEY -e HEALTHCHECKS_URL -e UMAMI_DB_PASSWORD -e UNLEASH_DB_PASSWORD -e GF_SECURITY_ADMIN_PASSWORD -e TELEGRAM_BOT_TOKEN -e APP_SECRET \
     -e POSTGRES_PASSWORD -e DATABASE_URL -e UMAMI_ADMIN_PASSWORD \
     -e UNLEASH_DEFAULT_ADMIN_PASSWORD -e INIT_FRONTEND_API_TOKENS -e INIT_CLIENT_API_TOKENS -e TOKENS \
     ghcr.io/basecamp/kamal:v2.12.0@sha256:7a3893b47dd328955f86fbf9ba887d08d612b74f96867f077750a53312537625 \

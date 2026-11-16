@@ -688,8 +688,12 @@ test("accessory protege cada variante e não inclui chave privada", async () => 
     expect(backup.env.secret).toContain("R2_SECRET_ACCESS_KEY");
     expect(yaml).not.toContain("AGE-SECRET-KEY-");
     if (database === "sqlite")
-      expect(backup.volumes).toContain("produto-sqlite:/app/data:ro");
-    else expect(backup.env.secret).toContain("DATABASE_URL");
+      expect(backup.volumes).toEqual(["produto-sqlite:/app/data"]);
+    else {
+      expect(backup.env.clear.PGHOST).toBe("produto-api-db");
+      expect(backup.env.secret).toContain("PGPASSWORD:POSTGRES_PASSWORD");
+      expect(yaml).not.toContain("DATABASE_URL:");
+    }
   }
 });
 

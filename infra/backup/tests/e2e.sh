@@ -66,7 +66,9 @@ docker exec "$name-pg" createdb -U postgres restored
 docker exec -i "$name-pg" psql -v ON_ERROR_STOP=1 -U postgres -d restored < "$tmp/produto.out" >/dev/null
 [[ $(docker exec "$name-pg" psql -U postgres -d restored -tAc 'SELECT value FROM items') == 'backup postgres' ]]
 docker exec "$name-pg16" createdb -U postgres restored
-docker exec -i "$name-pg16" psql -v ON_ERROR_STOP=1 -U postgres -d restored < "$tmp/umami.out" >/dev/null
+# O dump do pg_dump 17 traz `SET transaction_timeout`, que o 16 rejeita; é o único erro aceito.
+errors=$(docker exec -i "$name-pg16" psql -U postgres -d restored < "$tmp/umami.out" 2>&1 >/dev/null)
+[[ $errors == 'ERROR:  unrecognized configuration parameter "transaction_timeout"' ]]
 [[ $(docker exec "$name-pg16" psql -U postgres -d restored -tAc 'SELECT value FROM items') == 'backup postgres 16' ]]
 [[ $(docker run --rm -v "$tmp:/data" --entrypoint sqlite3 "$name" /data/sqlite.out 'PRAGMA integrity_check; SELECT value FROM items LIMIT 1') == $'ok\nbackup sqlite' ]]
 # Só a identidade privada decripta.
@@ -97,6 +99,8 @@ done
 [[ $(objects daily/example/falha) == 1 ]]
 
 # Nenhum segredo aparece no argv dos processos.
+docker run --rm -v "$tmp:/data" --entrypoint chmod "$name" 644 /data/argv
+grep -q '/curl .*--aws-sigv4' "$tmp/argv" && grep -q '/pg_dump ' "$tmp/argv"
 for secret in testsecret testpass check-uuid; do
   if grep -q "$secret" "$tmp/argv"; then echo "Segredo $secret no argv: $(grep "$secret" "$tmp/argv" | head -1)" >&2; exit 1; fi
 done

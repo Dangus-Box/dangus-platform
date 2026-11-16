@@ -4,4 +4,4 @@ A imagem `ghcr.io/dangus-box/backup:1.0.0` executa às 03:00 UTC. Cada execuçã
 
 Antes do deploy, gere a chave com `generate-age-key.sh` e disponibilize `infra/backup/age.pub` junto ao CLI (ou indique seu caminho com `DANGUS_BACKUP_AGE_PUBLIC_KEY_FILE`). Configure no BWS `ops__R2_BACKUP_ACCESS_KEY_ID`, `ops__R2_BACKUP_SECRET_ACCESS_KEY`, `platform__R2_ENDPOINT` e `<produto>__HEALTHCHECKS_BACKUP_URL`; para a Stack Ops use `ops__HEALTHCHECKS_BACKUP_URL`. Configure no Healthchecks.io um período diário e a integração com Telegram.
 
-Para executar agora, rode `dangus db backup` no diretório do Produto com acesso SSH ao Host. O teste local `infra/backup/test/e2e.sh` cria containers descartáveis e uma identidade age de teste; não usa credenciais reais.
+Para executar agora, rode `dangus db backup` no diretório do Produto com acesso SSH ao Host. O teste local `infra/backup/tests/e2e.sh` cria containers descartáveis e uma identidade age de teste; não usa credenciais reais.

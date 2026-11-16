@@ -149,12 +149,15 @@ accessories:
         BACKUP_DATABASE: umami
         BACKUP_TYPE: postgres
         AGE_PUBLIC_KEY: "<%= ENV.fetch('AGE_PUBLIC_KEY') %>"
+        PGHOST: dangus-ops-umami-db
+        PGUSER: umami
+        PGDATABASE: umami
       secret:
         - R2_ENDPOINT
         - R2_ACCESS_KEY_ID
         - R2_SECRET_ACCESS_KEY
         - HEALTHCHECKS_URL
-        - UMAMI_BACKUP_DATABASE_URL
+        - PGPASSWORD:UMAMI_DB_PASSWORD
   backup-unleash:
     image: ghcr.io/dangus-box/backup:1.0.0
     host: devbox-1
@@ -164,12 +167,15 @@ accessories:
         BACKUP_DATABASE: unleash
         BACKUP_TYPE: postgres
         AGE_PUBLIC_KEY: "<%= ENV.fetch('AGE_PUBLIC_KEY') %>"
+        PGHOST: dangus-ops-unleash-db
+        PGUSER: unleash
+        PGDATABASE: unleash
       secret:
         - R2_ENDPOINT
         - R2_ACCESS_KEY_ID
         - R2_SECRET_ACCESS_KEY
         - HEALTHCHECKS_URL
-        - UNLEASH_BACKUP_DATABASE_URL
+        - PGPASSWORD:UNLEASH_DB_PASSWORD
   backup-grafana:
     image: ghcr.io/dangus-box/backup:1.0.0
     host: devbox-1

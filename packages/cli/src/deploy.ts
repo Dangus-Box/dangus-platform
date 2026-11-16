@@ -188,15 +188,23 @@ export function render(
           AGE_PUBLIC_KEY: publicKey(),
           ...(config.database === "sqlite"
             ? { SQLITE_PATH: "/app/data/produto.sqlite" }
-            : {}),
+            : {
+                PGHOST: `${config.name}-api-db`,
+                PGUSER: "produto",
+                PGDATABASE: "produto",
+              }),
         },
+        // pg_dump lê a senha do ambiente; uma URL no argv ficaria visível em /proc.
         secret: [
           ...backupSecrets,
-          ...(config.database === "postgres" ? ["DATABASE_URL"] : []),
+          ...(config.database === "postgres"
+            ? ["PGPASSWORD:POSTGRES_PASSWORD"]
+            : []),
         ],
       },
+      // Sem :ro: o SQLite em WAL precisa escrever o -shm para abrir o banco.
       ...(config.database === "sqlite"
-        ? { volumes: [`${config.name}-sqlite:/app/data:ro`] }
+        ? { volumes: [`${config.name}-sqlite:/app/data`] }
         : {}),
     };
     doc.accessories = accessories;

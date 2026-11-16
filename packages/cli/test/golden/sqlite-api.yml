@@ -64,4 +64,4 @@ accessories:
         - R2_ENDPOINT
         - HEALTHCHECKS_URL
     volumes:
-      - exemplo-sqlite-sqlite:/app/data:ro
+      - exemplo-sqlite-sqlite:/app/data
