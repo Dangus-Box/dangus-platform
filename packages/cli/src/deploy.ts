@@ -1,3 +1,4 @@
+import { resolve4, resolve6 } from "node:dns/promises";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import { tmpdir } from "node:os";
@@ -8,10 +9,26 @@ export const KAMAL_IMAGE =
   "ghcr.io/basecamp/kamal:v2.12.0@sha256:7a3893b47dd328955f86fbf9ba887d08d612b74f96867f077750a53312537625";
 // Nome do Host na tailnet; DANGUS_HOST substitui.
 export const DEFAULT_HOST = "devbox-1";
-export const DEFAULT_PROXY_BIND_IPS = [
-  "179.198.100.144",
-  "2a02:4780:c6:bdc::1",
-];
+export type Resolver = (domain: string) => Promise<string[]>;
+const resolveDomain: Resolver = async (domain) => {
+  const records = await Promise.all(
+    [resolve4, resolve6].map(async (resolveRecords) => {
+      try {
+        return await resolveRecords(domain);
+      } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          (error.code === "ENODATA" || error.code === "ENOTFOUND")
+        )
+          return [];
+        throw error;
+      }
+    }),
+  );
+  return records.flat();
+};
 type App = "api" | "web";
 export type Runner = (
   args: string[],
@@ -29,9 +46,9 @@ export const run: Runner = async (args, env, cwd, stream = false) => {
   return { code: await child.exited, stdout };
 };
 
-export function proxyBindIps(value: string | undefined): string[] {
+export function proxyBindIps(value: string | undefined): string[] | undefined {
   return value === undefined
-    ? DEFAULT_PROXY_BIND_IPS
+    ? undefined
     : value.split(",").map((ip) => ip.trim());
 }
 
@@ -51,7 +68,7 @@ export function render(
   app: App,
   host = DEFAULT_HOST,
   buildContext = ".",
-  bindIps = DEFAULT_PROXY_BIND_IPS,
+  bindIps: string[] = [],
 ): string {
   const settings = config.apps[app];
   if (!settings) throw new Error(`App ${app} não declarada.`);
@@ -125,18 +142,27 @@ export async function withRendered<T>(
   host: string,
   action: (dir: string, apps: App[]) => Promise<T>,
   buildContext = ".",
-  bindIps = DEFAULT_PROXY_BIND_IPS,
+  bindIps?: string[],
+  resolver: Resolver = resolveDomain,
 ): Promise<T> {
   const apps = (["api", "web"] as const).filter((app) => config.apps[app]);
   if (!apps.length) throw new Error("Nenhuma App de servidor declarada.");
   const dir = await mkdtemp(join(tmpdir(), "dangus-"));
   try {
     for (const app of apps) {
+      const settings = config.apps[app];
+      if (!settings) throw new Error(`App ${app} não declarada.`);
+      const domain = settings.domain;
+      const addresses = bindIps ?? (await resolver(domain));
+      if (!addresses.length && bindIps === undefined)
+        throw new Error(
+          `Nenhum IP encontrado no DNS de ${domain}; defina DANGUS_PROXY_BIND_IPS.`,
+        );
       const path = join(dir, app);
       await mkdir(join(path, ".kamal"), { recursive: true });
       await writeFile(
         join(path, "deploy.yml"),
-        render(config, app, host, buildContext, bindIps),
+        render(config, app, host, buildContext, addresses),
       );
       await writeFile(
         join(path, ".kamal", "secrets"),
@@ -157,6 +183,7 @@ export async function deploy(
   directory: string,
   runner: Runner = run,
   env: Record<string, string | undefined> = process.env,
+  resolver: Resolver = resolveDomain,
 ): Promise<void> {
   await withRendered(
     config,
@@ -249,5 +276,6 @@ export async function deploy(
     },
     env.DANGUS_BUILD_CONTEXT || ".",
     proxyBindIps(env.DANGUS_PROXY_BIND_IPS),
+    resolver,
   );
 }
