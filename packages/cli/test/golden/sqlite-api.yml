@@ -4,7 +4,7 @@ image: dangus-box/exemplo-sqlite-api
 servers:
   web:
     hosts:
-      - dangus-host
+      - devbox-1
     options:
       memory: 512m
 registry:

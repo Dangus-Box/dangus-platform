@@ -15,7 +15,7 @@ for (const variant of ["postgres", "sqlite"]) {
   test(`render da variante ${variant} corresponde aos arquivos de referência`, async () => {
     const product = join(root, "examples", variant);
     const config = await loadConfig(product);
-    await withRendered(config, "dangus-host", async (dir, apps) => {
+    await withRendered(config, "devbox-1", async (dir, apps) => {
       expect(apps).toEqual(["api", "web"]);
       for (const app of apps) {
         for (const [source, suffix] of [
@@ -158,6 +158,21 @@ test("secret ausente interrompe deploy antes de chamar Docker", async () => {
     ["git", "rev-parse", "--verify", "HEAD"],
     ["bws", "secret", "list"],
   ]);
+});
+
+test("DANGUS_HOST substitui o Host padrão devbox-1", async () => {
+  const cli = Bun.spawn(
+    ["bun", join(root, "packages/cli/src/index.ts"), "render"],
+    {
+      cwd: join(root, "examples/sqlite"),
+      env: { ...process.env, DANGUS_HOST: "outro-host" },
+      stdout: "pipe",
+    },
+  );
+  const output = await new Response(cli.stdout).text();
+  expect(await cli.exited).toBe(0);
+  expect(output).toContain("- outro-host");
+  expect(output).not.toContain("devbox-1");
 });
 
 test("render usa recursos, timeout, Host e contexto informados, sem App mobile", async () => {

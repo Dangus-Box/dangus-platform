@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { version } from "../package.json";
 import { bootstrap } from "./bootstrap";
 import { loadConfig } from "./config";
-import { deploy, withRendered } from "./deploy";
+import { DEFAULT_HOST, deploy, withRendered } from "./deploy";
 
 if (process.argv[2] === "--version" && process.argv.length === 3) {
   console.log(version);
@@ -27,7 +27,7 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
     else
       await withRendered(
         config,
-        process.env.DANGUS_HOST || "dangus-host",
+        process.env.DANGUS_HOST || DEFAULT_HOST,
         async (dir, apps) => {
           for (const app of apps)
             console.log(await Bun.file(join(dir, app, "deploy.yml")).text());
