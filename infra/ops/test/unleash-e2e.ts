@@ -83,17 +83,22 @@ process.env.UNLEASH_TOKEN = required("UNLEASH_BACKEND_TOKEN");
 process.env.UNLEASH_URL = `${server}/api`;
 await configureFlags("teste");
 const flags = OpenFeature.getClient();
-if (!(await flags.getBooleanValue("teste-issue-14", false)))
-  throw new Error("Flag ativa não vista pelo OpenFeature");
+async function waitFlag(expected: boolean) {
+  for (let i = 0; i < 40; i++) {
+    if ((await flags.getBooleanValue("teste-issue-14", !expected)) === expected)
+      return;
+    await Bun.sleep(1000);
+  }
+  throw new Error(
+    `Flag ${expected ? "ligada" : "desligada"} não vista pelo OpenFeature`,
+  );
+}
+await waitFlag(true);
 const disabled = await fetch(
   `${server}/api/admin/projects/default/features/teste-issue-14/environments/production/off`,
   { method: "POST", headers: admin },
 );
 if (!disabled.ok) throw new Error(`Desativar Flag: ${disabled.status}`);
-for (let i = 0; ; i++) {
-  if (!(await flags.getBooleanValue("teste-issue-14", true))) break;
-  if (i === 40) throw new Error("Flag desativada não vista pelo OpenFeature");
-  await Bun.sleep(1000);
-}
+await waitFlag(false);
 await OpenFeature.close();
 console.log("Flag ligada e desligada vista pelo OpenFeature OK");
