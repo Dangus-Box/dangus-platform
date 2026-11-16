@@ -46,8 +46,23 @@ test("dashboard consulta sinais por Produto", () => {
 
 async function deploy(
   secrets: { key: string; value: string }[],
-  { failExec = false, route = false } = {},
+  { failExec = false, route = false, missingUnleash = "" } = {},
 ) {
+  if (secrets.some((s) => s.key === "ops__UMAMI_ADMIN_PASSWORD"))
+    secrets.push(
+      { key: "ops__UNLEASH_DB_PASSWORD", value: "dbpass" },
+      { key: "ops__UNLEASH_ADMIN_PASSWORD", value: "adminpass" },
+      {
+        key: "ops__UNLEASH_FRONTEND_TOKEN",
+        value: "default:development.frontend",
+      },
+      {
+        key: "ops__UNLEASH_BACKEND_TOKEN",
+        value: "default:development.backend",
+      },
+    );
+  const missing = secrets.find((s) => s.key === missingUnleash);
+  if (missing) missing.value = "";
   const bin = mkdtempSync(`${tmpdir()}/ops-deploy-`);
   const fake = (name: string, body: string) => {
     writeFileSync(`${bin}/${name}`, `#!/bin/sh\n${body}\n`);
@@ -185,3 +200,41 @@ test('"All" do filtro de Produto é aceito pelo Loki', () => {
   const { allValue } = dashboard.templating.list[0];
   expect(new RegExp(`^(?:${allValue})$`).test("")).toBe(false);
 });
+
+test("Unleash mantém admin privado e Edge público", () => {
+  const {
+    unleash,
+    "unleash-db": db,
+    "unleash-edge": edge,
+  } = config.accessories;
+  expect(unleash.port).toBe("127.0.0.1:4242:4242");
+  expect(db.port).toBeUndefined();
+  expect(db.volumes).toContain(
+    "dangus-ops-unleash-db:/var/lib/postgresql/data",
+  );
+  for (const item of [unleash, db, edge])
+    expect(item.image).toMatch(/:[^@]+@sha256:[a-f0-9]{64}$/);
+  const yaml = readFileSync(`${path}deploy.yml`, "utf8");
+  expect(yaml).toContain("host: flags.dangus-box.com");
+  expect(yaml).toContain("UNLEASH_DEFAULT_ADMIN_USERNAME: admin");
+});
+
+for (const name of [
+  "DB_PASSWORD",
+  "ADMIN_PASSWORD",
+  "FRONTEND_TOKEN",
+  "BACKEND_TOKEN",
+])
+  test(`deploy recusa secret vazio do Unleash: ${name}`, async () => {
+    const run = await deploy(
+      [
+        { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "x" },
+        { key: "ops__UMAMI_APP_SECRET", value: "x" },
+        { key: "ops__UMAMI_DB_PASSWORD", value: "x" },
+        { key: "ops__UMAMI_ADMIN_PASSWORD", value: "adminpass" },
+      ],
+      { missingUnleash: `ops__UNLEASH_${name}` },
+    );
+    expect(run.code).not.toBe(0);
+    expect(run.args).toBe("");
+  });
