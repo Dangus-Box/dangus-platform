@@ -51,3 +51,9 @@ Nos exemplos deste monorepo, execute `DANGUS_BUILD_CONTEXT=../.. dangus render` 
 Na raiz do Produto, execute `dangus doctor` antes do deploy, inclusive no CI. O comando verifica a integração da API em `apps/api/index.ts`, a versão exata do CLI em `bun.lock` (instale com `bun add --dev --exact @dangus-box/cli`), a conexão com Tailscale e as migrations SQL em `drizzle/`. Ele retorna código 1 para falhas; avisos não impedem o deploy. Instale e conecte o Tailscale também no ambiente de CI.
 
 O lint considera novas as migrations cujos caminhos não existem na ref Git `origin/main`. Garanta que a ref esteja disponível no CI, ou informe a ref que representa o estado deployado com `dangus doctor --base <ref>`. Arquivos já existentes nessa ref não são analisados, mesmo se alterados.
+
+# Desenvolvimento local e inventário
+
+Na raiz do Produto, execute `dangus dev` para iniciar `bun run dev` com `NODE_ENV=development`, que ativa os logs formatados de `@dangus-box/server`. Para Postgres, o comando inicia somente o Banco do Produto via Docker Compose na porta local 55432 e o para quando a App termina, inclusive por Ctrl-C ou SIGTERM; os dados ficam num volume Docker por diretório do Produto e persistem entre execuções. Para SQLite, não inicia containers. `DANGUS_DEV_POSTGRES_PORT` altera a porta local e `DATABASE_URL` pode substituir a conexão padrão. O comando define `DANGUS_DEV=1` para os futuros SDKs de analytics e Flags usarem modo no-op ou valores padrão; eles ainda não estão implementados.
+
+Execute `dangus ls` para consultar, por SSH no Host `DANGUS_HOST` (padrão `devbox-1`), as labels Docker `product` e `app` dos containers em execução, mostrando só as Apps `api` e `web` (sem o proxy da Plataforma nem o Banco do Produto). O inventário vem do próprio Host, sem registro central.

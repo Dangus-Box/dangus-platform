@@ -38,15 +38,23 @@ export type Runner = (
   env: Record<string, string | undefined>,
   cwd: string,
   stream?: boolean,
-) => Promise<{ code: number; stdout: string }>;
-export const run: Runner = async (args, env, cwd, stream = false) => {
+  signal?: AbortSignal,
+) => Promise<{ code: number; stdout: string; stderr?: string }>;
+export const run: Runner = async (args, env, cwd, stream = false, signal) => {
   const output = stream ? "inherit" : "pipe";
-  const child = Bun.spawn(args, { cwd, env, stdout: output, stderr: output });
-  const [stdout] = await Promise.all([
+  const child = Bun.spawn(args, {
+    cwd,
+    env,
+    stdout: output,
+    stderr: output,
+    signal,
+    killSignal: "SIGINT",
+  });
+  const [stdout, stderr] = await Promise.all([
     child.stdout ? new Response(child.stdout).text() : "",
     child.stderr ? new Response(child.stderr).text() : "",
   ]);
-  return { code: await child.exited, stdout };
+  return { code: await child.exited, stdout, stderr };
 };
 
 export function proxyBindIps(value: string | undefined): string[] | undefined {
