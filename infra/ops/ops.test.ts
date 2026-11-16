@@ -105,7 +105,9 @@ test("deploy da Stack Ops passa a senha só por ambiente, sem Docker socket", as
   expect(run.args).not.toContain("s3nt1nel");
   expect(run.args).not.toContain("docker.sock");
   expect(run.args).toContain("accessory\nexec\numami");
-  expect(run.args).toContain("accessory\nreboot\numami");
+  expect(run.args).toContain(
+    "accessory\nboot\numami\n--config-file\ndeploy.yml",
+  );
   expect(run.env).toContain("UMAMI_ADMIN_PASSWORD=adminpass");
   expect(run.args).not.toContain("adminpass");
   expect(run.env).toContain("GF_SECURITY_ADMIN_PASSWORD=s3nt1nel");
@@ -122,7 +124,6 @@ test("falha ao configurar senha impede publicação", async () => {
     { failExec: true, route: true },
   );
   expect(run.code).not.toBe(0);
-  expect(run.routed).toBe(false);
   expect(run.args).toContain("accessory\nexec\numami");
   expect(run.args).not.toContain(
     "accessory\nboot\numami\n--config-file\ndeploy.yml",

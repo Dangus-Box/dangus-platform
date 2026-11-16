@@ -33,10 +33,17 @@ for accessory in grafana loki prometheus umami-db; do
   runner accessory boot "$accessory" --config-file deploy.yml
 done
 runner accessory exec umami-db --reuse --config-file deploy.yml "sh -c 'for i in \$(seq 1 120); do pg_isready -U umami && exit 0; sleep 1; done; exit 1'"
-# Remove qualquer instância pública antes de iniciar a instância privada.
-runner accessory stop umami --config-file deploy.yml
-runner accessory remove_container umami --config-file deploy.yml
-runner accessory boot umami --config-file "/work/$(basename "$private_config")"
+private="/work/$(basename "$private_config")"
+# A config privada não tem proxy: o stop do Kamal não chama `kamal-proxy remove`,
+# que falha quando a rota não existe. A rota antiga aponta para o container removido.
+replace_umami() {
+  runner accessory stop umami --config-file "$private"
+  runner accessory remove_container umami --config-file "$private"
+  runner accessory boot umami --config-file "$1"
+}
+replace_umami "$private"
 program=$(base64 -w0 admin.js)
-runner accessory exec umami --reuse --config-file "/work/$(basename "$private_config")" "node -e 'eval(Buffer.from(\"$program\",\"base64\").toString())'"
-runner accessory reboot umami --config-file deploy.yml
+runner accessory exec umami --reuse --config-file "$private" "node -e 'eval(Buffer.from(\"$program\",\"base64\").toString())'" ||
+  { runner accessory stop umami --config-file "$private"; exit 1; }
+# O boot público executa `kamal-proxy deploy`, que cria ou substitui a rota.
+replace_umami deploy.yml
