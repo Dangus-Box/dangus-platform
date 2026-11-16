@@ -1,5 +1,24 @@
 {
   "name": "@dangus-box/web",
   "version": "0.0.0",
-  "type": "module"
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts"
+  },
+  "dependencies": {
+    "@openfeature/react-sdk": "1.4.1",
+    "@openfeature/unleash-web-provider": "0.1.1",
+    "@openfeature/web-sdk": "1.9.0",
+    "unleash-proxy-client": "3.6.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.16",
+    "@types/react-dom": "19.1.9",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  }
 }
