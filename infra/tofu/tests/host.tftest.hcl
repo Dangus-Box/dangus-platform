@@ -16,6 +16,8 @@ variables {
   data_center_id        = 42
   template_id           = 1002
   ssh_public_key        = "ssh-ed25519 exemplo"
+  telegram_bot_token    = "token-teste"
+  telegram_chat_id      = "chat-teste"
 }
 
 run "host_no_brasil" {

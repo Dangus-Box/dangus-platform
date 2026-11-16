@@ -220,7 +220,6 @@ BWS_KEYS=(
   CLOUDFLARE_R2_TOKEN R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_ENDPOINT
   TAILSCALE_TAILNET TAILSCALE_OAUTH_CLIENT_ID TAILSCALE_OAUTH_CLIENT_SECRET
   HEALTHCHECKS_API_KEY
-  UPTIMEROBOT_API_KEY
   TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID
   NPM_TOKEN
 )
@@ -240,7 +239,7 @@ bws_cli() { bws --server-url "$BWS_SERVER_URL" --access-token "$BWS_OPERATOR_TOK
 
 run_wizard() {
 
-TOTAL_STAGES=18
+TOTAL_STAGES=17
 
 banner "Contas e credenciais externas da Plataforma"
 
@@ -414,15 +413,6 @@ require_value HEALTHCHECKS_API_KEY "Cole a API key (read-write):" secret
 pause "Enter para continuar"
 
 # ── 12 ────────────────────────────────────────────────────────────────────
-stage "UptimeRobot"
-say "Uptime externo de analytics e flags (issue #15)."
-open_url "https://dashboard.uptimerobot.com/sign-up"
-step "Crie a conta no plano Free."
-step "Menu Integrations & API → API → Main API key → Create/Show → copie."
-require_value UPTIMEROBOT_API_KEY "Cole a Main API key:" secret
-pause "Enter para continuar"
-
-# ── 13 ────────────────────────────────────────────────────────────────────
 stage "Telegram: bot de alertas"
 open_url "https://t.me/BotFather"
 step "No chat com o @BotFather, envie /newbot."
@@ -436,7 +426,7 @@ else
 fi
 pause "Enter para continuar"
 
-# ── 14 ────────────────────────────────────────────────────────────────────
+# ── 13 ────────────────────────────────────────────────────────────────────
 stage "Telegram: chat dos alertas"
 step "No Telegram, crie um grupo 'Dangus Alerts' com o time e adicione o bot."
 step "No grupo, envie a mensagem: /start"
@@ -461,7 +451,7 @@ else
 fi
 pause "Enter para continuar"
 
-# ── 15 ────────────────────────────────────────────────────────────────────
+# ── 14 ────────────────────────────────────────────────────────────────────
 stage "npm: organização @dangus-box e token de publicação"
 say "Pacotes públicos do Kit de Integração (ADR-0014, issue #4)."
 open_url "https://www.npmjs.com/org/create"
@@ -474,7 +464,7 @@ step "Generate token → copie."
 require_value NPM_TOKEN "Cole o token do npm:" secret
 pause "Enter para continuar"
 
-# ── 16 ────────────────────────────────────────────────────────────────────
+# ── 15 ────────────────────────────────────────────────────────────────────
 stage "Enviar as credenciais ao BWS (projeto ops)"
 say "Cada valor vira o secret ${BWS_PREFIX}<CHAVE> no projeto 'ops'."
 say "Os que já existirem com o mesmo nome têm o valor atualizado."
@@ -503,7 +493,7 @@ else
 fi
 pause "Enter para continuar"
 
-# ── 17 ────────────────────────────────────────────────────────────────────
+# ── 16 ────────────────────────────────────────────────────────────────────
 stage "GitHub: token do CI como secret da organização"
 say "O único secret no GitHub é o token da machine account 'ci' (ADR-0005)."
 warn "No GitHub Free, secrets de organização não chegam a repositórios privados."
@@ -526,7 +516,7 @@ else
 fi
 pause "Enter para continuar"
 
-# ── 18 ────────────────────────────────────────────────────────────────────
+# ── 17 ────────────────────────────────────────────────────────────────────
 stage "Documentar no issue e limpar o cache"
 comment="Credenciais criadas pelo \`scripts/setup-external-accounts.sh\`.
 

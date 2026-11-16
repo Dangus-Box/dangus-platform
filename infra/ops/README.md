@@ -46,10 +46,10 @@ Para verificar localmente, execute `infra/ops/test/unleash-e2e.sh`. O teste usa 
 
 O Grafana avalia o espaço disponível no filesystem raiz do Host a cada minuto e envia ao Telegram quando o uso passa de 85% por um minuto. No projeto `ops` do BWS, preencha `platform__TELEGRAM_BOT_TOKEN` e `platform__TELEGRAM_CHAT_ID`. O deploy recria o Grafana para aplicar regra, contato e token.
 
-No UptimeRobot, crie e confirme manualmente uma integração Telegram no grupo desejado e obtenha o ID do contato em **My Settings → Alert Contacts** (ou pela API). Com `platform__UPTIMEROBOT_API_KEY` no BWS, execute `UPTIMEROBOT_TELEGRAM_CONTACT_ID=<id> bun infra/ops/uptimerobot.js`. O script cria ou atualiza os monitores HTTPS do Umami e do Unleash Edge e associa o contato existente. Confirme que o contato selecionado é o Telegram correto; a API legada não documenta um tipo Telegram para criação automática. Produtos são adicionados na Adoção.
+O uptime externo do Umami e do Unleash Edge é monitorado por um Cloudflare Worker; consulte `infra/tofu/README.md`. Produtos são adicionados na Adoção.
 
 No Healthchecks.io, abra **Integrations → Telegram**, inicie a conexão e confirme interativamente no Telegram o grupo de destino. Os checks de Backup e de Verificação de Restore serão criados nas respectivas issues.
 
 A entrega real no Telegram, incluindo o alerta ao parar o Umami e o limiar de 85% no Host, precisa ser verificada após o deploy.
 
-Para testar a regra localmente, execute `infra/ops/test/alerts-e2e.sh`. Ele usa métricas e limiar de teste com Grafana e Prometheus descartáveis e captura a mensagem Telegram em um servidor HTTPS local. Execute `bun test infra/ops/uptimerobot.test.ts` para testar a criação e atualização dos monitores contra uma API falsa.
+Para testar a regra localmente, execute `infra/ops/test/alerts-e2e.sh`. Ele usa métricas e limiar de teste com Grafana e Prometheus descartáveis e captura a mensagem Telegram em um servidor HTTPS local.
