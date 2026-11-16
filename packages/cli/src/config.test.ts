@@ -14,7 +14,7 @@ const valid = defineConfig({
 test("aplica os padrões de recursos, redaction e Backup", () => {
   expect(validateConfig(valid)).toEqual({
     ...valid,
-    apps: { api: { domain: "api.produto.com", memoryMb: 512 } },
+    apps: { api: { domain: "api.produto.com", memoryMb: 512, secrets: [] } },
     logger: { redact: [] },
     backup: { destination: "r2" },
   });
@@ -46,6 +46,13 @@ test("aponta o caminho exato dos campos inválidos", () => {
       { ...valid, apps: { api: { domain: "api.produto.com", memoryMb: 0.5 } } },
       "apps.api.memoryMb",
     ],
+    [
+      {
+        ...valid,
+        apps: { api: { domain: "api.produto.com", secrets: ["invalid"] } },
+      },
+      "apps.api.secrets",
+    ],
     [{ ...valid, deployTimeoutSeconds: 1.5 }, "deployTimeoutSeconds"],
     [
       { ...valid, apps: { api: { domain: "api.staging.produto.com" } } },
@@ -65,6 +72,25 @@ test("aponta o caminho exato dos campos inválidos", () => {
     ],
   ] as const)
     expect(() => validateConfig(config)).toThrow(path);
+});
+
+test("rejeita secrets que colidem com variáveis do deploy ou da Plataforma", () => {
+  for (const name of [
+    "PATH",
+    "HOME",
+    "SSH_AUTH_SOCK",
+    "DOCKER_HOST",
+    "KAMAL_REGISTRY_PASSWORD",
+    "DATABASE_URL",
+    "POSTGRES_PASSWORD",
+    "SQLITE_PATH",
+  ])
+    expect(() =>
+      validateConfig({
+        ...valid,
+        apps: { api: { domain: "api.produto.com", secrets: [name] } },
+      }),
+    ).toThrow("apps.api.secrets");
 });
 
 test("nomeia o export default quando a Config não é um objeto", () => {

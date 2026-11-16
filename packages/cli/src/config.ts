@@ -3,7 +3,10 @@ import { resolve } from "node:path";
 export interface ProductConfig {
   name: string;
   apps: Partial<
-    Record<"api" | "web" | "mobile", { domain: string; memoryMb?: number }>
+    Record<
+      "api" | "web" | "mobile",
+      { domain: string; memoryMb?: number; secrets?: string[] }
+    >
   >;
   database: "postgres" | "sqlite";
   deployTimeoutSeconds: number;
@@ -14,7 +17,10 @@ export interface ProductConfig {
 export interface ResolvedProductConfig {
   name: string;
   apps: Partial<
-    Record<"api" | "web" | "mobile", { domain: string; memoryMb: number }>
+    Record<
+      "api" | "web" | "mobile",
+      { domain: string; memoryMb: number; secrets: string[] }
+    >
   >;
   database: "postgres" | "sqlite";
   deployTimeoutSeconds: number;
@@ -53,6 +59,11 @@ function positiveInteger(value: unknown, path: string): number {
   return value;
 }
 
+// Os secrets viram variáveis de ambiente do Docker e do Kamal no deploy; estes
+// nomes controlam o deploy ou são fornecidos pela Plataforma.
+const RESERVED_SECRET =
+  /^(?:KAMAL_.*|DOCKER_.*|PATH|HOME|SSH_AUTH_SOCK|DATABASE_URL|POSTGRES_PASSWORD|SQLITE_PATH)$/;
+
 export function validateConfig(value: unknown): ResolvedProductConfig {
   const config = object(value, "", [
     "name",
@@ -75,7 +86,7 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
   for (const key of ["api", "web", "mobile"] as const) {
     if (inputApps[key] === undefined) continue;
     const path = `apps.${key}`;
-    const app = object(inputApps[key], path, ["domain", "memoryMb"]);
+    const app = object(inputApps[key], path, ["domain", "memoryMb", "secrets"]);
     // ADR-0009: um nível de subdomínio, inclusive em domínios .com.br.
     if (
       typeof app.domain !== "string" ||
@@ -88,8 +99,25 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
         "deve ser um domínio com um nível de subdomínio (ex.: api.produto.com)",
       );
     }
+    const secrets = app.secrets === undefined ? [] : app.secrets;
+    if (
+      !Array.isArray(secrets) ||
+      !secrets.every(
+        (secret) =>
+          typeof secret === "string" &&
+          /^[A-Z][A-Z0-9_]*$/.test(secret) &&
+          !RESERVED_SECRET.test(secret),
+      ) ||
+      new Set(secrets).size !== secrets.length
+    ) {
+      fail(
+        `${path}.secrets`,
+        "deve conter nomes únicos em maiúsculas, sem nomes reservados ao deploy",
+      );
+    }
     apps[key] = {
       domain: app.domain,
+      secrets,
       memoryMb: positiveInteger(
         app.memoryMb === undefined ? 512 : app.memoryMb,
         `${path}.memoryMb`,
