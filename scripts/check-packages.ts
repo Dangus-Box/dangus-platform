@@ -2,8 +2,11 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+// Loopback e 0.0.0.0 descrevem binds locais, não endereços de infraestrutura.
+const ipv4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
+const localIpv4 = /^(?:127\.\d{1,3}\.\d{1,3}\.\d{1,3}|0\.0\.0\.0)$/;
+
 const forbidden = [
-  /\b(?:\d{1,3}\.){3}\d{1,3}\b/,
   /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
   /\b(?:npm_[a-z0-9]{20,}|gh[pousr]_[a-z0-9]{20,}|github_pat_[a-z0-9_]{20,}|tskey-[a-z0-9-]{20,}|Bearer\s+[a-z0-9._~-]{20,})\b/i,
   /\b\d{8,10}:[\w-]{35}\b/,
@@ -21,7 +24,11 @@ const publishScripts = [
 ];
 
 export function checkContent(content: string): boolean {
-  return forbidden.some((pattern) => pattern.test(content));
+  const ips = content.match(ipv4) ?? [];
+  return (
+    ips.some((ip) => !localIpv4.test(ip)) ||
+    forbidden.some((pattern) => pattern.test(content))
+  );
 }
 
 export async function checkPackage(directory: string): Promise<void> {
