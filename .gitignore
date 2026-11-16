@@ -8,3 +8,7 @@ node_modules/
 *.tfplan
 *.tfvars
 *.tfvars.json
+
+# Configurações temporárias do deploy da Stack Ops
+infra/ops/.alerts-generated.yml
+infra/ops/.deploy-private.*

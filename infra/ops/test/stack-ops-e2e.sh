@@ -56,6 +56,8 @@ until_data() {
   echo "Sem dados para $query" >&2
   exit 1
 }
+until_data prometheus api/v1/query 'node_filesystem_avail_bytes{mountpoint="/"}' >/dev/null
+until_data prometheus api/v1/query 'node_filesystem_size_bytes{mountpoint="/"}' >/dev/null
 until_data loki loki/api/v1/query_range "{product=\"$id\"}" >/dev/null
 until_data prometheus api/v1/query "http_server_requests_total{product=\"$id\"}" >/dev/null
 until_data prometheus api/v1/query "container_memory_working_set_bytes{product=\"$id\",name=\"$product\"}" >/dev/null

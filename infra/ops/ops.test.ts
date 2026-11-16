@@ -68,6 +68,10 @@ async function deploy(
         value: "default:production.backend",
       },
     );
+  secrets.push(
+    { key: "platform__TELEGRAM_BOT_TOKEN", value: "test-token" },
+    { key: "platform__TELEGRAM_CHAT_ID", value: "1234" },
+  );
   const missing = secrets.find((s) => s.key === missingUnleash);
   if (missing) missing.value = "";
   const bin = mkdtempSync(`${tmpdir()}/ops-deploy-`);
