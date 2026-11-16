@@ -4,6 +4,9 @@ mock_provider "hostinger" {
   }
 }
 mock_provider "cloudflare" {
+  mock_data "cloudflare_account_api_token_permission_groups_list" {
+    defaults = { result = [{ id = "2efd5506f9c8494dacb1fa10a3e7d5b6", name = "Workers R2 Storage Bucket Item Write", scopes = ["com.cloudflare.edge.r2.bucket"], is_selectable = true, category = "developer_platform" }] }
+  }
   mock_resource "cloudflare_workers_kv_namespace" { defaults = { id = "namespace-teste" } }
 }
 variables {
