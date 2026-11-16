@@ -44,6 +44,14 @@ test("a rota grava e lê uma mensagem no Banco do Produto", async () => {
   ).toBe(true);
 });
 
+test("a API expõe health, readiness e métricas por rota", async () => {
+  const base = new URL(url).origin;
+  expect((await fetch(`${base}/health`)).status).toBe(200);
+  expect((await fetch(`${base}/ready`)).status).toBe(200);
+  const metrics = await (await fetch(`${base}/metrics`)).text();
+  expect(metrics).toContain('http_server_requests_total{route="/mensagens"');
+});
+
 test("as migrations estão em dia com o schema", async () => {
   const out = await mkdtemp(join(tmpdir(), "drizzle-"));
   await cp("drizzle", out, { recursive: true });

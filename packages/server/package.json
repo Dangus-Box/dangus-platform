@@ -2,8 +2,22 @@
   "name": "@dangus-box/server",
   "version": "0.0.0",
   "type": "module",
+  "dependencies": {
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/exporter-prometheus": "0.200.0",
+    "@opentelemetry/sdk-metrics": "2.0.0",
+    "pino": "9.6.0",
+    "pino-pretty": "13.0.0"
+  },
+  "peerDependencies": {
+    "elysia": "^1.4.32"
+  },
+  "devDependencies": {
+    "elysia": "1.4.32"
+  },
   "files": [
-    "src/index.ts"
+    "src",
+    "!src/**/*.test.ts"
   ],
   "publishConfig": {
     "access": "public"
