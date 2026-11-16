@@ -1,3 +1,5 @@
+import { trackEvent } from "../../../packages/server/src/index";
+
 const url = process.env.UMAMI_URL;
 const headers = { "content-type": "application/json" };
 const login = await fetch(`${url}/api/auth/login`, {
@@ -45,3 +47,17 @@ const body = await result.text();
 if (!result.ok || !body.includes("teste"))
   throw new Error(`Evento ausente: ${body}`);
 console.log("Evento recebido e consultado pela API OK");
+process.env.UMAMI_WEBSITE_ID = id;
+await trackEvent({
+  name: "evento-servidor",
+  hostname: "example.com",
+  url: "/",
+});
+const serverEvents = await fetch(
+  `${url}/api/websites/${id}/events?startAt=${end - 120000}&endAt=${Date.now() + 60000}`,
+  { headers: auth },
+);
+const serverBody = await serverEvents.text();
+if (!serverEvents.ok || !serverBody.includes("evento-servidor"))
+  throw new Error(`Evento do servidor ausente: ${serverBody}`);
+console.log("Evento enviado pelo @dangus-box/server recebido OK");
