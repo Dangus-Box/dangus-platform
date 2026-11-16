@@ -22,11 +22,21 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
   }
 } else if (
   (process.argv[2] === "render" || process.argv[2] === "deploy") &&
-  process.argv.length === 3
+  (process.argv.length === 3 ||
+    (process.argv[2] === "deploy" &&
+      process.argv.length === 4 &&
+      process.argv[3] === "--skip-build"))
 ) {
   try {
     const config = await loadConfig();
-    if (process.argv[2] === "deploy") await deploy(config, process.cwd());
+    if (process.argv[2] === "deploy")
+      await deploy(
+        config,
+        process.cwd(),
+        undefined,
+        undefined,
+        process.argv[3] === "--skip-build",
+      );
     else
       await withRendered(
         config,
@@ -89,7 +99,7 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
   }
 } else {
   console.error(
-    "Uso: dangus dev | ls | doctor [--base <ref>] | render | deploy | host bootstrap <host>",
+    "Uso: dangus dev | ls | doctor [--base <ref>] | render | deploy [--skip-build] | host bootstrap <host>",
   );
   process.exitCode = 1;
 }

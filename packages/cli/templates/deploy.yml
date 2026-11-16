@@ -1,0 +1,101 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: SHA completo do commit para rollback
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      KAMAL_REGISTRY_USERNAME: ${{ github.actor }}
+      DANGUS_HOST: ${{ vars.DANGUS_HOST }}
+    steps:
+      - name: Validar SHA
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SHA: ${{ inputs.sha }}
+        run: '[[ "$SHA" =~ ^[0-9a-f]{40}$ ]]'
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.sha }}
+          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
+          persist-credentials: false
+      - name: Verificar SHA na main
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SHA: ${{ inputs.sha }}
+        run: git merge-base --is-ancestor "$SHA" origin/main
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.3
+      - run: bun install --frozen-lockfile
+      - name: Instalar BWS
+        run: |
+          curl -fsSLo /tmp/bws.zip https://github.com/bitwarden/sdk-sm/releases/download/bws-v2.1.0/bws-x86_64-unknown-linux-gnu-2.1.0.zip
+          echo 'ba8233c3a4aee5d43e3c73bbd04d99e9bc5aba13bbbfd06d89b073abe732b860  /tmp/bws.zip' | sha256sum -c -
+          unzip -q /tmp/bws.zip -d /tmp/bws-bin
+          echo /tmp/bws-bin >> "$GITHUB_PATH"
+      - name: Preparar credenciais
+        id: credentials
+        env:
+          BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          secrets_json="$(bws secret list)"
+          secret() {
+            jq -er --arg key "$1" '[.[] | select(.key == $key) | .value] | if length == 1 then .[0] else error("secret ausente ou duplicado") end' <<< "$secrets_json"
+          }
+          client_id="$(secret platform__TAILSCALE_OAUTH_CLIENT_ID)"
+          client_secret="$(secret platform__TAILSCALE_OAUTH_CLIENT_SECRET)"
+          ssh_key="$(secret platform__DEPLOY_SSH_PRIVATE_KEY)"
+          known_hosts="$(secret platform__DEPLOY_SSH_KNOWN_HOSTS)"
+          for value in "$client_id" "$client_secret" "$ssh_key" "$known_hosts"; do
+            while IFS= read -r line; do echo "::add-mask::$line"; done <<< "$value"
+          done
+          printf 'client_id=%s\nclient_secret=%s\n' "$client_id" "$client_secret" >> "$GITHUB_OUTPUT"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$known_hosts" > ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          ssh-add - <<< "$ssh_key"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "DANGUS_SSH_KNOWN_HOSTS=$HOME/.ssh/known_hosts" >> "$GITHUB_ENV"
+      - id: tailscale
+        uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3.3.0
+        with:
+          oauth-client-id: ${{ steps.credentials.outputs.client_id }}
+          oauth-secret: ${{ steps.credentials.outputs.client_secret }}
+          tags: tag:ci
+      - name: Autenticar no GHCR
+        env:
+          KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$KAMAL_REGISTRY_PASSWORD" | docker login ghcr.io -u "$KAMAL_REGISTRY_USERNAME" --password-stdin
+      - name: Deploy
+        env:
+          BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
+          KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            bun run dangus deploy --skip-build
+          else
+            bun run dangus deploy
+          fi
+      - if: always() && steps.tailscale.conclusion == 'success'
+        run: sudo tailscale logout
