@@ -72,6 +72,18 @@ test("duas falhas consecutivas alertam uma vez e recuperação alerta uma vez", 
   expect(f.messages).toHaveLength(4);
 });
 
+test("consulta destinos configurados no KV", async () => {
+  const f = setup();
+  const target = "https://produto.example/ready";
+  f.data.set("targets", JSON.stringify([target]));
+  const checked: string[] = [];
+  await check(f.env, async (url: string) => {
+    checked.push(url);
+    return new Response(null, { status: 200 });
+  });
+  expect(checked).toEqual([target]);
+});
+
 test("sucesso entre falhas reinicia a contagem", async () => {
   const f = setup();
   f.setStatus(500);
