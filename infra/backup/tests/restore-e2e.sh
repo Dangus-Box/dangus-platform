@@ -48,10 +48,11 @@ print(json.dumps([{'key': k, 'value': v} for k,v in {
 'exemplo-sqlite__HEALTHCHECKS_RESTORE_URL': os.environ['RESTORE_HEALTH']}.items()]))
 PY
 chmod +x "$tmp/bin/bws"
-# psql do operador: roda na rede de teste e recebe o destino só pelo ambiente.
+# psql do operador: roda na rede de teste e recebe a senha só pelo ambiente.
 cat > "$tmp/bin/psql" <<PSQL
 #!/usr/bin/env bash
-exec docker run --rm -i --network "$name" -e PGDATABASE postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929 psql "\$@"
+printf '%s\n' "\$*" >> "$tmp/psql-argv"
+exec docker run --rm -i --network "$name" -e PGPASSWORD postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929 psql "\$@"
 PSQL
 chmod +x "$tmp/bin/psql"
 export PATH="$tmp/bin:$PATH" TMPDIR="$tmp/restore-tmp"
@@ -88,6 +89,7 @@ fails postgres --target 'postgresql://postgres:testpass@pg/alvo' < /dev/null
 [[ $(docker exec "$name-pg" psql -U postgres -d alvo -tAc "SELECT count(*) FROM pg_tables WHERE tablename = 'mensagens'") == 0 ]]
 dangus postgres --target 'postgresql://postgres:testpass@pg/alvo' --yes >/dev/null
 [[ $(docker exec "$name-pg" psql -U postgres -d alvo -tAc 'SELECT texto FROM mensagens') == postgres ]]
+! grep -q testpass "$tmp/psql-argv"
 # Um segundo restore no mesmo destino falha inteiro, sem aplicar parte do dump.
 # A sequência conflita depois do CREATE TABLE: sem transação única, a tabela ficaria criada.
 docker exec "$name-pg" psql -U postgres -d alvo -c "DROP TABLE mensagens; CREATE SEQUENCE mensagens_id_seq" >/dev/null
