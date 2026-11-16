@@ -44,7 +44,7 @@ Para verificar localmente, execute `infra/ops/test/unleash-e2e.sh`. O teste usa 
 
 ## Alertas
 
-O Grafana avalia o espaço disponível no filesystem raiz do Host a cada minuto e envia ao Telegram quando o uso passa de 85% por um minuto. No projeto `ops` do BWS, preencha `platform__TELEGRAM_BOT_TOKEN` e `platform__TELEGRAM_CHAT_ID`. Execute o deploy e reinicie o accessory Grafana para aplicar alterações em instalações existentes.
+O Grafana avalia o espaço disponível no filesystem raiz do Host a cada minuto e envia ao Telegram quando o uso passa de 85% por um minuto. No projeto `ops` do BWS, preencha `platform__TELEGRAM_BOT_TOKEN` e `platform__TELEGRAM_CHAT_ID`. O deploy recria o Grafana para aplicar regra, contato e token.
 
 No UptimeRobot, crie e confirme manualmente uma integração Telegram no grupo desejado e obtenha o ID do contato em **My Settings → Alert Contacts** (ou pela API). Com `platform__UPTIMEROBOT_API_KEY` no BWS, execute `UPTIMEROBOT_TELEGRAM_CONTACT_ID=<id> bun infra/ops/uptimerobot.js`. O script cria ou atualiza os monitores HTTPS do Umami e do Unleash Edge e associa o contato existente. Confirme que o contato selecionado é o Telegram correto; a API legada não documenta um tipo Telegram para criação automática. Produtos são adicionados na Adoção.
 

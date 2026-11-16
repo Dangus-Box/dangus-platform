@@ -41,10 +41,6 @@ runner() {
     ghcr.io/basecamp/kamal:v2.12.0@sha256:7a3893b47dd328955f86fbf9ba887d08d612b74f96867f077750a53312537625 \
     "$@" --version="$version"
 }
-for accessory in grafana loki prometheus umami-db; do
-  runner accessory boot "$accessory" --config-file deploy.yml
-done
-runner accessory exec umami-db --reuse --config-file deploy.yml "sh -c 'for i in \$(seq 1 120); do pg_isready -U umami && exit 0; sleep 1; done; exit 1'"
 private="/work/$(basename "$private_config")"
 # A config privada não tem proxy: o stop do Kamal não chama `kamal-proxy remove`,
 # que falha quando a rota não existe. A rota antiga aponta para o container removido.
@@ -54,6 +50,12 @@ replace() {
   runner accessory remove_container "$1" --config-file "$private"
   runner accessory boot "$1" --config-file "$2"
 }
+for accessory in loki prometheus umami-db; do
+  runner accessory boot "$accessory" --config-file deploy.yml
+done
+# Recriado a cada deploy para aplicar alertas, contato Telegram e o token.
+replace grafana deploy.yml
+runner accessory exec umami-db --reuse --config-file deploy.yml "sh -c 'for i in \$(seq 1 120); do pg_isready -U umami && exit 0; sleep 1; done; exit 1'"
 replace umami "$private"
 program=$(base64 -w0 admin.js)
 runner accessory exec umami --reuse --config-file "$private" "node -e 'eval(Buffer.from(\"$program\",\"base64\").toString())'" ||
