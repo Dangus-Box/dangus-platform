@@ -7,6 +7,7 @@ import {
   KAMAL_IMAGE,
   type Runner,
   render,
+  resolveDomain,
   withRendered,
 } from "./deploy";
 
@@ -445,5 +446,91 @@ test("override dispensa consulta DNS", async () => {
     async () => {
       throw new Error("DNS consultado");
     },
+  );
+});
+
+const dnsError = (code: string) =>
+  Object.assign(new Error(`query ${code}`), { code });
+
+test("domínio só com A ou só com AAAA usa os registros existentes", async () => {
+  const onlyA = await resolveDomain("a.produto.com", [
+    async () => ["192.0.2.1"],
+    async () => {
+      throw dnsError("ENODATA");
+    },
+  ]);
+  const onlyAaaa = await resolveDomain("aaaa.produto.com", [
+    async () => {
+      throw dnsError("ENODATA");
+    },
+    async () => ["2001:db8::1"],
+  ]);
+  expect([onlyA, onlyAaaa]).toEqual([["192.0.2.1"], ["2001:db8::1"]]);
+});
+
+test("NXDOMAIN resulta em lista vazia e outras falhas de DNS propagam", async () => {
+  const nx = async () => {
+    throw dnsError("ENOTFOUND");
+  };
+  expect(await resolveDomain("x.produto.com", [nx, nx])).toEqual([]);
+  await expect(
+    resolveDomain("x.produto.com", [
+      async () => {
+        throw dnsError("ETIMEOUT");
+      },
+      nx,
+    ]),
+  ).rejects.toThrow("ETIMEOUT");
+});
+
+const twoApps = () =>
+  validateConfig({
+    name: "produto",
+    apps: {
+      api: { domain: "api.produto.com" },
+      web: { domain: "web.outro.com" },
+    },
+    database: "sqlite",
+    deployTimeoutSeconds: 10,
+  });
+
+test("Apps com IPs diferentes no DNS interrompem o render", async () => {
+  const ips: Record<string, string[]> = {
+    "api.produto.com": ["192.0.2.1"],
+    "web.outro.com": ["192.0.2.2"],
+  };
+  await expect(
+    withRendered(
+      twoApps(),
+      "host",
+      async () => {},
+      ".",
+      undefined,
+      async (domain) => ips[domain] ?? [],
+    ),
+  ).rejects.toThrow(
+    /api\.produto\.com.*web\.outro\.com.*DANGUS_PROXY_BIND_IPS/,
+  );
+});
+
+test("ordem dos registros DNS não altera o bind_ips", async () => {
+  const ips: Record<string, string[]> = {
+    "api.produto.com": ["2001:db8::1", "192.0.2.1"],
+    "web.outro.com": ["192.0.2.1", "2001:db8::1"],
+  };
+  await withRendered(
+    twoApps(),
+    "host",
+    async (dir, apps) => {
+      for (const app of apps) {
+        const doc = Bun.YAML.parse(
+          await Bun.file(join(dir, app, "deploy.yml")).text(),
+        ) as { proxy: { run: { bind_ips: string[] } } };
+        expect(doc.proxy.run.bind_ips).toEqual(["192.0.2.1", "2001:db8::1"]);
+      }
+    },
+    ".",
+    undefined,
+    async (domain) => ips[domain] ?? [],
   );
 });

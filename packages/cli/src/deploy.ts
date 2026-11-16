@@ -10,9 +10,12 @@ export const KAMAL_IMAGE =
 // Nome do Host na tailnet; DANGUS_HOST substitui.
 export const DEFAULT_HOST = "devbox-1";
 export type Resolver = (domain: string) => Promise<string[]>;
-const resolveDomain: Resolver = async (domain) => {
+export async function resolveDomain(
+  domain: string,
+  lookups: Resolver[] = [resolve4, resolve6],
+): Promise<string[]> {
   const records = await Promise.all(
-    [resolve4, resolve6].map(async (resolveRecords) => {
+    lookups.map(async (resolveRecords) => {
       try {
         return await resolveRecords(domain);
       } catch (error) {
@@ -28,7 +31,7 @@ const resolveDomain: Resolver = async (domain) => {
     }),
   );
   return records.flat();
-};
+}
 type App = "api" | "web";
 export type Runner = (
   args: string[],
@@ -137,6 +140,29 @@ export function render(
   return Bun.YAML.stringify(doc, null, 2);
 }
 
+// O kamal-proxy é um container por Host e o Kamal ignora o bind_ips de um
+// deploy quando o container já existe, então todas as Apps precisam do mesmo.
+async function resolveBindIps(
+  config: ResolvedProductConfig,
+  apps: App[],
+  resolver: Resolver,
+): Promise<string[]> {
+  const domains = apps.flatMap((app) => config.apps[app]?.domain ?? []);
+  const resolved = await Promise.all(
+    domains.map(async (domain) => (await resolver(domain)).sort()),
+  );
+  const empty = resolved.findIndex((ips) => !ips.length);
+  if (empty >= 0)
+    throw new Error(
+      `Nenhum IP encontrado no DNS de ${domains[empty]}; defina DANGUS_PROXY_BIND_IPS.`,
+    );
+  if (new Set(resolved.map((ips) => ips.join(","))).size > 1)
+    throw new Error(
+      `${domains.join(" e ")} apontam para IPs diferentes no DNS; o proxy do Host é único, aponte-os para o mesmo Host ou defina DANGUS_PROXY_BIND_IPS.`,
+    );
+  return resolved[0] ?? [];
+}
+
 export async function withRendered<T>(
   config: ResolvedProductConfig,
   host: string,
@@ -147,17 +173,10 @@ export async function withRendered<T>(
 ): Promise<T> {
   const apps = (["api", "web"] as const).filter((app) => config.apps[app]);
   if (!apps.length) throw new Error("Nenhuma App de servidor declarada.");
+  const addresses = bindIps ?? (await resolveBindIps(config, apps, resolver));
   const dir = await mkdtemp(join(tmpdir(), "dangus-"));
   try {
     for (const app of apps) {
-      const settings = config.apps[app];
-      if (!settings) throw new Error(`App ${app} não declarada.`);
-      const domain = settings.domain;
-      const addresses = bindIps ?? (await resolver(domain));
-      if (!addresses.length && bindIps === undefined)
-        throw new Error(
-          `Nenhum IP encontrado no DNS de ${domain}; defina DANGUS_PROXY_BIND_IPS.`,
-        );
       const path = join(dir, app);
       await mkdir(join(path, ".kamal"), { recursive: true });
       await writeFile(
