@@ -4,9 +4,21 @@ import { version } from "../package.json";
 import { bootstrap } from "./bootstrap";
 import { loadConfig } from "./config";
 import { DEFAULT_HOST, deploy, proxyBindIps, withRendered } from "./deploy";
+import { init } from "./init";
 
 if (process.argv[2] === "--version" && process.argv.length === 3) {
   console.log(version);
+} else if (
+  process.argv[2] === "init" &&
+  (process.argv.length === 3 ||
+    (process.argv.length === 4 && process.argv[3] === "--yes"))
+) {
+  try {
+    await init(process.cwd(), process.argv[3] === "--yes");
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : "Falha na Adoção.");
+    process.exitCode = 1;
+  }
 } else if (
   (process.argv[2] === "render" || process.argv[2] === "deploy") &&
   (process.argv.length === 3 ||
@@ -54,7 +66,7 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
   }
 } else {
   console.error(
-    "Uso: dangus render | deploy [--skip-build] | host bootstrap <host>",
+    "Uso: dangus init [--yes] | render | deploy [--skip-build] | host bootstrap <host>",
   );
   process.exitCode = 1;
 }

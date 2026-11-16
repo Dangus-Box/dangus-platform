@@ -10,6 +10,7 @@
   },
   "files": [
     "src",
+    "templates",
     "!src/**/*.test.ts"
   ],
   "publishConfig": {
