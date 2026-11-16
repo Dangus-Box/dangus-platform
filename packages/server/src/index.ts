@@ -136,4 +136,6 @@ export function observability(
   };
 }
 
+export { trackEvent } from "./analytics";
+export { configureFlags } from "./flags";
 export { migratePostgres, migrateSqlite } from "./migrate";
