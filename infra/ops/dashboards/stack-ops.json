@@ -20,7 +20,7 @@
         "query": "label_values(http_server_requests_total, product)",
         "refresh": 1,
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": ".+",
         "multi": true
       }
     ]
