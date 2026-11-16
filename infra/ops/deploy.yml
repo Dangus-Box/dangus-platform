@@ -1,0 +1,52 @@
+service: dangus-ops
+image: dangus-ops
+servers:
+  web:
+    hosts:
+      - devbox-1
+registry:
+  username: unused
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+secrets_path: .kamal/secrets
+builder:
+  arch: amd64
+accessories:
+  grafana:
+    image: grafana/grafana:11.6.3@sha256:6128afd8174f01e39a78341cb457588f723bbb9c3b25c4d43c4b775881767069
+    host: devbox-1
+    port: 127.0.0.1:3300:3000
+    env:
+      secret:
+        - GF_SECURITY_ADMIN_PASSWORD
+    files:
+      - provisioning/datasources/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - provisioning/dashboards/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - dashboards/stack-ops.json:/etc/grafana/dashboards/stack-ops.json
+    volumes:
+      - dangus-ops-grafana:/var/lib/grafana
+    options:
+      memory: 512m
+      cpus: 0.2
+  loki:
+    image: grafana/loki:3.4.3@sha256:5fe9fa99e9a747297cdf0239a5b25d192d8f668bd6505b09beef4dffcab5aac2
+    host: devbox-1
+    cmd: -config.file=/etc/loki/config.yml
+    files:
+      - loki.yml:/etc/loki/config.yml
+    volumes:
+      - dangus-ops-loki:/loki
+    options:
+      memory: 768m
+      cpus: 0.3
+  prometheus:
+    image: prom/prometheus:v3.3.1@sha256:e2b8aa62b64855956e3ec1e18b4f9387fb6203174a4471936f4662f437f04405
+    host: devbox-1
+    cmd: --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=30d --web.enable-remote-write-receiver
+    files:
+      - prometheus.yml:/etc/prometheus/prometheus.yml
+    volumes:
+      - dangus-ops-prometheus:/prometheus
+    options:
+      memory: 896m
+      cpus: 0.4

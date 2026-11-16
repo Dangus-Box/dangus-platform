@@ -154,11 +154,33 @@ mkdir -p /etc/dangus
 write_file /etc/dangus/alloy.alloy dangus-alloy.service <<'CONFIG' || true
 discovery.docker "containers" {
   host = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+}
+discovery.relabel "logs" {
+  targets = discovery.docker.containers.targets
+  rule {
+    source_labels = ["__meta_docker_container_label_product"]
+    regex = ".+"
+    action = "keep"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_product"]
+    regex = "(.+)"
+    target_label = "product"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex = "/(.+)"
+    target_label = "container"
+  }
+}
+loki.write "ops" {
+  endpoint { url = "http://dangus-ops-loki:3100/loki/api/v1/push" }
 }
 loki.source.docker "logs" {
   host       = "unix:///var/run/docker.sock"
-  targets    = discovery.docker.containers.targets
-  forward_to = []
+  targets    = discovery.relabel.logs.output
+  forward_to = [loki.write.ops.receiver]
 }
 prometheus.exporter.unix "host" {
   rootfs_path = "/rootfs"
@@ -166,22 +188,38 @@ prometheus.exporter.unix "host" {
   sysfs_path = "/rootfs/sys"
 }
 prometheus.exporter.cadvisor "containers" {}
-prometheus.relabel "discard" {
-  forward_to = []
+prometheus.remote_write "ops" {
+  endpoint { url = "http://dangus-ops-prometheus:9090/api/v1/write" }
+}
+prometheus.relabel "containers" {
+  forward_to = [prometheus.remote_write.ops.receiver]
+  rule {
+    source_labels = ["container_label_product"]
+    target_label = "product"
+  }
 }
 prometheus.scrape "host" {
   targets    = prometheus.exporter.unix.host.targets
-  forward_to = [prometheus.relabel.discard.receiver]
+  forward_to = [prometheus.remote_write.ops.receiver]
 }
 prometheus.scrape "containers" {
   targets    = prometheus.exporter.cadvisor.containers.targets
-  forward_to = [prometheus.relabel.discard.receiver]
+  forward_to = [prometheus.relabel.containers.receiver]
 }
 discovery.relabel "metrics" {
   targets = discovery.docker.containers.targets
   rule {
     source_labels = ["__meta_docker_container_label_prometheus_io_scrape"]
     regex = "true"
+    action = "keep"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_product"]
+    target_label = "product"
+  }
+  rule {
+    source_labels = ["__meta_docker_network_name"]
+    regex = "kamal"
     action = "keep"
   }
   rule {
@@ -194,7 +232,7 @@ discovery.relabel "metrics" {
 }
 prometheus.scrape "apps" {
   targets = discovery.relabel.metrics.output
-  forward_to = [prometheus.relabel.discard.receiver]
+  forward_to = [prometheus.remote_write.ops.receiver]
 }
 CONFIG
 if write_file /etc/systemd/system/dangus-alloy.service dangus-alloy.service <<'CONFIG'
@@ -204,8 +242,9 @@ Requires=docker.service
 After=docker.service
 [Service]
 Restart=always
+ExecStartPre=/bin/sh -c '/usr/bin/docker network inspect kamal >/dev/null 2>&1 || /usr/bin/docker network create kamal'
 ExecStartPre=-/usr/bin/docker rm -f dangus-alloy
-ExecStart=/usr/bin/docker run --name dangus-alloy --privileged --network host -v /:/rootfs:ro -v /var/run:/var/run -v /sys:/sys:ro -v /var/lib/docker:/var/lib/docker:ro -v /etc/dangus/alloy.alloy:/etc/alloy/config.alloy:ro grafana/alloy:v1.8.3@sha256:ab04df3936e4d71d31b6f55e0c58a7e749091f59635dd8c2bc731ba1b6c93701 run --server.http.listen-addr=127.0.0.1:12345 /etc/alloy/config.alloy
+ExecStart=/usr/bin/docker run --name dangus-alloy --privileged --network kamal -p 127.0.0.1:12345:12345 -v /:/rootfs:ro -v /var/run:/var/run -v /sys:/sys:ro -v /var/lib/docker:/var/lib/docker:ro -v /etc/dangus/alloy.alloy:/etc/alloy/config.alloy:ro grafana/alloy:v1.8.3@sha256:ab04df3936e4d71d31b6f55e0c58a7e749091f59635dd8c2bc731ba1b6c93701 run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
 ExecStop=/usr/bin/docker stop dangus-alloy
 [Install]
 WantedBy=multi-user.target
