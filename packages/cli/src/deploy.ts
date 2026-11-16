@@ -1,10 +1,32 @@
 import { resolve4, resolve6 } from "node:dns/promises";
+import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { ResolvedProductConfig } from "./config";
 
+const BACKUP_IMAGE = "ghcr.io/dangus-box/backup:1.0.0";
+const backupSecrets = [
+  "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
+  "R2_ENDPOINT",
+  "HEALTHCHECKS_URL",
+];
+function publicKey(): string {
+  const path =
+    process.env.DANGUS_BACKUP_AGE_PUBLIC_KEY_FILE ||
+    resolve(import.meta.dir, "../../../infra/backup/age.pub");
+  let key: string;
+  try {
+    key = readFileSync(path, "utf8").trim();
+  } catch {
+    throw new Error(`Chave pública age ausente: ${path}.`);
+  }
+  if (!/^age1[0-9a-z]+$/.test(key))
+    throw new Error("Chave pública age inválida.");
+  return key;
+}
 export const KAMAL_IMAGE =
   "ghcr.io/basecamp/kamal:v2.12.0@sha256:7a3893b47dd328955f86fbf9ba887d08d612b74f96867f077750a53312537625";
 // Nome do Host na tailnet; DANGUS_HOST substitui.
@@ -71,6 +93,7 @@ function kamalSecrets(config: ResolvedProductConfig, app: App): string[] {
   ];
   if (app === "api" && config.database === "postgres")
     names.push("POSTGRES_PASSWORD", "DATABASE_URL");
+  if (app === "api") names.push(...backupSecrets);
   return names;
 }
 
@@ -151,6 +174,33 @@ export function render(
         volumes: [`${config.name}-postgres:/var/lib/postgresql/data`],
       },
     };
+  if (app === "api") {
+    const accessories = (doc.accessories ?? {}) as Record<string, unknown>;
+    accessories.backup = {
+      image: BACKUP_IMAGE,
+      host,
+      labels: { product: config.name, app: "backup" },
+      env: {
+        clear: {
+          BACKUP_PRODUCT: config.name,
+          BACKUP_DATABASE: "produto",
+          BACKUP_TYPE: config.database,
+          AGE_PUBLIC_KEY: publicKey(),
+          ...(config.database === "sqlite"
+            ? { SQLITE_PATH: "/app/data/produto.sqlite" }
+            : {}),
+        },
+        secret: [
+          ...backupSecrets,
+          ...(config.database === "postgres" ? ["DATABASE_URL"] : []),
+        ],
+      },
+      ...(config.database === "sqlite"
+        ? { volumes: [`${config.name}-sqlite:/app/data:ro`] }
+        : {}),
+    };
+    doc.accessories = accessories;
+  }
   return Bun.YAML.stringify(doc, null, 2);
 }
 
@@ -237,6 +287,7 @@ export async function deploy(
       );
       if (config.database === "postgres" && config.apps.api)
         names.add("POSTGRES_PASSWORD");
+      if (config.apps.api) backupSecrets.forEach((name) => names.add(name));
       const values: Record<string, string> = {};
       if (names.size) {
         const result = await runner(["bws", "secret", "list"], env, directory);
@@ -258,7 +309,15 @@ export async function deploy(
         }
         for (const name of names) {
           const matches = found.filter(
-            (item) => item.key === `${config.name}__${name}`,
+            (item) =>
+              item.key ===
+              (name === "R2_ACCESS_KEY_ID" || name === "R2_SECRET_ACCESS_KEY"
+                ? `ops__${name}`
+                : name === "R2_ENDPOINT"
+                  ? "platform__R2_ENDPOINT"
+                  : name === "HEALTHCHECKS_URL"
+                    ? `${config.name}__HEALTHCHECKS_BACKUP_URL`
+                    : `${config.name}__${name}`),
           );
           if (matches.length !== 1 || typeof matches[0].value !== "string")
             throw new Error(
