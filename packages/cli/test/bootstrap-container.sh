@@ -75,4 +75,7 @@ grep -Fq 'Permission denied (publickey).' <<< "$ssh_methods" || { printf 'sshd e
 # Reiniciar o Docker mantém a proteção das portas publicadas.
 docker exec "$name" systemctl restart docker
 docker exec "$name" iptables -C DOCKER-USER -j DANGUS-DOCKER
-[[ $(run) == 'Provisionamento concluído: nenhuma alteração.' ]]
+# O restart do Docker também reinicia o Alloy (Requires=); espere-o antes de comparar.
+for _ in {1..60}; do docker exec "$name" systemctl is-active --quiet dangus-alloy && break; sleep 1; done
+output=$(run)
+[[ $output == 'Provisionamento concluído: nenhuma alteração.' ]] || { printf 'Depois do restart do Docker: %s\n' "$output" >&2; exit 1; }

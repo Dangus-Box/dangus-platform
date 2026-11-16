@@ -1,0 +1,139 @@
+service: dangus-ops
+image: dangus-ops
+servers:
+  web:
+    hosts:
+      - devbox-1
+# Sem imagem própria: registry local para o Kamal não fazer login no Host.
+registry:
+  server: localhost:5555
+secrets_path: .kamal/secrets
+# O Umami leva ~33 s para ficar pronto com 0,2 vCPU; o padrão é 30 s.
+deploy_timeout: 120
+builder:
+  arch: amd64
+accessories:
+  grafana:
+    image: grafana/grafana:11.6.3@sha256:6128afd8174f01e39a78341cb457588f723bbb9c3b25c4d43c4b775881767069
+    host: devbox-1
+    port: 127.0.0.1:3300:3000
+    env:
+      secret:
+        - GF_SECURITY_ADMIN_PASSWORD
+    files:
+      - provisioning/datasources/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - provisioning/dashboards/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - dashboards/stack-ops.json:/etc/grafana/dashboards/stack-ops.json
+    volumes:
+      - dangus-ops-grafana:/var/lib/grafana
+    options:
+      memory: 512m
+      cpus: 0.2
+  loki:
+    image: grafana/loki:3.4.3@sha256:5fe9fa99e9a747297cdf0239a5b25d192d8f668bd6505b09beef4dffcab5aac2
+    host: devbox-1
+    cmd: -config.file=/etc/loki/config.yml
+    files:
+      - loki.yml:/etc/loki/config.yml
+    volumes:
+      - dangus-ops-loki:/loki
+    options:
+      memory: 768m
+      cpus: 0.3
+  prometheus:
+    image: prom/prometheus:v3.3.1@sha256:e2b8aa62b64855956e3ec1e18b4f9387fb6203174a4471936f4662f437f04405
+    host: devbox-1
+    cmd: --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=30d --web.enable-remote-write-receiver
+    files:
+      - prometheus.yml:/etc/prometheus/prometheus.yml
+    volumes:
+      - dangus-ops-prometheus:/prometheus
+    options:
+      memory: 896m
+      cpus: 0.4
+  umami-db:
+    image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
+    host: devbox-1
+    env:
+      clear:
+        POSTGRES_DB: umami
+        POSTGRES_USER: umami
+      secret:
+        - POSTGRES_PASSWORD
+    volumes:
+      - dangus-ops-umami-db:/var/lib/postgresql/data
+    options:
+      memory: 256m
+      cpus: 0.1
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-v2.19.0@sha256:77264ce6951c6b131a91d99f1cfd720d9efac1eaaa12e104f21cf49408dd77e0
+    host: devbox-1
+    proxy:
+      host: analytics.dangus-box.com
+      app_port: 3000
+      ssl: true
+      healthcheck:
+        path: /api/heartbeat
+    env:
+      clear:
+        TRACKER_SCRIPT_NAME: t.js
+        COLLECT_API_ENDPOINT: /api/e
+      secret:
+        - DATABASE_URL
+        - APP_SECRET
+    options:
+      memory: 512m
+      cpus: 0.2
+  unleash-db:
+    image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
+    host: devbox-1
+    env:
+      clear:
+        POSTGRES_DB: unleash
+        POSTGRES_USER: unleash
+      secret:
+        - POSTGRES_PASSWORD
+    volumes:
+      - dangus-ops-unleash-db:/var/lib/postgresql/data
+    options:
+      memory: 256m
+      cpus: 0.1
+  unleash:
+    image: unleashorg/unleash-server:6.9.1@sha256:0af22eb2bfbc3bde2ba230760b46807ae0d42916feb77afe020f5ba231902311
+    host: devbox-1
+    port: 127.0.0.1:4242:4242
+    env:
+      clear:
+        DATABASE_SSL: 'false'
+        UNLEASH_DEFAULT_ADMIN_USERNAME: admin
+      secret:
+        - DATABASE_URL
+        - UNLEASH_DEFAULT_ADMIN_PASSWORD
+        - INIT_FRONTEND_API_TOKENS
+        - INIT_CLIENT_API_TOKENS
+    options:
+      memory: 768m
+      cpus: 0.1
+  unleash-edge:
+    image: unleashorg/unleash-edge:v20.6.4@sha256:b3d8f290ef7e91c10520f657ef36a0fae84a7c447a257854ebbbec648df1d7c5
+    host: devbox-1
+    cmd: edge
+    proxy:
+      host: flags.dangus-box.com
+      app_port: 3063
+      ssl: true
+      healthcheck:
+        path: /internal-backstage/health
+    env:
+      clear:
+        UPSTREAM_URL: http://dangus-ops-unleash:4242
+        DISABLE_TOKENS_ENDPOINT: "true"
+        DISABLE_FEATURES_ENDPOINT: "true"
+        DISABLE_METRICS_ENDPOINT: "true"
+        DISABLE_METRICS_BATCH_ENDPOINT: "true"
+        DISABLE_INSTANCE_DATA_ENDPOINT: "true"
+      secret:
+        - TOKENS
+    options:
+      memory: 128m
+      cpus: 0.1
