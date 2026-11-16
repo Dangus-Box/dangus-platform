@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { isIP } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { ResolvedProductConfig } from "./config";
@@ -7,6 +8,10 @@ export const KAMAL_IMAGE =
   "ghcr.io/basecamp/kamal:v2.12.0@sha256:7a3893b47dd328955f86fbf9ba887d08d612b74f96867f077750a53312537625";
 // Nome do Host na tailnet; DANGUS_HOST substitui.
 export const DEFAULT_HOST = "devbox-1";
+export const DEFAULT_PROXY_BIND_IPS = [
+  "179.198.100.144",
+  "2a02:4780:c6:bdc::1",
+];
 type App = "api" | "web";
 export type Runner = (
   args: string[],
@@ -24,6 +29,12 @@ export const run: Runner = async (args, env, cwd, stream = false) => {
   return { code: await child.exited, stdout };
 };
 
+export function proxyBindIps(value: string | undefined): string[] {
+  return value === undefined
+    ? DEFAULT_PROXY_BIND_IPS
+    : value.split(",").map((ip) => ip.trim());
+}
+
 // Variáveis que o container do Kamal recebe do ambiente para a App.
 function kamalSecrets(config: ResolvedProductConfig, app: App): string[] {
   const names = [
@@ -40,11 +51,16 @@ export function render(
   app: App,
   host = DEFAULT_HOST,
   buildContext = ".",
+  bindIps = DEFAULT_PROXY_BIND_IPS,
 ): string {
   const settings = config.apps[app];
   if (!settings) throw new Error(`App ${app} não declarada.`);
   if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(host))
     throw new Error("Host Tailscale inválido.");
+  if (!bindIps.length || bindIps.some((ip) => !isIP(ip)))
+    throw new Error(
+      "DANGUS_PROXY_BIND_IPS deve conter IPs válidos, separados por vírgulas.",
+    );
   const service = `${config.name}-${app}`;
   const secrets = [...settings.secrets];
   if (config.database === "postgres" && app === "api")
@@ -66,7 +82,10 @@ export function render(
       host: settings.domain,
       app_port: 3000,
       healthcheck: { path: app === "api" ? "/ready" : "/" },
-      run: { options: { label: ["product=platform", "app=proxy"] } },
+      run: {
+        bind_ips: bindIps,
+        options: { label: ["product=platform", "app=proxy"] },
+      },
     },
     builder: {
       arch: "amd64",
@@ -106,6 +125,7 @@ export async function withRendered<T>(
   host: string,
   action: (dir: string, apps: App[]) => Promise<T>,
   buildContext = ".",
+  bindIps = DEFAULT_PROXY_BIND_IPS,
 ): Promise<T> {
   const apps = (["api", "web"] as const).filter((app) => config.apps[app]);
   if (!apps.length) throw new Error("Nenhuma App de servidor declarada.");
@@ -116,7 +136,7 @@ export async function withRendered<T>(
       await mkdir(join(path, ".kamal"), { recursive: true });
       await writeFile(
         join(path, "deploy.yml"),
-        render(config, app, host, buildContext),
+        render(config, app, host, buildContext, bindIps),
       );
       await writeFile(
         join(path, ".kamal", "secrets"),
@@ -245,5 +265,6 @@ export async function deploy(
       }
     },
     env.DANGUS_BUILD_CONTEXT || ".",
+    proxyBindIps(env.DANGUS_PROXY_BIND_IPS),
   );
 }
