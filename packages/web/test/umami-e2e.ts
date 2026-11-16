@@ -58,8 +58,7 @@ try {
         payload: {
           website: id,
           hostname: "produto.test",
-          url: "/",
-          name: "pelo-produto",
+          url: "/pelo-produto",
         },
       }),
     });
@@ -68,18 +67,13 @@ try {
   }
   const now = Date.now();
   const range = `startAt=${now - 3600000}&endAt=${now + 60000}`;
-  const events = await (
-    await fetch(`${umami}/api/websites/${id}/events?${range}`, {
-      headers: auth,
-    })
-  ).text();
-  if (!events.includes("pelo-produto"))
-    throw new Error(`Evento ausente: ${events}`);
   const stats = await (
     await fetch(`${umami}/api/websites/${id}/stats?${range}`, { headers: auth })
   ).json();
-  if (stats.visitors?.value !== 2)
-    throw new Error(`Visitantes por IP do cliente: ${JSON.stringify(stats)}`);
+  if (stats.pageviews?.value !== 3 || stats.visitors?.value !== 2)
+    throw new Error(
+      `Pageviews e visitantes por IP do cliente: ${JSON.stringify(stats)}`,
+    );
   console.log(
     "Evento pelo Produto registrado com IP e User-Agent do visitante OK",
   );
