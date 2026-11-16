@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { version } from "../package.json";
 import { bootstrap } from "./bootstrap";
 import { loadConfig } from "./config";
-import { DEFAULT_HOST, deploy, withRendered } from "./deploy";
+import { DEFAULT_HOST, deploy, proxyBindIps, withRendered } from "./deploy";
 import { dev } from "./dev";
 import { listProducts } from "./ls";
 
@@ -25,6 +25,7 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
             console.log(await Bun.file(join(dir, app, "deploy.yml")).text());
         },
         process.env.DANGUS_BUILD_CONTEXT || ".",
+        proxyBindIps(process.env.DANGUS_PROXY_BIND_IPS),
       );
   } catch (error) {
     console.error(error instanceof Error ? error.message : "Falha no deploy.");

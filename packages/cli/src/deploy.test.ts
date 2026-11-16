@@ -283,3 +283,82 @@ test("render imprime YAML legível, um campo por linha", () => {
   });
   expect(render(config, "web")).toContain("\nproxy:\n");
 });
+
+test("render publica o proxy nos IPs públicos padrão do Host", () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: { web: { domain: "web.produto.com" } },
+    database: "sqlite",
+    deployTimeoutSeconds: 10,
+  });
+  const doc = Bun.YAML.parse(render(config, "web")) as {
+    proxy: { run: { bind_ips: string[] } };
+  };
+  expect(doc.proxy.run.bind_ips).toEqual([
+    "179.198.100.144",
+    "2a02:4780:c6:bdc::1",
+  ]);
+});
+
+test("DANGUS_PROXY_BIND_IPS substitui os IPs padrão no render", async () => {
+  const cli = Bun.spawn(
+    ["bun", join(root, "packages/cli/src/index.ts"), "render"],
+    {
+      cwd: join(root, "examples/sqlite"),
+      env: {
+        ...process.env,
+        DANGUS_PROXY_BIND_IPS: " 192.0.2.1 , 2001:db8::1 ",
+      },
+      stdout: "pipe",
+    },
+  );
+  const output = await new Response(cli.stdout).text();
+  expect(await cli.exited).toBe(0);
+  expect(output).toContain("- 192.0.2.1");
+  expect(output).toContain("- 2001:db8::1");
+  expect(output).not.toContain("179.198.100.144");
+});
+
+test("DANGUS_PROXY_BIND_IPS inválido ou vazio interrompe o render", async () => {
+  for (const value of ["", " ", "192.0.2.1,,2001:db8::1", "inválido"]) {
+    const cli = Bun.spawn(
+      ["bun", join(root, "packages/cli/src/index.ts"), "render"],
+      {
+        cwd: join(root, "examples/sqlite"),
+        env: { ...process.env, DANGUS_PROXY_BIND_IPS: value },
+        stderr: "pipe",
+        stdout: "pipe",
+      },
+    );
+    const error = await new Response(cli.stderr).text();
+    expect(await cli.exited).toBe(1);
+    expect(error).toContain("DANGUS_PROXY_BIND_IPS");
+  }
+});
+
+test("deploy usa DANGUS_PROXY_BIND_IPS", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: { web: { domain: "web.produto.com" } },
+    database: "sqlite",
+    deployTimeoutSeconds: 10,
+  });
+  let found = false;
+  const runner: Runner = async (args) => {
+    if (args[0] === "git") return { code: 0, stdout: "a".repeat(40) };
+    const path = args[args.indexOf("-v", args.indexOf("-w")) + 1].split(":")[0];
+    const doc = Bun.YAML.parse(
+      await Bun.file(join(path, "deploy.yml")).text(),
+    ) as {
+      proxy: { run: { bind_ips: string[] } };
+    };
+    expect(doc.proxy.run.bind_ips).toEqual(["192.0.2.5"]);
+    found = true;
+    return { code: 0, stdout: "" };
+  };
+  await deploy(config, "/produto", runner, {
+    SSH_AUTH_SOCK: "/ssh-agent",
+    DANGUS_PROXY_BIND_IPS: " 192.0.2.5 ",
+  });
+  expect(found).toBe(true);
+});
