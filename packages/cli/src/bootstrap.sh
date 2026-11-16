@@ -244,14 +244,14 @@ After=docker.service
 Restart=always
 ExecStartPre=/bin/sh -c '/usr/bin/docker network inspect kamal >/dev/null 2>&1 || /usr/bin/docker network create kamal'
 ExecStartPre=-/usr/bin/docker rm -f dangus-alloy
-ExecStart=/usr/bin/docker run --name dangus-alloy --privileged --network kamal -p 127.0.0.1:12345:12345 -v /:/rootfs:ro -v /var/run:/var/run -v /sys:/sys:ro -v /var/lib/docker:/var/lib/docker:ro -v /etc/dangus/alloy.alloy:/etc/alloy/config.alloy:ro grafana/alloy:v1.8.3@sha256:ab04df3936e4d71d31b6f55e0c58a7e749091f59635dd8c2bc731ba1b6c93701 run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+ExecStart=/usr/bin/docker run --name dangus-alloy --privileged --network kamal -p 127.0.0.1:12345:12345 -v /:/rootfs:ro -v /var/run:/var/run -v /sys:/sys:ro -v /var/lib/docker:/var/lib/docker:ro -v /etc/dangus/alloy.alloy:/etc/alloy/config.alloy:ro grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4 run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
 ExecStop=/usr/bin/docker stop dangus-alloy
 [Install]
 WantedBy=multi-user.target
 CONFIG
 then systemctl daemon-reload; fi
-if ! docker image inspect grafana/alloy:v1.8.3@sha256:ab04df3936e4d71d31b6f55e0c58a7e749091f59635dd8c2bc731ba1b6c93701 >/dev/null 2>&1; then
-  docker pull grafana/alloy:v1.8.3@sha256:ab04df3936e4d71d31b6f55e0c58a7e749091f59635dd8c2bc731ba1b6c93701
+if ! docker image inspect grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4 >/dev/null 2>&1; then
+  docker pull grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
   mark
 fi
 apply_pending restart dangus-alloy.service
