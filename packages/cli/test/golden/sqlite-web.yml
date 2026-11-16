@@ -14,7 +14,7 @@ registry:
     - KAMAL_REGISTRY_PASSWORD
 proxy:
   ssl: true
-  host: web-sqlite.exemplo.com
+  host: web-sqlite.dangus-box.com
   app_port: 3000
   healthcheck:
     path: /
