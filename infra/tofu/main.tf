@@ -47,17 +47,11 @@ provider "cloudflare" {}
 
 data "hostinger_vps_data_centers" "available" {}
 
-resource "hostinger_vps_ssh_key" "host" {
-  name = "dangus-host"
-  key  = var.ssh_public_key
-}
-
 # O Host já existe e entra no state por `tofu import` (ver README).
 resource "hostinger_vps" "host" {
   plan           = "hostingercom-vps-kvm4-usd-1m"
   data_center_id = var.data_center_id
   template_id    = var.template_id
-  ssh_key_ids    = [hostinger_vps_ssh_key.host.id]
 
   lifecycle {
     # Destruir cancela a assinatura do Host.

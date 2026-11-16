@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Prova, com o provider real e uma API falsa local, que importar o Host existente
-# não o recria nem reinstala: o plano só pode anexar a chave SSH.
+# não o altera, recria nem reinstala.
 set -euo pipefail
 
 TESTS=$(cd "$(dirname "$0")" && pwd)
@@ -32,7 +32,6 @@ tofu init >/dev/null
 export HTTPS_PROXY="http://127.0.0.1:$(cat "$WORK/port")" NO_PROXY= no_proxy=
 export SSL_CERT_FILE="$WORK/ca.pem" HOSTINGER_API_TOKEN=falso
 export TF_VAR_data_center_id=17
-export TF_VAR_ssh_public_key="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHFmYWtlZmFrZWZha2VmYWtlZmFrZWZha2VmYWtlZmFr teste"
 # Template diferente do instalado: sem ignore_changes, reinstalaria o sistema.
 export TF_VAR_template_id=9999
 
@@ -48,8 +47,8 @@ for c in json.load(sys.stdin)["resource_changes"]:
         print(",".join(ch["actions"]) + ":" + ",".join(changed))')
 
 fail=0
-# Só anexar a chave SSH é aceitável; qualquer outra mudança recria ou reinstala o Host.
-[ "$changes" = "update:ssh_key_ids" ] || { echo "FALHOU: mudanças planejadas no Host: '$changes' (esperado: update:ssh_key_ids)"; fail=1; }
+# Nenhuma alteração no Host é aceitável.
+[ "$changes" = "no-op:" ] || { echo "FALHOU: mudanças planejadas no Host: '$changes' (esperado: no-op:)"; fail=1; }
 if grep -v '^GET ' "$WORK/api.log"; then echo "FALHOU: chamadas acima não são leitura"; fail=1; fi
 [ "$fail" = 0 ] && echo "ok: import do Host existente sem recriar nem reinstalar"
 exit "$fail"
