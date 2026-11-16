@@ -85,10 +85,15 @@ test("detecta Apps e banco, gera arquivos e preserva edições com --yes", async
   expect(await read(".github/workflows/deploy.yml")).toBe(
     await readFile(join(import.meta.dir, "../templates/deploy.yml"), "utf8"),
   );
+  expect(await read(".github/workflows/restore.yml")).toBe(
+    await readFile(join(import.meta.dir, "../templates/restore.yml"), "utf8"),
+  );
+  await writeFile(join(root, ".github/workflows/restore.yml"), "editado\n");
   await writeFile(join(root, "apps/api/Dockerfile"), "editado\n");
   const second = await run(["--yes"]);
   expect(second.code).toBe(0);
   expect(second.output).toContain("apps/api/Dockerfile: preservado.");
+  expect(await read(".github/workflows/restore.yml")).toBe("editado\n");
   expect(second.output).toContain("dangus.config.ts: já está atualizado.");
   expect(await read("apps/api/Dockerfile")).toBe("editado\n");
   expect(await read(".gitignore")).toBe(".dangus/\n");
