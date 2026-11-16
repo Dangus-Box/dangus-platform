@@ -37,6 +37,7 @@ const state = await Bun.file(path).json();
 const args = process.argv.slice(2);
 if (args[0] === 'project') console.log(JSON.stringify([{id:'ops',name:'ops'},{id:'prod',name:'prod'}]));
 else if (args[1] === 'list') console.log(JSON.stringify(state[args[2]]));
+else if (args[1] === 'create' && state.fail === args[2]) { delete state.fail; await Bun.write(path,JSON.stringify(state)); process.exit(1); }
 else if (args[1] === 'create') { state[args[4]].push({key:args[2],value:args[3],id:args[2]}); state.writes++; await Bun.write(path,JSON.stringify(state)); }
 else process.exit(1);
 `,
@@ -237,6 +238,10 @@ else process.exit(1);
     delayUnleashSession(requests: number) {
       pendingSessions = requests;
     },
+    async failBwsCreate(key: string) {
+      const state = JSON.parse(await readFile(statePath, "utf8"));
+      await writeFile(statePath, JSON.stringify({ ...state, fail: key }));
+    },
     async bws() {
       return JSON.parse(await readFile(statePath, "utf8"));
     },
@@ -393,6 +398,27 @@ test("aguarda a sessão do Unleash ficar válida após o login", async () => {
     f.delayUnleashSession(2);
     await register(f.dir, f.deps);
     expect(f.tokens).toHaveLength(2);
+  } finally {
+    f.server.stop(true);
+  }
+});
+
+test("token criado no Unleash sem gravação no BWS é recuperado ao reexecutar", async () => {
+  const f = await fixture();
+  try {
+    await f.failBwsCreate("produto__UNLEASH_TOKEN");
+    await expect(register(f.dir, f.deps)).rejects.toThrow();
+    await register(f.dir, f.deps);
+    expect(f.tokens).toHaveLength(2);
+    const values = Object.fromEntries(
+      (await f.bws()).prod.map((s: { key: string; value: string }) => [
+        s.key,
+        s.value,
+      ]),
+    );
+    expect(values.produto__UNLEASH_TOKEN).toBe(
+      "default:production.produto-backend",
+    );
   } finally {
     f.server.stop(true);
   }
