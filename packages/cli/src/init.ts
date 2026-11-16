@@ -78,9 +78,15 @@ export async function init(root: string, yes: boolean) {
     const config = `import { defineConfig } from "@dangus-box/cli";\n\nexport default defineConfig({\n  name: "${name}",\n  apps: {\n${configApps}\n  },\n  database: "${database}",\n  deployTimeoutSeconds: 120,\n});\n`;
     const docker = (app: "api" | "web") =>
       `FROM ${image}\nWORKDIR /workspace\nCOPY . ./\nRUN bun install --frozen-lockfile\n${app === "web" ? "RUN bun run --bun vite build --config apps/web/vite.config.ts\nENV PORT=3000\n" : ""}EXPOSE 3000\nCMD ["bun", "run", "apps/${app}/${app === "api" ? "index.ts" : "server.ts"}"]\n`;
-    // A Verificação de Restore será adicionada a esta lista pela issue #23.
     const files: [string, string][] = [
       ["dangus.config.ts", config],
+      [
+        ".github/workflows/restore.yml",
+        await readFile(
+          join(import.meta.dir, "../templates/restore.yml"),
+          "utf8",
+        ),
+      ],
       [
         ".github/workflows/deploy.yml",
         await readFile(
