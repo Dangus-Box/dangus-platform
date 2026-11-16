@@ -3,10 +3,14 @@
   "version": "0.0.0",
   "type": "module",
   "bin": {
-    "dangus": "src/index.ts"
+    "dangus": "./src/index.ts"
+  },
+  "exports": {
+    ".": "./src/config.ts"
   },
   "files": [
-    "src/index.ts"
+    "src",
+    "!src/**/*.test.ts"
   ],
   "publishConfig": {
     "access": "public"
