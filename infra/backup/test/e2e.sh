@@ -32,6 +32,17 @@ for type in postgres sqlite; do
     -e BACKUP_PRODUCT=example -e BACKUP_DATABASE="$type" -e BACKUP_TYPE="$type" -e DATABASE_URL=postgres://postgres:testpass@pg/produto \
     -e SQLITE_PATH=/data/input.sqlite -e AGE_PUBLIC_KEY="$pub" -e R2_ENDPOINT=http://minio:9000 -e R2_ACCESS_KEY_ID=testaccess -e R2_SECRET_ACCESS_KEY=testsecret -e HEALTHCHECKS_URL=http://health:8000/check "$name"
 done
+mkdir -p "$tmp/fake-bin"
+cat > "$tmp/fake-bin/date" <<'DATE'
+#!/bin/sh
+case "$2" in +%u) echo 7 ;; +%d) echo 01 ;; *) echo 20261101T030000Z ;; esac
+DATE
+chmod +x "$tmp/fake-bin/date"
+docker run --rm --network "$name" -v "$tmp:/data:ro" --entrypoint /usr/local/bin/backup.sh \
+  -e PATH=/data/fake-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  -e BACKUP_PRODUCT=example -e BACKUP_DATABASE=calendar -e BACKUP_TYPE=sqlite -e SQLITE_PATH=/data/input.sqlite \
+  -e AGE_PUBLIC_KEY="$pub" -e R2_ENDPOINT=http://minio:9000 -e R2_ACCESS_KEY_ID=testaccess -e R2_SECRET_ACCESS_KEY=testsecret -e HEALTHCHECKS_URL=http://health:8000/check "$name"
+docker run --rm --network "$name" --entrypoint sh ghcr.io/l33tlamer/minio-backup@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e -c 'mc alias set local http://minio:9000 testaccess testsecret >/dev/null; test -n "$(mc ls local/dangus-backups/weekly/example/calendar/)"; test -n "$(mc ls local/dangus-backups/monthly/example/calendar/)"'
 docker run --rm --network "$name" -v "$tmp:/data" --entrypoint sh ghcr.io/l33tlamer/minio-backup@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e -c 'mc alias set local http://minio:9000 testaccess testsecret >/dev/null; mc cp --recursive local/dangus-backups/daily/example /data/download >/dev/null'
 for type in postgres sqlite; do
   file=$(find "$tmp/download/example/$type" -type f | head -1)
@@ -42,10 +53,10 @@ docker exec "$name-pg" createdb -U postgres restored
 docker exec -i "$name-pg" psql -U postgres -d restored < "$tmp/postgres.out" >/dev/null
 [[ $(docker exec "$name-pg" psql -U postgres -d restored -tAc 'SELECT value FROM items') == 'backup postgres' ]]
 [[ $(docker run --rm -v "$tmp:/data" --entrypoint sqlite3 "$name" /data/sqlite.out 'SELECT value FROM items') == 'backup sqlite' ]]
-[[ $(grep -c '^/check/start$' "$tmp/pings") == 2 && $(grep -c '^/check$' "$tmp/pings") == 2 ]]
+[[ $(grep -c '^/check/start$' "$tmp/pings") == 3 && $(grep -c '^/check$' "$tmp/pings") == 3 ]]
 if docker run --rm --network "$name" --entrypoint /usr/local/bin/backup.sh \
     -e BACKUP_PRODUCT=example -e BACKUP_DATABASE=missing -e BACKUP_TYPE=sqlite -e SQLITE_PATH=/missing \
     -e AGE_PUBLIC_KEY="$pub" -e R2_ENDPOINT=http://minio:9000 -e R2_ACCESS_KEY_ID=testaccess -e R2_SECRET_ACCESS_KEY=testsecret -e HEALTHCHECKS_URL=http://health:8000/check "$name"; then exit 1; fi
 [[ $(grep -c '^/check/fail$' "$tmp/pings") == 1 ]]
 if docker run --rm -v "$tmp:/data" --entrypoint age "$name" -d -i /dev/null "/data/${file#"$tmp/"}" >/dev/null 2>&1; then exit 1; fi
-printf '%s\n' 'Postgres e SQLite restaurados; pings recebidos; chave pública não decripta.'
+printf '%s\n' 'Postgres e SQLite restaurados; cópias semanal e mensal e pings verificados; chave pública não decripta.'
