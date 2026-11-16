@@ -238,6 +238,11 @@ else process.exit(1);
     delayUnleashSession(requests: number) {
       pendingSessions = requests;
     },
+    async seedProd(key: string, value: string) {
+      const state = JSON.parse(await readFile(statePath, "utf8"));
+      state.prod.push({ key, value, id: key });
+      await writeFile(statePath, JSON.stringify(state));
+    },
     async failBwsCreate(key: string) {
       const state = JSON.parse(await readFile(statePath, "utf8"));
       await writeFile(statePath, JSON.stringify({ ...state, fail: key }));
@@ -421,5 +426,25 @@ test("token criado no Unleash sem gravação no BWS é recuperado ao reexecutar"
     );
   } finally {
     f.server.stop(true);
+  }
+});
+
+test("secret manual no BWS sem cadastro correspondente impede criar duplicata", async () => {
+  for (const [key, created] of [
+    ["produto__UMAMI_WEBSITE_ID", "sites"],
+    ["produto__HEALTHCHECKS_BACKUP_URL", "checks"],
+    ["produto__DNS_WEB_A_ID", "records"],
+  ] as const) {
+    const f = await fixture();
+    try {
+      await f.seedProd(key, "manual");
+      await expect(register(f.dir, f.deps)).rejects.toThrow(key);
+      const rows = f[created] as { name: string }[];
+      if (created === "records")
+        expect(rows.some((r) => r.name === "web.example.com")).toBe(false);
+      else expect(rows).toHaveLength(0);
+    } finally {
+      f.server.stop(true);
+    }
   }
 });
