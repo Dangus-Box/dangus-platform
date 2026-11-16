@@ -1,19 +1,33 @@
+import { Analytics, Flags } from "@dangus-box/web";
 import {
   createRootRoute,
   HeadContent,
   Outlet,
   Scripts,
 } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
 
-export const Route = createRootRoute({ component: Root });
+const config = createServerFn({ method: "GET" }).handler(() => ({
+  websiteId: process.env.UMAMI_WEBSITE_ID,
+  token: process.env.FLAGS_FRONTEND_TOKEN,
+}));
+
+export const Route = createRootRoute({
+  loader: () => config(),
+  component: Root,
+});
 function Root() {
+  const { websiteId, token } = Route.useLoaderData();
   return (
     <html lang="pt-BR">
       <head>
         <HeadContent />
+        <Analytics websiteId={websiteId} />
       </head>
       <body>
-        <Outlet />
+        <Flags token={token}>
+          <Outlet />
+        </Flags>
         <Scripts />
       </body>
     </html>

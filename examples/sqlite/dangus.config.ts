@@ -8,7 +8,11 @@ export default defineConfig({
       memoryMb: 512,
       secrets: ["UNLEASH_TOKEN", "UMAMI_WEBSITE_ID"],
     },
-    web: { domain: "web-sqlite.dangus-box.com", memoryMb: 512 },
+    web: {
+      domain: "web-sqlite.dangus-box.com",
+      memoryMb: 512,
+      secrets: ["UMAMI_WEBSITE_ID", "FLAGS_FRONTEND_TOKEN"],
+    },
     mobile: { domain: "mobile-sqlite.dangus-box.com" },
   },
   database: "sqlite",
