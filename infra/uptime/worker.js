@@ -4,7 +4,7 @@ const URLS = [
 ];
 
 export async function check(env, request = fetch) {
-  await Promise.all(
+  const results = await Promise.allSettled(
     URLS.map(async (url) => {
       const state = (await env.UPTIME_KV.get(url, "json")) ?? {
         down: false,
@@ -36,9 +36,13 @@ export async function check(env, request = fetch) {
         if (!response.ok || !(await response.json()).ok)
           throw new Error("Falha ao enviar alerta ao Telegram");
       }
-      await env.UPTIME_KV.put(url, JSON.stringify({ down, failures }));
+      // O plano gratuito permite 1.000 gravações por dia no KV.
+      if (down !== state.down || failures !== state.failures)
+        await env.UPTIME_KV.put(url, JSON.stringify({ down, failures }));
     }),
   );
+  const failure = results.find((result) => result.status === "rejected");
+  if (failure) throw failure.reason;
 }
 
 export default {
