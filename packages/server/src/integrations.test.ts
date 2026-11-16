@@ -9,15 +9,28 @@ afterEach(async () => {
 });
 
 test("sem configuração, Flags retornam padrões e analytics não usa rede", async () => {
-  delete process.env.UNLEASH_TOKEN;
-  delete process.env.UMAMI_WEBSITE_ID;
-  process.env.UNLEASH_URL = "http://127.0.0.1:1/api";
-  process.env.UMAMI_URL = "http://127.0.0.1:1";
-  await configureFlags("teste");
-  const client = OpenFeature.getClient();
-  expect(await client.getBooleanValue("flag", true)).toBe(true);
-  expect(await client.getStringValue("config", "padrão")).toBe("padrão");
-  await trackEvent({ name: "evento", hostname: "teste.local", url: "/" });
+  let requests = 0;
+  const server = Bun.serve({
+    port: 0,
+    fetch() {
+      requests++;
+      return new Response("ok");
+    },
+  });
+  try {
+    delete process.env.UNLEASH_TOKEN;
+    delete process.env.UMAMI_WEBSITE_ID;
+    process.env.UNLEASH_URL = `${server.url}api`;
+    process.env.UMAMI_URL = server.url.toString();
+    await configureFlags("teste");
+    const client = OpenFeature.getClient();
+    expect(await client.getBooleanValue("flag", true)).toBe(true);
+    expect(await client.getStringValue("config", "padrão")).toBe("padrão");
+    await trackEvent({ name: "evento", hostname: "teste.local", url: "/" });
+    expect(requests).toBe(0);
+  } finally {
+    server.stop(true);
+  }
 });
 
 test("provider avalia Flag pelo OpenFeature usando Unleash local", async () => {
@@ -64,7 +77,9 @@ test("analytics envia evento ao Umami configurado", async () => {
     port: 0,
     async fetch(request) {
       expect(new URL(request.url).pathname).toBe("/api/e");
-      expect(request.headers.get("user-agent")).toContain("Mozilla");
+      expect(request.headers.get("user-agent")).toBe(
+        "Mozilla/5.0 (X11; Linux x86_64) DangusPlatform/1.0",
+      );
       received = await request.json();
       return new Response("ok");
     },
