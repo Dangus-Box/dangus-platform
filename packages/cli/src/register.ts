@@ -178,6 +178,14 @@ async function registerProduct(
   const key = (name: string) => `${config.name}__${name}`;
   const save = (name: string, value: string) =>
     vault.saveProd(key(name), value);
+  // Antes de criar, um secret já presente indica cadastro feito fora do Registro.
+  const assertUnsaved = (...names: string[]) => {
+    for (const name of names)
+      if (vault.prod(key(name)) !== undefined)
+        throw new Error(
+          `${key(name)} existe no BWS sem cadastro correspondente; revise antes de registrar.`,
+        );
+  };
   const login = await api(
     request,
     umami,
@@ -210,11 +218,16 @@ async function registerProduct(
     ) as { id: string; domain: string } | undefined;
     if (website && website.domain !== config.apps.web.domain)
       throw new Error("Domínio do website Umami diverge da Config do Produto.");
-    if (!website)
+    if (!website) {
+      assertUnsaved(
+        "UMAMI_WEBSITE_ID",
+        ...(config.apps.mobile ? ["EXPO_PUBLIC_UMAMI_WEBSITE_ID"] : []),
+      );
       website = await api(request, umami, "/api/websites", {
         ...json({ name: config.name, domain: config.apps.web.domain }),
         headers: umamiHeaders,
       });
+    }
     if (!website) throw new Error("Website Umami ausente.");
     await save("UMAMI_WEBSITE_ID", website.id);
     if (config.apps.mobile)
@@ -254,8 +267,13 @@ async function registerProduct(
         token.projects[0] !== "default")
     )
       throw new Error(`Token ${tokenName} diverge da configuração esperada.`);
-    if (!token && vault.prod(key(secretName)))
-      throw new Error(`Token ${tokenName} ausente no Unleash.`);
+    if (!token)
+      assertUnsaved(
+        secretName,
+        ...(type === "frontend" && config.apps.mobile
+          ? ["EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN"]
+          : []),
+      );
     const value =
       token?.secret ??
       (
@@ -307,7 +325,9 @@ async function registerProduct(
         ))
     )
       throw new Error(`Check ${name} diverge da configuração esperada.`);
-    if (!check)
+    if (!check) {
+      const upper = kind.toUpperCase();
+      assertUnsaved(`HEALTHCHECKS_${upper}_ID`, `HEALTHCHECKS_${upper}_URL`);
       check = await api(request, health, "/api/v3/checks/", {
         ...json({
           name,
@@ -316,6 +336,7 @@ async function registerProduct(
         }),
         headers: hh,
       });
+    }
     if (!check?.ping_url || !check.uuid)
       throw new Error(`ID ou ping URL ausente: ${name}.`);
     await save(`HEALTHCHECKS_${kind.toUpperCase()}_ID`, check.uuid);
@@ -372,6 +393,7 @@ async function registerProduct(
         if (record && (record.content !== address || record.proxied))
           throw new Error(`DNS ${app.domain} ${type} diverge da Stack Ops.`);
         if (!record) {
+          assertUnsaved(`DNS_${appName.toUpperCase()}_${type}_ID`);
           const created = await api(request, cf, path, {
             ...json({
               type,
