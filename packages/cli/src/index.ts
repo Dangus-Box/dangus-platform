@@ -6,6 +6,7 @@ import { loadConfig } from "./config";
 import { DEFAULT_HOST, deploy, proxyBindIps, withRendered } from "./deploy";
 import { dev } from "./dev";
 import { doctor } from "./doctor";
+import { init } from "./init";
 import { listProducts } from "./ls";
 
 if (process.argv[2] === "--version" && process.argv.length === 3) {
@@ -19,6 +20,17 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
     const results = await doctor(process.cwd(), args[1]);
     for (const item of results) console.log(`[${item.status}] ${item.message}`);
     if (results.some((item) => item.status === "fail")) process.exitCode = 1;
+  }
+} else if (
+  process.argv[2] === "init" &&
+  (process.argv.length === 3 ||
+    (process.argv.length === 4 && process.argv[3] === "--yes"))
+) {
+  try {
+    await init(process.cwd(), process.argv[3] === "--yes");
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : "Falha na Adoção.");
+    process.exitCode = 1;
   }
 } else if (
   (process.argv[2] === "render" || process.argv[2] === "deploy") &&
@@ -99,7 +111,7 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
   }
 } else {
   console.error(
-    "Uso: dangus dev | ls | doctor [--base <ref>] | render | deploy [--skip-build] | host bootstrap <host>",
+    "Uso: dangus init [--yes] | dev | ls | doctor [--base <ref>] | render | deploy [--skip-build] | host bootstrap <host>",
   );
   process.exitCode = 1;
 }
