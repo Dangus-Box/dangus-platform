@@ -20,10 +20,10 @@ import { parseRestoreArgs, restore } from "./restore";
 if (process.argv[2] === "register" && process.argv.length === 3) {
   try {
     await register(process.cwd());
-    console.log("Registro na Stack Ops concluído.");
+    console.log("Registration in the Ops Stack completed.");
   } catch (error) {
     console.error(
-      error instanceof Error ? error.message : "Falha no Registro.",
+      error instanceof Error ? error.message : "Registration failed.",
     );
     process.exitCode = 1;
   }
@@ -32,7 +32,7 @@ if (process.argv[2] === "register" && process.argv.length === 3) {
 } else if (process.argv[2] === "doctor") {
   const args = process.argv.slice(3);
   if (args.length && (args.length !== 2 || args[0] !== "--base" || !args[1])) {
-    console.error("Uso: dangus doctor [--base <ref>]");
+    console.error("Usage: dangus doctor [--base <ref>]");
     process.exitCode = 1;
   } else {
     const results = await doctor(process.cwd(), args[1]);
@@ -47,7 +47,7 @@ if (process.argv[2] === "register" && process.argv.length === 3) {
   try {
     await init(process.cwd(), process.argv[3] === "--yes");
   } catch (error) {
-    console.error(error instanceof Error ? error.message : "Falha na Adoção.");
+    console.error(error instanceof Error ? error.message : "Adoption failed.");
     process.exitCode = 1;
   }
 } else if (
@@ -79,7 +79,7 @@ if (process.argv[2] === "register" && process.argv.length === 3) {
         proxyBindIps(process.env.DANGUS_PROXY_BIND_IPS),
       );
   } catch (error) {
-    console.error(error instanceof Error ? error.message : "Falha no deploy.");
+    console.error(error instanceof Error ? error.message : "Deploy failed.");
     process.exitCode = 1;
   }
 } else if (
@@ -90,14 +90,14 @@ if (process.argv[2] === "register" && process.argv.length === 3) {
   try {
     await backupNow(await loadConfig(), process.cwd());
   } catch (error) {
-    console.error(error instanceof Error ? error.message : "Falha no Backup.");
+    console.error(error instanceof Error ? error.message : "Backup failed.");
     process.exitCode = 1;
   }
 } else if (process.argv[2] === "db" && process.argv[3] === "restore") {
   try {
     await restore(await loadConfig(), parseRestoreArgs(process.argv.slice(4)));
   } catch (error) {
-    console.error(error instanceof Error ? error.message : "Falha no Restore.");
+    console.error(error instanceof Error ? error.message : "Restore failed.");
     process.exitCode = 1;
   }
 } else if (
@@ -107,7 +107,7 @@ if (process.argv[2] === "register" && process.argv.length === 3) {
   const controller = new AbortController();
   try {
     if (process.argv[2] === "dev") {
-      // Ctrl-C ou SIGTERM interrompem a App; aguardamos a limpeza do Postgres.
+      // Ctrl-C or SIGTERM stops the App; wait for Postgres cleanup.
       const onInterrupt = () => controller.abort();
       process.on("SIGINT", onInterrupt);
       process.on("SIGTERM", onInterrupt);
@@ -126,9 +126,7 @@ if (process.argv[2] === "register" && process.argv.length === 3) {
     } else console.log(await listProducts(process.cwd()));
   } catch (error) {
     if (!controller.signal.aborted) {
-      console.error(
-        error instanceof Error ? error.message : "Falha no comando.",
-      );
+      console.error(error instanceof Error ? error.message : "Command failed.");
       process.exitCode = 1;
     }
   }
@@ -141,13 +139,13 @@ if (process.argv[2] === "register" && process.argv.length === 3) {
     process.exitCode = await bootstrap(process.argv[4]);
   } catch (error) {
     console.error(
-      error instanceof Error ? error.message : "Falha no provisionamento.",
+      error instanceof Error ? error.message : "Provisioning failed.",
     );
     process.exitCode = 1;
   }
 } else {
   console.error(
-    "Uso: dangus init [--yes] | register | dev | ls | doctor [--base <ref>] | render | deploy [--skip-build] | db backup | db restore | host bootstrap <host>",
+    "Usage: dangus init [--yes] | register | dev | ls | doctor [--base <ref>] | render | deploy [--skip-build] | db backup | db restore | host bootstrap <host>",
   );
   process.exitCode = 1;
 }

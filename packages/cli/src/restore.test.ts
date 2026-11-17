@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { latestKey, parseRestoreArgs } from "./restore";
 
-test("seleciona o Backup diário mais recente do Produto", () => {
+test("selects the latest daily Product Backup", () => {
   const xml =
     "<ListBucketResult><Contents><Key>daily/a/produto/20261101-x.sql.gz.age</Key></Contents><Contents><Key>daily/a/produto/20261102-x.sql.gz.age</Key></Contents><Contents><Key>daily/b/produto/20261103-x.sql.gz.age</Key></Contents></ListBucketResult>";
   expect(latestKey(xml, "daily/a/produto/")).toBe(
@@ -9,7 +9,7 @@ test("seleciona o Backup diário mais recente do Produto", () => {
   );
 });
 
-test("valida opções e impede destino explícito na Verificação de Restore", () => {
+test("validates options and prevents an explicit target during Restore Verification", () => {
   expect(
     parseRestoreArgs([
       "--from",
@@ -24,7 +24,7 @@ test("valida opções e impede destino explícito na Verificação de Restore", 
   expect(() => parseRestoreArgs(["--yes", "--yes"])).toThrow();
 });
 
-test("workflow semanal executa a Verificação de Restore com o token do BWS", async () => {
+test("weekly workflow runs Restore Verification with the BWS token", async () => {
   const workflow = await Bun.file(
     new URL("../templates/restore.yml", import.meta.url),
   ).text();

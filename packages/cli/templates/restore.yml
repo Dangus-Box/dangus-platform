@@ -1,4 +1,4 @@
-name: Verificação de Restore
+name: Restore Verification
 on:
   schedule:
     - cron: '0 6 * * 0'

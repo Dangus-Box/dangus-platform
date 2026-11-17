@@ -36,7 +36,7 @@ for (const file of [
     return { text, job: workflow.jobs.deploy };
   };
 
-  test(`workflow ${file} fixa checkout e credenciais e serializa deploys`, async () => {
+  test(`workflow ${file} pins checkout and credentials and serializes deploys`, async () => {
     const { text } = await load();
     expect(text).toContain("branches: [main]");
     expect(text).toContain("workflow_dispatch:");
@@ -61,7 +61,7 @@ for (const file of [
     expect(text).not.toContain("set -x");
   });
 
-  test(`workflow ${file} expõe secrets só nos passos que os usam`, async () => {
+  test(`workflow ${file} exposes secrets only to steps that use them`, async () => {
     const { job } = await load();
     expect(JSON.stringify(job.env ?? {})).not.toContain("secrets.");
     const holders = (secret: string) =>
@@ -78,7 +78,7 @@ for (const file of [
     ]);
   });
 
-  test(`workflow ${file} só aceita SHA completo alcançável pela main`, async () => {
+  test(`workflow ${file} accepts only a full SHA reachable from main`, async () => {
     const { job } = await load();
     const steps = job.steps.filter(
       (step) => step.if === "github.event_name == 'workflow_dispatch'",
@@ -93,7 +93,7 @@ for (const file of [
     expect(job.steps.indexOf(steps[0])).toBeLessThan(checkout);
     expect(job.steps.indexOf(steps[1])).toBeGreaterThan(checkout);
     expect(job.steps.indexOf(steps[1])).toBeLessThan(install);
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: expressão do GitHub Actions
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub Actions expression
     for (const step of steps) expect(step.env?.SHA).toBe("${{ inputs.sha }}");
 
     const repo = await mkdtemp(join(tmpdir(), "dangus-workflow-"));
@@ -133,7 +133,7 @@ for (const file of [
     }
   });
 
-  test(`workflow ${file} remove o nó efêmero da tailnet ao final`, async () => {
+  test(`workflow ${file} removes the ephemeral tailnet node at the end`, async () => {
     const { job } = await load();
     const tailscale = job.steps.findIndex((step) =>
       step.uses?.startsWith("tailscale/github-action@"),

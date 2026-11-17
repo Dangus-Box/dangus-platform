@@ -111,7 +111,7 @@ for key in wrongkey badsql truncated; do
 done
 echo 'Wrong key, invalid SQL and truncated object: failure and /fail ping confirmed.'
 for key in daily/exemplo-sqlite/produto/x.sqlite.gz.age daily/exemplo-postgres/produto/../../exemplo-sqlite/produto/x; do
-  { dangus postgres --from "$key" 2>&1 || true; } | grep -q 'fora do Produto'
+  { dangus postgres --from "$key" 2>&1 || true; } | grep -q 'outside Product'
 done
 echo '--from outside the Product rejected.'
 printf 'corrompido' > "$tmp/corrupt"

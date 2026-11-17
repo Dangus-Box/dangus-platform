@@ -17,19 +17,19 @@ export async function dev(
       (await runner(["bun", "run", "dev"], localEnv, directory, true, signal))
         .code !== 0
     )
-      throw new Error("Falha ao executar a App em desenvolvimento.");
+      throw new Error("Failed to run the App in development.");
     return;
   }
   const port = env.DANGUS_DEV_POSTGRES_PORT || "55432";
   if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535)
-    throw new Error("DANGUS_DEV_POSTGRES_PORT inválida.");
+    throw new Error("Invalid DANGUS_DEV_POSTGRES_PORT.");
   const dir = await mkdtemp(join(tmpdir(), "dangus-dev-"));
   const file = join(dir, "compose.yml");
   const compose = [
     "docker",
     "compose",
     "-p",
-    // Um projeto por diretório: outra worktree do Produto não derruba este banco.
+    // One project per directory: another Product worktree cannot stop this database.
     `dangus-dev-${config.name}-${Bun.hash(resolve(directory)).toString(36)}`,
     "-f",
     file,
@@ -71,7 +71,7 @@ export async function dev(
         )
       ).code !== 0
     )
-      throw new Error("Falha ao iniciar o Postgres local.");
+      throw new Error("Failed to start local Postgres.");
     const appEnv = {
       ...localEnv,
       DATABASE_URL:
@@ -82,14 +82,14 @@ export async function dev(
       (await runner(["bun", "run", "dev"], appEnv, directory, true, signal))
         .code !== 0
     )
-      throw new Error("Falha ao executar a App em desenvolvimento.");
+      throw new Error("Failed to run the App in development.");
   } finally {
     try {
       if (
         (await runner([...compose, "down"], localEnv, directory, true)).code !==
         0
       )
-        console.error("Falha ao parar o Postgres local.");
+        console.error("Failed to stop local Postgres.");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

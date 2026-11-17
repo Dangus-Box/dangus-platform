@@ -3,13 +3,13 @@ import { join } from "node:path";
 
 const workspaceBin = join(import.meta.dir, "../../../node_modules/.bin/dangus");
 
-test("exibe a versão do CLI pelo bin do workspace", async () => {
+test("displays the CLI version through the workspace bin", async () => {
   const result = Bun.spawn([workspaceBin, "--version"], { stdout: "pipe" });
   expect(await new Response(result.stdout).text()).toBe("0.0.0\n");
   expect(await result.exited).toBe(0);
 });
 
-test("monta a invocação SSH do Host", async () => {
+test("builds the Host SSH invocation", async () => {
   const { sshCommand } = await import("./bootstrap");
   expect(sshCommand("root@host.example")).toEqual([
     "ssh",
@@ -22,7 +22,7 @@ test("monta a invocação SSH do Host", async () => {
   ]);
 });
 
-test("rejeita Host com opções ou metacaracteres", async () => {
+test("rejects a Host with options or metacharacters", async () => {
   const { sshCommand } = await import("./bootstrap");
   for (const host of [
     "",
@@ -31,11 +31,11 @@ test("rejeita Host com opções ou metacaracteres", async () => {
     "root@host name",
     "root@host\ncommand",
   ]) {
-    expect(() => sshCommand(host)).toThrow("Host inválido.");
+    expect(() => sshCommand(host)).toThrow("Invalid Host.");
   }
 });
 
-test("obtém a chave do BWS e envia o script por SSH sem incluí-la nos argumentos", async () => {
+test("gets the BWS key and sends the script over SSH without including it in arguments", async () => {
   const { mkdtemp, readFile, writeFile, chmod, rm } = await import(
     "node:fs/promises"
   );
@@ -72,7 +72,7 @@ test("obtém a chave do BWS e envia o script por SSH sem incluí-la nos argument
     expect(args).toBe("-T\n--\nroot@host\nsudo\nbash\n-s\n");
     expect(args).not.toContain(fakeKey);
     expect(input).toContain(`DANGUS_TAILSCALE_AUTH_KEY='${fakeKey}'`);
-    expect(input).toContain("Provisionamento concluído");
+    expect(input).toContain("Provisioning complete");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

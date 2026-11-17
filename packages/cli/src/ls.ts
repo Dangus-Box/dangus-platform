@@ -7,7 +7,7 @@ export async function listProducts(
 ): Promise<string> {
   const host = env.DANGUS_HOST || DEFAULT_HOST;
   if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(host))
-    throw new Error("Host Tailscale inválido.");
+    throw new Error("Invalid Tailscale Host.");
   const result = await runner(
     [
       "ssh",
@@ -27,22 +27,22 @@ export async function listProducts(
     directory,
   );
   if (result.code !== 0) {
-    // Saída do Host: troca caracteres de controle do terminal por espaço e limita o tamanho.
+    // Host output: replace terminal control characters with spaces and limit length.
     const reason = (result.stderr ?? "")
       .replace(/\p{Cc}+/gu, " ")
       .trim()
       .slice(0, 500);
     throw new Error(
       reason
-        ? `Falha ao listar Apps no Host: ${reason}`
-        : "Falha ao listar Apps no Host.",
+        ? `Failed to list Apps on the Host: ${reason}`
+        : "Failed to list Apps on the Host.",
     );
   }
   const rows = new Set(
     result.stdout
       .split("\n")
       .map((line) => line.trim())
-      // O proxy da Plataforma e o Banco do Produto também têm labels; não são Apps.
+      // The Platform proxy and Product database also have labels; they are not Apps.
       .filter((line) => /\t(api|web)$/.test(line)),
   );
   return ["PRODUTO\tAPP", ...[...rows].sort()].join("\n");

@@ -5,7 +5,7 @@ import { dev } from "./dev";
 import { listProducts } from "./ls";
 
 for (const variant of ["sqlite", "postgres"]) {
-  test(`dev executa ${variant} com ambiente local e apenas seu banco`, async () => {
+  test(`dev runs ${variant} with local environment and only its own database`, async () => {
     const config = await loadConfig(`examples/${variant}`);
     const calls: string[][] = [];
     const runner: Runner = async (args, env) => {
@@ -33,7 +33,7 @@ for (const variant of ["sqlite", "postgres"]) {
   });
 }
 
-test("ls consulta labels via SSH, ordena e elimina duplicatas", async () => {
+test("ls queries labels over SSH, sorts and deduplicates", async () => {
   const runner: Runner = async (args) => {
     expect(args.slice(0, 8)).toEqual([
       "ssh",
@@ -52,14 +52,14 @@ test("ls consulta labels via SSH, ordena e elimina duplicatas", async () => {
   );
 });
 
-test("ls falha quando SSH falha ou Host é inválido", async () => {
+test("ls fails when SSH fails or the Host is invalid", async () => {
   const runner: Runner = async () => ({ code: 1, stdout: "" });
   await expect(listProducts(".", runner, {})).rejects.toThrow(
-    "Falha ao listar",
+    "Failed to list",
   );
   await expect(
     listProducts(".", runner, { DANGUS_HOST: "-oProxyCommand=x" }),
-  ).rejects.toThrow("Host Tailscale inválido");
+  ).rejects.toThrow("Invalid Tailscale Host");
 });
 
 type ComposeDoc = {
@@ -80,11 +80,11 @@ async function composeOf(directory: string) {
       };
     return { code: 0, stdout: "" };
   });
-  if (!compose) throw new Error("compose up não executado");
+  if (!compose) throw new Error("compose up did not run");
   return compose;
 }
 
-test("dev persiste os dados do Postgres num volume nomeado entre execuções", async () => {
+test("dev persists Postgres data in a named volume across runs", async () => {
   const { doc } = await composeOf("examples/postgres");
   expect(doc.services.postgres.volumes).toEqual([
     "data:/var/lib/postgresql/data",
@@ -92,14 +92,14 @@ test("dev persiste os dados do Postgres num volume nomeado entre execuções", a
   expect(Object.keys(doc.volumes ?? {})).toEqual(["data"]);
 });
 
-test("dev isola o projeto Compose por diretório, sem derrubar o banco de outra worktree", async () => {
+test("dev isolates the Compose project by directory without stopping another worktree database", async () => {
   const a = await composeOf("/worktrees/a/examples/postgres");
   const b = await composeOf("/worktrees/b/examples/postgres");
   expect(a.project).toStartWith("dangus-dev-exemplo-postgres-");
   expect(a.project).not.toBe(b.project);
 });
 
-test("dev interrompe a App pelo signal e ainda derruba o Postgres", async () => {
+test("dev stops the App on signal and still stops Postgres", async () => {
   const config = await loadConfig("examples/postgres");
   const controller = new AbortController();
   const signals: Record<string, AbortSignal | undefined> = {};
@@ -126,7 +126,7 @@ test("dev interrompe a App pelo signal e ainda derruba o Postgres", async () => 
   expect(signals.down).toBeUndefined();
 });
 
-test("ls mostra só Apps dos Produtos, sem o proxy da Plataforma nem o Banco", async () => {
+test("ls shows only Product Apps, excluding the Platform proxy and database", async () => {
   const runner: Runner = async () => ({
     code: 0,
     stdout:
@@ -137,12 +137,12 @@ test("ls mostra só Apps dos Produtos, sem o proxy da Plataforma nem o Banco", a
   );
 });
 
-test("ls sem Apps no Host mostra só o cabeçalho", async () => {
+test("ls with no Apps on the Host shows only the header", async () => {
   const runner: Runner = async () => ({ code: 0, stdout: "" });
   expect(await listProducts(".", runner, {})).toBe("PRODUTO\tAPP");
 });
 
-test("ls inclui o stderr do SSH na falha, sem sequências de controle e limitado", async () => {
+test("ls includes SSH stderr on failure, strips control sequences and limits length", async () => {
   const runner: Runner = async () => ({
     code: 255,
     stdout: "",
@@ -152,7 +152,7 @@ test("ls inclui o stderr do SSH na falha, sem sequências de controle e limitado
   expect(error).toBeInstanceOf(Error);
   const message = (error as Error).message;
   expect(message).toStartWith(
-    "Falha ao listar Apps no Host: ssh: Could not resolve hostname dangus-host",
+    "Failed to list Apps on the Host: ssh: Could not resolve hostname dangus-host",
   );
   expect(message).not.toContain("\x1b");
   expect(message).not.toContain("\r");

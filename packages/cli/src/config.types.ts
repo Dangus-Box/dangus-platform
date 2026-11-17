@@ -1,16 +1,16 @@
 import { defineConfig } from "@dangus-box/cli";
 
 defineConfig({
-  name: "Produto",
+  name: "Product",
   apps: { api: { domain: "api.produto.com" } },
   database: "postgres",
   deployTimeoutSeconds: 120,
-  // @ts-expect-error campos desconhecidos não fazem parte da Config do Produto
+  // @ts-expect-error unknown fields are not part of Product Config
   unknown: true,
 });
 
 defineConfig({
-  name: "Produto",
+  name: "Product",
   apps: {},
   // @ts-expect-error o banco aceita apenas postgres ou sqlite
   database: "mysql",
