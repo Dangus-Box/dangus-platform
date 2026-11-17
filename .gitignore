@@ -1,0 +1,14 @@
+.external-accounts.env
+node_modules/
+
+# OpenTofu
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+
+# Temporary Ops Stack deployment configuration
+infra/ops/.alerts-generated.yml
+infra/ops/.deploy-private.*

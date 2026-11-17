@@ -1,0 +1,7 @@
+node_modules/
+produto.sqlite*
+.tanstack/
+.output/
+.expo/
+apps/web/src/routeTree.gen.ts
+apps/web/dist/

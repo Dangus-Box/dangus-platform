@@ -1,0 +1,67 @@
+service: exemplo-sqlite-api
+secrets_path: /dangus/.kamal/secrets
+image: dangus-box/exemplo-sqlite-api
+servers:
+  web:
+    hosts:
+      - devbox-1
+    options:
+      memory: 512m
+registry:
+  server: ghcr.io
+  username: "<%= ENV.fetch('KAMAL_REGISTRY_USERNAME') %>"
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+proxy:
+  ssl: true
+  host: api-sqlite.dangus-box.com
+  app_port: 3000
+  healthcheck:
+    path: /ready
+  run:
+    bind_ips:
+      - 192.0.2.1
+      - 2001:db8::1
+    options:
+      label:
+        - product=platform
+        - app=proxy
+builder:
+  arch: amd64
+  dockerfile: apps/api/Dockerfile
+  context: "."
+deploy_timeout: 120
+labels:
+  product: exemplo-sqlite
+  app: api
+  prometheus.io.scrape: "true"
+  prometheus.io.port: "3000"
+env:
+  clear:
+    SQLITE_PATH: /app/data/produto.sqlite
+  secret:
+    - UNLEASH_TOKEN
+    - UMAMI_WEBSITE_ID
+volumes:
+  - exemplo-sqlite-sqlite:/app/data
+accessories:
+  backup:
+    image: ghcr.io/dangus-box/backup:1.0.0
+    host: devbox-1
+    labels:
+      product: exemplo-sqlite
+      app: backup
+    env:
+      clear:
+        BACKUP_PRODUCT: exemplo-sqlite
+        BACKUP_DATABASE: produto
+        BACKUP_TYPE: sqlite
+        SQLITE_PATH: /app/data/produto.sqlite
+      secret:
+        - R2_ACCESS_KEY_ID
+        - R2_SECRET_ACCESS_KEY
+        - R2_ENDPOINT
+        - HEALTHCHECKS_URL
+        - AGE_PUBLIC_KEY
+    volumes:
+      - exemplo-sqlite-sqlite:/app/data

@@ -1,0 +1,7 @@
+# App mobile: analytics e Flags
+
+Configure no Expo `EXPO_PUBLIC_UMAMI_WEBSITE_ID` com o identificador do site no Umami e `EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN` com o token frontend do Unleash Edge. São valores públicos incluídos no bundle; não use token backend. Sem eles, analytics não envia eventos e as Flags usam seus valores padrão. No Config do Produto declare esses nomes em `apps.mobile.secrets`, com os valores no BWS como `<produto>__<CHAVE>`. As variáveis precisam estar presentes durante a compilação Expo.
+
+Passe as variáveis a partir do código da App, pois o Expo não substitui referências a variáveis dentro de `node_modules`: `configureFlags("nome-do-produto", undefined, process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN)` e `trackEvent("nome", undefined, undefined, process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID)`. Chame `configureFlags` antes de avaliar Flags e envolva a App em `OpenFeatureProvider`. Use `OpenFeature.getClient()` ou os hooks do OpenFeature para avaliar Flags; `trackEvent("nome")` envia um evento ao Umami. A App precisa permitir acesso à rede.
+
+Para Versão Mínima, crie a Flag `min-version` no Unleash com uma variante cujo payload seja do tipo `string` e contenha uma versão numérica `major.minor.patch`, por exemplo `1.2.0`. `needsUpdate("1.0.0")` compara a versão instalada com o payload. Uma Flag ausente, desabilitada ou com payload inválido retorna `false`. O Produto decide como obrigar a atualização. O provider atualiza as Flags periodicamente.

@@ -1,0 +1,30 @@
+{
+  "name": "produto-exemplo-postgres",
+  "private": true,
+  "scripts": {
+    "dev": "bun run apps/api/index.ts",
+    "dev:web": "vite --config apps/web/vite.config.ts",
+    "dev:mobile": "cd apps/mobile && bunx expo start",
+    "test": "bun test ./test/integration.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "1.170.46",
+    "@tanstack/react-start": "1.169.5",
+    "drizzle-orm": "0.44.7",
+    "elysia": "1.4.32",
+    "expo": "54.0.33",
+    "postgres": "3.4.7",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "@sinclair/typebox": "0.34.41",
+    "@dangus-box/server": "file:../../packages/server"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.16",
+    "@vitejs/plugin-react": "6.1.2",
+    "drizzle-kit": "0.31.8",
+    "vite": "8.3.8"
+  },
+  "type": "module"
+}
