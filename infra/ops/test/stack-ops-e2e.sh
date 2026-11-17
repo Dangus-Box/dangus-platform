@@ -70,5 +70,5 @@ p95=$(until_data prometheus api/v1/query \
   "histogram_quantile(0.95, sum by (le) (rate(http_server_duration_seconds_bucket{product=\"$id\"}[5m])))" |
   grep -o '"value":\[[^]]*\]' | grep -o '"[0-9.e+-]*"\]' | tr -d '"]')
 awk -v v="$p95" 'BEGIN { exit !(v < 1) }' || { echo "Implausible p95 latency: $p95 s" >&2; exit 1; }
-curl -fsS "$grafana/api/dashboards/uid/stack-ops" | grep -q '"title":"Stack Ops"'
+curl -fsS "$grafana/api/dashboards/uid/stack-ops" | grep -q '"title":"Ops Stack"'
 echo "Ops Stack: logs, requests, CPU, RAM and latency ($p95 s) for Product $id in Grafana."
