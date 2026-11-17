@@ -32,7 +32,7 @@ export default function App() {
   return (
     <OpenFeatureProvider client={OpenFeature.getClient()}>
       <View>
-        <Text>Produto de exemplo</Text>
+        <Text>Example Product</Text>
         {ready && <VersaoMinima />}
         <Button
           title="Enviar evento"

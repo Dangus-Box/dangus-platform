@@ -5,8 +5,8 @@ import { defineConfig } from "vite";
 export default defineConfig({
   root: "apps/web",
   plugins: [tanstackStart(), react()],
-  // @dangus-box/web vem por file:; o Vite segue o link até packages/web e
-  // duplicaria o contexto do OpenFeature e o React.
+  // @dangus-box/web uses file:; Vite follows the link to packages/web and
+  // would duplicate the OpenFeature context and React.
   resolve: {
     dedupe: [
       "react",

@@ -19,12 +19,12 @@ beforeAll(async () => {
     } catch {}
     await Bun.sleep(50);
   }
-  throw new Error("A API não iniciou");
+  throw new Error("The API did not start");
 });
 
 afterAll(() => server?.kill());
 
-test("a rota grava e lê uma mensagem no Banco do Produto", async () => {
+test("the route writes and reads a message in the Product database", async () => {
   const texto = `teste-${crypto.randomUUID()}`;
   const response = await fetch(url, {
     method: "POST",
@@ -39,7 +39,7 @@ test("a rota grava e lê uma mensagem no Banco do Produto", async () => {
   ).toBe(true);
 });
 
-test("a API expõe health, readiness e métricas por rota", async () => {
+test("the API exposes health, readiness, and metrics per route", async () => {
   const base = new URL(url).origin;
   expect((await fetch(`${base}/health`)).status).toBe(200);
   expect((await fetch(`${base}/ready`)).status).toBe(200);
@@ -47,7 +47,7 @@ test("a API expõe health, readiness e métricas por rota", async () => {
   expect(metrics).toContain('http_server_requests_total{route="/mensagens"');
 });
 
-test("as migrations estão em dia com o schema", async () => {
+test("migrations are up to date with the schema", async () => {
   const out = await mkdtemp(join(tmpdir(), "drizzle-"));
   await cp("drizzle", out, { recursive: true });
   const generate = Bun.spawn(

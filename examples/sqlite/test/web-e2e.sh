@@ -11,4 +11,4 @@ for _ in {1..30}; do
   sleep 1
 done
 [[ "$html" == *'src="/t.js"'* && "$html" == *'data-website-id="test-site"'* && "$html" != *'analytics.dangus-box.com'* ]]
-echo 'HTML do Produto usa /t.js e não aponta ao domínio analytics OK'
+echo 'Product HTML uses /t.js and does not point to the analytics domain OK'
