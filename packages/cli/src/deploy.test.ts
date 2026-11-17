@@ -751,18 +751,21 @@ test("db backup executa o script no accessory existente", async () => {
     config,
     "/produto",
     async (args) => {
+      if (args[0] === "git") return { code: 0, stdout: `${"a".repeat(40)}\n` };
       command = args;
       return { code: 0, stdout: "" };
     },
     { SSH_AUTH_SOCK: "/agent", DANGUS_PROXY_BIND_IPS: "192.0.2.1" },
   );
-  expect(command.slice(-7)).toEqual([
+  // O Kamal roda sem repositório git no container e exige a versão.
+  expect(command.slice(-8)).toEqual([
     "accessory",
     "exec",
     "backup",
     "--reuse",
     "--config-file",
     "/dangus/deploy.yml",
+    `--version=${"a".repeat(40)}`,
     "/usr/local/bin/backup.sh",
   ]);
 });
