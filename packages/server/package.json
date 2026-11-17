@@ -1,6 +1,6 @@
 {
   "name": "@dangus-box/server",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "dependencies": {
     "@openfeature/server-sdk": "1.23.0",

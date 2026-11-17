@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { version } from "../package.json";
 import { loadConfig } from "./config";
 
 const cli = join(import.meta.dir, "index.ts");
@@ -81,7 +82,7 @@ test("detects Apps and database, generates files and preserves edits with --yes"
     '"EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN"',
   );
   expect(await read(".gitignore")).toBe(".dangus/\n");
-  expect(await read("bun-args")).toContain("@dangus-box/server@0.0.0");
+  expect(await read("bun-args")).toContain(`@dangus-box/server@${version}`);
   expect(await read(".github/workflows/deploy.yml")).toBe(
     await readFile(join(import.meta.dir, "../templates/deploy.yml"), "utf8"),
   );

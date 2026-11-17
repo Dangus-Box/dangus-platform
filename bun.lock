@@ -16,14 +16,14 @@
     },
     "packages/cli": {
       "name": "@dangus-box/cli",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "bin": {
         "dangus": "./src/index.ts",
       },
     },
     "packages/native": {
       "name": "@dangus-box/native",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@openfeature/react-sdk": "1.4.1",
         "@openfeature/unleash-web-provider": "0.1.1",
@@ -36,7 +36,7 @@
     },
     "packages/server": {
       "name": "@dangus-box/server",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@openfeature/server-sdk": "1.23.0",
         "@opentelemetry/api": "1.9.0",
@@ -58,7 +58,7 @@
     },
     "packages/web": {
       "name": "@dangus-box/web",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@openfeature/react-sdk": "1.4.1",
         "@openfeature/unleash-web-provider": "0.1.1",
