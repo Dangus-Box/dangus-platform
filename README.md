@@ -1,6 +1,6 @@
 # dangus-platform
 
-Para levar um Produto estruturado à produção, siga o [Guia de Adoção](docs/guia-de-adocao.md).
+Para levar um Produto estruturado à produção, siga o [Guia de Adoção](docs/guide.md).
 
 ## Contas e credenciais externas
 
