@@ -9,13 +9,13 @@ import {
 import { useEffect, useState } from "react";
 import { Button, Text, View } from "react-native";
 
-function VersaoMinima() {
+function MinimumVersion() {
   useFlag("exemplo-sqlite.versao-minima", "");
   return (
     <Text>
       {precisaAtualizar("1.0.0", "exemplo-sqlite.versao-minima")
-        ? "Precisa atualizar"
-        : "App atualizada"}
+        ? "Update required"
+        : "App up to date"}
     </Text>
   );
 }
@@ -33,9 +33,9 @@ export default function App() {
     <OpenFeatureProvider client={OpenFeature.getClient()}>
       <View>
         <Text>Example Product</Text>
-        {ready && <VersaoMinima />}
+        {ready && <MinimumVersion />}
         <Button
-          title="Enviar evento"
+          title="Send event"
           onPress={() =>
             void enviarEvento(
               "exemplo-mobile",
