@@ -2,7 +2,7 @@
   const url = process.env.UMAMI_URL || "http://127.0.0.1:3000";
   const password = process.env.UMAMI_ADMIN_PASSWORD;
   if (!password || password === "umami")
-    throw new Error("Senha admin inválida.");
+    throw new Error("Invalid admin password.");
   let ready = false;
   for (let i = 0; i < 120; i++) {
     try {
@@ -13,7 +13,7 @@
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  if (!ready) throw new Error("Umami não ficou pronto.");
+  if (!ready) throw new Error("Umami did not become ready.");
   async function login(pass) {
     const res = await fetch(`${url}/api/auth/login`, {
       method: "POST",
@@ -27,7 +27,7 @@
     current = await login("umami");
     if (!current)
       throw new Error(
-        "Login admin falhou com a senha do BWS e com a senha inicial.",
+        "Admin login failed with both the BWS password and the initial password.",
       );
     const res = await fetch(`${url}/api/users/${current.user.id}`, {
       method: "POST",
@@ -37,11 +37,11 @@
       },
       body: JSON.stringify({ username: "admin", password }),
     });
-    if (!res.ok) throw new Error("Falha ao alterar senha admin.");
+    if (!res.ok) throw new Error("Failed to change admin password.");
   }
   if (!(await login(password)) || (await login("umami")))
-    throw new Error("Senha admin não foi verificada.");
-  console.log("Senha admin verificada.");
+    throw new Error("Admin password was not verified.");
+  console.log("Admin password verified.");
 })().catch((error) => {
   console.error(error.message);
   process.exit(1);

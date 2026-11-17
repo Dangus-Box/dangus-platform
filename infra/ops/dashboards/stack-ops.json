@@ -1,6 +1,6 @@
 {
   "uid": "stack-ops",
-  "title": "Stack Ops",
+  "title": "Ops Stack",
   "schemaVersion": 39,
   "version": 1,
   "refresh": "30s",
@@ -28,7 +28,7 @@
   "panels": [
     {
       "id": 1,
-      "title": "Requisições",
+      "title": "Requests",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -55,7 +55,7 @@
     },
     {
       "id": 2,
-      "title": "Erros",
+      "title": "Errors",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -82,7 +82,7 @@
     },
     {
       "id": 3,
-      "title": "Latência p95",
+      "title": "p95 latency",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",

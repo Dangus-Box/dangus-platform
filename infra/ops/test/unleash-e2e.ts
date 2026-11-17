@@ -3,7 +3,7 @@ import { configureFlags } from "../../../packages/server/src/index";
 
 const required = (name: string) => {
   const value = process.env[name];
-  if (!value) throw new Error(`${name} ausente`);
+  if (!value) throw new Error(`${name} missing`);
   return value;
 };
 const server = process.env.UNLEASH_URL;
@@ -21,10 +21,12 @@ const good = await login(required("UNLEASH_ADMIN_PASSWORD"));
 if (good.status !== 200)
   throw new Error(`Login: ${good.status} ${await good.text()}`);
 const cookie = good.headers.get("set-cookie")?.split(";")[0];
-if (!cookie) throw new Error("Cookie ausente");
+if (!cookie) throw new Error("Cookie missing");
 const bad = await login("unleash4all");
-if (bad.status < 400) throw new Error("Senha padrão aceita");
-console.log("Login com senha configurada e rejeição da senha padrão OK");
+if (bad.status < 400) throw new Error("Default password accepted");
+console.log(
+  "Login with configured password and rejection of default password OK",
+);
 const admin = { ...json, cookie };
 const created = await fetch(`${server}/api/admin/projects/default/features`, {
   method: "POST",
@@ -32,22 +34,22 @@ const created = await fetch(`${server}/api/admin/projects/default/features`, {
   body: JSON.stringify({ name: "teste-issue-14", type: "release" }),
 });
 if (!created.ok)
-  throw new Error(`Criar Flag: ${created.status} ${await created.text()}`);
+  throw new Error(`Create Flag: ${created.status} ${await created.text()}`);
 const enabled = await fetch(
   `${server}/api/admin/projects/default/features/teste-issue-14/environments/production/on`,
   { method: "POST", headers: admin },
 );
 if (!enabled.ok)
-  throw new Error(`Ativar Flag: ${enabled.status} ${await enabled.text()}`);
+  throw new Error(`Enable Flag: ${enabled.status} ${await enabled.text()}`);
 for (let i = 0; i < 40; i++) {
   const response = await fetch(`${edge}/api/frontend`, {
     headers: { authorization: required("UNLEASH_FRONTEND_TOKEN") },
   }).catch(() => null);
   if (response?.ok && (await response.text()).includes("teste-issue-14")) break;
-  if (i === 39) throw new Error("Flag ausente no Edge");
+  if (i === 39) throw new Error("Flag missing from Edge");
   await Bun.sleep(1000);
 }
-console.log("Flag lida pelo Edge com token frontend OK");
+console.log("Flag read through Edge with frontend token OK");
 const health = await fetch(`${edge}/internal-backstage/health`);
 if (!health.ok) throw new Error(`Health Edge: ${health.status}`);
 const client = Bun.spawnSync([
@@ -67,7 +69,7 @@ const client = Bun.spawnSync([
   `const { initialize } = require('unleash-client'); const u = initialize({url: 'http://' + process.env.TEST_SERVER + ':4242/api', appName: 'teste', customHeaders: {Authorization: process.env.UNLEASH_BACKEND_TOKEN}}); const timer = setTimeout(() => process.exit(2), 30000); u.on('synchronized', () => { clearTimeout(timer); const enabled = u.isEnabled('teste-issue-14'); u.destroy(); process.exit(enabled ? 0 : 1); });`,
 ]);
 if (client.exitCode) throw new Error(`Backend: ${client.stderr.toString()}`);
-console.log("Flag avaliada por container na rede com token backend OK");
+console.log("Flag evaluated by container on the network with backend token OK");
 for (const path of [
   "/api/admin/projects",
   "/auth/simple/login",
@@ -76,9 +78,9 @@ for (const path of [
   "/internal-backstage/features",
 ]) {
   const response = await fetch(`${edge}${path}`, { redirect: "manual" });
-  if (response.ok) throw new Error(`Admin respondeu no Edge: ${path}`);
+  if (response.ok) throw new Error(`Admin responded on Edge: ${path}`);
 }
-console.log("Admin API e UI indisponíveis no Edge OK");
+console.log("Admin API and UI unavailable on Edge OK");
 process.env.UNLEASH_TOKEN = required("UNLEASH_BACKEND_TOKEN");
 process.env.UNLEASH_URL = `${server}/api`;
 await configureFlags("teste");
@@ -90,7 +92,7 @@ async function waitFlag(expected: boolean) {
     await Bun.sleep(1000);
   }
   throw new Error(
-    `Flag ${expected ? "ligada" : "desligada"} não vista pelo OpenFeature`,
+    `Flag ${expected ? "enabled" : "disabled"} not seen by OpenFeature`,
   );
 }
 await waitFlag(true);
@@ -98,7 +100,7 @@ const disabled = await fetch(
   `${server}/api/admin/projects/default/features/teste-issue-14/environments/production/off`,
   { method: "POST", headers: admin },
 );
-if (!disabled.ok) throw new Error(`Desativar Flag: ${disabled.status}`);
+if (!disabled.ok) throw new Error(`Disable Flag: ${disabled.status}`);
 await waitFlag(false);
 await OpenFeature.close();
-console.log("Flag ligada e desligada vista pelo OpenFeature OK");
+console.log("Enabled and disabled Flag seen by OpenFeature OK");

@@ -18,5 +18,5 @@ echo 'Heartbeat OK'
 docker exec -e UMAMI_ADMIN_PASSWORD "$id-umami" node -e "$(cat "$root/infra/ops/admin.js")"
 docker exec -e UMAMI_ADMIN_PASSWORD "$id-umami" node -e "$(cat "$root/infra/ops/admin.js")"
 curl -fsS "$UMAMI_URL/t.js" | grep -q '/api/e'
-echo 'Tracker neutro OK'
+echo 'Neutral tracker OK'
 bun "$root/infra/ops/test/umami-e2e.ts"
