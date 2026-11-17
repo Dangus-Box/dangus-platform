@@ -35,7 +35,7 @@ const strategy = (value: string) => ({
   },
   variants: [
     {
-      name: "minima",
+      name: "minimum",
       weight: 1000,
       weightType: "variable",
       stickiness: "default",

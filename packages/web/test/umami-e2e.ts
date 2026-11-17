@@ -35,7 +35,7 @@ try {
   });
   const encoding = script.headers.get("content-encoding");
   const raw = new Uint8Array(await script.arrayBuffer());
-  // O navegador decodifica o corpo conforme Content-Encoding.
+  // The browser decodes the body according to Content-Encoding.
   const decoded =
     encoding === "gzip" ? Bun.gunzipSync(raw) : encoding ? undefined : raw;
   if (!decoded) throw new Error(`Unexpected Content-Encoding: ${encoding}`);

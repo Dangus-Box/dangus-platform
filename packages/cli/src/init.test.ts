@@ -183,7 +183,7 @@ for (const [scenario, drizzle, apps, message] of [
     "sqlite or postgresql dialect",
   ],
   [
-    "dois dialects",
+    "two dialects",
     'const a = { dialect: "sqlite" }; const b = { dialect: "postgresql" };\n',
     ["api"],
     "sqlite or postgresql dialect",

@@ -46,7 +46,7 @@ test("provider evaluates Flag through OpenFeature using local Unleash", async ()
           version: 2,
           features: [
             {
-              name: "ativa",
+              name: "enabled-flag",
               enabled: true,
               strategies: [{ name: "default", parameters: {} }],
               variants: [],
@@ -61,9 +61,9 @@ test("provider evaluates Flag through OpenFeature using local Unleash", async ()
     process.env.UNLEASH_TOKEN = "token-local";
     process.env.UNLEASH_URL = `${server.url}api`;
     await configureFlags("test");
-    expect(await OpenFeature.getClient().getBooleanValue("ativa", false)).toBe(
-      true,
-    );
+    expect(
+      await OpenFeature.getClient().getBooleanValue("enabled-flag", false),
+    ).toBe(true);
     expect(requests).toContain("GET /api/client/features token-local");
   } finally {
     await OpenFeature.close();
@@ -116,9 +116,9 @@ test("slow Unleash does not block boot and Flags return defaults", async () => {
     const start = Date.now();
     await configureFlags("test");
     expect(Date.now() - start).toBeLessThan(5000);
-    expect(await OpenFeature.getClient().getBooleanValue("ativa", true)).toBe(
-      true,
-    );
+    expect(
+      await OpenFeature.getClient().getBooleanValue("enabled-flag", true),
+    ).toBe(true);
   } finally {
     await OpenFeature.close();
     server.stop(true);
