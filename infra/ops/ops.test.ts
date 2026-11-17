@@ -37,6 +37,11 @@ test("Ops Stack maintains internal services, limits and retention", () => {
   }
 });
 
+test("Ops Stack e2e checks the provisioned dashboard title", () => {
+  const script = readFileSync(`${path}test/stack-ops-e2e.sh`, "utf8");
+  expect(script).toContain(`'"title":"${dashboard.title}"'`);
+});
+
 test("dashboard queries signals by Product", () => {
   expect(dashboard.templating.list[0].name).toBe("product");
   expect(dashboard.panels).toHaveLength(6);
