@@ -82,6 +82,13 @@ jobs:
           oauth-client-id: ${{ steps.credentials.outputs.client_id }}
           oauth-secret: ${{ steps.credentials.outputs.client_secret }}
           tags: tag:ci
+      # The Kamal container does not reach MagicDNS; resolve the Host through Tailscale.
+      - name: Resolve Host on the tailnet
+        run: |
+          set -euo pipefail
+          host="${DANGUS_HOST:-devbox-1}"
+          ip="$(tailscale ip -4 "$host")"
+          echo "$ip $host" | sudo tee -a /etc/hosts
       - name: Authenticate with GHCR
         env:
           KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
