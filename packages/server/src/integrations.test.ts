@@ -71,7 +71,7 @@ test("provider evaluates Flag through OpenFeature using local Unleash", async ()
   }
 });
 
-test("analytics envia evento ao Umami configurado", async () => {
+test("analytics sends an event to configured Umami", async () => {
   let received: unknown;
   const server = Bun.serve({
     port: 0,
