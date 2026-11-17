@@ -69,11 +69,11 @@ for (const file of [
         .filter((step) => JSON.stringify(step.env ?? {}).includes(secret))
         .map((step) => step.name);
     expect(holders("secrets.BWS_ACCESS_TOKEN")).toEqual([
-      "Preparar credenciais",
+      "Prepare credentials",
       "Deploy",
     ]);
     expect(holders("secrets.GITHUB_TOKEN")).toEqual([
-      "Autenticar no GHCR",
+      "Authenticate with GHCR",
       "Deploy",
     ]);
   });
