@@ -97,7 +97,7 @@ for failure in 'SQLITE_PATH=/missing' 'AGE_PUBLIC_KEY=age1invalid' 'R2_SECRET_AC
   [[ -z $(ls -A "$tmp/work") ]] || { echo "Temporary files remained with $failure." >&2; exit 1; }
 done
 [[ $(pings /check-uuid/fail) == $((fails - 1)) && $(pings /broken/fail) == 1 ]]
-# Only failure of the success ping occurs after upload.
+# Only the run whose success ping fails gets as far as uploading.
 [[ $(objects daily/example/failure) == 1 ]]
 
 # No secret appears in process argv.
