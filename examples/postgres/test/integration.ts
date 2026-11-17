@@ -25,17 +25,17 @@ beforeAll(async () => {
 afterAll(() => server?.kill());
 
 test("the route writes and reads a message in the Product database", async () => {
-  const texto = `teste-${crypto.randomUUID()}`;
+  const text = `teste-${crypto.randomUUID()}`;
   const response = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ texto }),
+    body: JSON.stringify({ texto: text }),
   });
   expect(response.status).toBe(200);
-  expect((await response.json())[0].texto).toBe(texto);
+  expect((await response.json())[0].texto).toBe(text);
   const messages = await (await fetch(url)).json();
   expect(
-    messages.some((message: { texto: string }) => message.texto === texto),
+    messages.some((message: { texto: string }) => message.texto === text),
   ).toBe(true);
 });
 
