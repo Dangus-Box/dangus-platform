@@ -38,20 +38,20 @@ Aplique as linhas impressas pelo `init`. Abaixo, `nome-do-produto` é o `name` d
 import { configureFlags, migrateSqlite, observability, trackEvent } from "@dangus-box/server";
 import { OpenFeature } from "@openfeature/server-sdk";
 
-const observacao = observability();
+const observation = observability();
 migrateSqlite(sqlite, "./drizzle"); // Postgres: await migratePostgres(databaseUrl, "./drizzle")
 await configureFlags("nome-do-produto");
 const flags = OpenFeature.getClient();
 
 new Elysia()
-  .use(observacao.plugin)
+  .use(observation.plugin)
   .get("/pedidos", async () => {
     const ativa = await flags.getBooleanValue("nome-do-produto.minha-flag", false);
     trackEvent({ name: "pedido", hostname: "api-produto.dangus-box.com", url: "/pedidos" });
     // ...
   })
   .listen(Number(process.env.PORT ?? 3000));
-observacao.markReady();
+observation.markReady();
 ```
 
 Em SQLite, `sqlite` é o `Database` de `bun:sqlite` da App, aberto em `process.env.SQLITE_PATH` (o deploy define esse caminho persistente). Em Postgres, use `process.env.DATABASE_URL` (o deploy fornece). Veja o [SDK de servidor](../packages/server/README.md).
@@ -82,13 +82,13 @@ if (proxy) return proxy;
 **Mobile**: configure as Flags no boot e envolva a árvore no provider ([exemplo](../examples/sqlite/apps/mobile/App.js)). As variáveis `EXPO_PUBLIC_*` são públicas, entram no build Expo e devem ser lidas no código da App:
 
 ```tsx
-import { configurarFlags, enviarEvento, OpenFeature, OpenFeatureProvider } from "@dangus-box/native";
+import { configureFlags, trackEvent, OpenFeature, OpenFeatureProvider } from "@dangus-box/native";
 
 useEffect(() => {
-  configurarFlags("nome-do-produto", undefined, process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN);
+  configureFlags("nome-do-produto", undefined, process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN);
 }, []);
 // <OpenFeatureProvider client={OpenFeature.getClient()}>{/* App */}</OpenFeatureProvider>
-// enviarEvento("evento", undefined, undefined, process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID);
+// trackEvent("event", undefined, undefined, process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID);
 ```
 
 Flags e Remote Config: READMEs de [servidor](../packages/server/README.md#flags-e-analytics), [web](../packages/web/README.md) e [mobile](../packages/native/README.md).
