@@ -100,23 +100,23 @@ test("deploy passes secrets only through the environment and uses exact commands
       return {
         code: 0,
         stdout: JSON.stringify([
-          { key: "produto__TOKEN", value: "valor-secreto" },
-          { key: "produto__POSTGRES_PASSWORD", value: "senha-secreta" },
+          { key: "produto__TOKEN", value: "secret-value" },
+          { key: "produto__POSTGRES_PASSWORD", value: "secret-password" },
           ...backupBws,
         ]),
       };
-    expect(env.TOKEN).toBe("valor-secreto");
+    expect(env.TOKEN).toBe("secret-value");
     expect(env.AGE_PUBLIC_KEY).toBe(agePublicKey);
     expect(env.DATABASE_URL).toBe(
-      "postgres://produto:senha-secreta@produto-api-db:5432/produto",
+      "postgres://produto:secret-password@produto-api-db:5432/produto",
     );
     temp = args[args.indexOf("-v", args.indexOf("-w")) + 1].split(":")[0];
     const configPath = join(temp, "deploy.yml");
     const files =
       (await readFile(configPath, "utf8")) +
       (await readFile(join(temp, ".kamal/secrets"), "utf8"));
-    expect(files).not.toContain("valor-secreto");
-    expect(files).not.toContain("senha-secreta");
+    expect(files).not.toContain("secret-value");
+    expect(files).not.toContain("secret-password");
     if (args.includes("/dangus/deploy.yml") && files.includes("backup:"))
       expect(files).toContain("AGE_PUBLIC_KEY=$AGE_PUBLIC_KEY");
     return { code: 0, stdout: "" };
@@ -124,8 +124,8 @@ test("deploy passes secrets only through the environment and uses exact commands
   await deploy(config, "/produto", runner, {
     SSH_AUTH_SOCK: "/ssh-agent",
     DANGUS_PROXY_BIND_IPS: "192.0.2.1",
-    KAMAL_REGISTRY_USERNAME: "usuario",
-    KAMAL_REGISTRY_PASSWORD: "registro-secreto",
+    KAMAL_REGISTRY_USERNAME: "user",
+    KAMAL_REGISTRY_PASSWORD: "secret-registry",
   });
   expect(calls[0]).toEqual(["git", "rev-parse", "--verify", "HEAD"]);
   expect(calls[1]).toEqual(["bws", "secret", "list"]);
@@ -178,8 +178,9 @@ test("deploy passes secrets only through the environment and uses exact commands
       `--version=${"a".repeat(40)}`,
     ]);
   }
-  expect(JSON.stringify(calls)).not.toContain("secreta");
-  expect(JSON.stringify(calls)).not.toContain("secreto");
+  expect(JSON.stringify(calls)).not.toContain("secret-password");
+  expect(JSON.stringify(calls)).not.toContain("secret-value");
+  expect(JSON.stringify(calls)).not.toContain("secret-registry");
   expect(await Bun.file(join(temp, "deploy.yml")).exists()).toBe(false);
 });
 
@@ -214,7 +215,7 @@ test("DANGUS_HOST overrides the default Host devbox-1", async () => {
       cwd: join(root, "examples/sqlite"),
       env: {
         ...process.env,
-        DANGUS_HOST: "outro-host",
+        DANGUS_HOST: "other-host",
         DANGUS_PROXY_BIND_IPS: "192.0.2.1",
       },
       stdout: "pipe",
@@ -222,7 +223,7 @@ test("DANGUS_HOST overrides the default Host devbox-1", async () => {
   );
   const output = await new Response(cli.stdout).text();
   expect(await cli.exited).toBe(0);
-  expect(output).toContain("- outro-host");
+  expect(output).toContain("- other-host");
   expect(output).not.toContain("devbox-1");
 });
 
@@ -276,8 +277,8 @@ test("Kamal failure removes the temporary directory without exposing secrets", a
       return {
         code: 0,
         stdout: JSON.stringify([
-          { key: "produto__TOKEN", value: "valor-secreto" },
-          { key: "produto__POSTGRES_PASSWORD", value: "senha-secreta" },
+          { key: "produto__TOKEN", value: "secret-value" },
+          { key: "produto__POSTGRES_PASSWORD", value: "secret-password" },
           ...backupBws,
         ]),
       };
@@ -576,7 +577,7 @@ test("override skips DNS lookup", async () => {
     ".",
     ["192.0.2.5"],
     async () => {
-      throw new Error("DNS consultado");
+      throw new Error("DNS queried");
     },
   );
 });
@@ -620,7 +621,7 @@ const twoApps = () =>
     name: "produto",
     apps: {
       api: { domain: "api.produto.com" },
-      web: { domain: "web.outro.com" },
+      web: { domain: "web.other.com" },
     },
     database: "sqlite",
     deployTimeoutSeconds: 10,
@@ -629,7 +630,7 @@ const twoApps = () =>
 test("Apps with different DNS IPs stop render", async () => {
   const ips: Record<string, string[]> = {
     "api.produto.com": ["192.0.2.1"],
-    "web.outro.com": ["192.0.2.2"],
+    "web.other.com": ["192.0.2.2"],
   };
   await expect(
     withRendered(
@@ -641,14 +642,14 @@ test("Apps with different DNS IPs stop render", async () => {
       async (domain) => ips[domain] ?? [],
     ),
   ).rejects.toThrow(
-    /api\.produto\.com.*web\.outro\.com.*DANGUS_PROXY_BIND_IPS/,
+    /api\.produto\.com.*web\.other\.com.*DANGUS_PROXY_BIND_IPS/,
   );
 });
 
 test("DNS record order does not change bind_ips", async () => {
   const ips: Record<string, string[]> = {
     "api.produto.com": ["2001:db8::1", "192.0.2.1"],
-    "web.outro.com": ["192.0.2.1", "2001:db8::1"],
+    "web.other.com": ["192.0.2.1", "2001:db8::1"],
   };
   await withRendered(
     twoApps(),
@@ -711,7 +712,7 @@ for (const [scenario, secrets, expectedError] of [
     "private key",
     [
       ...backupBws.filter((item) => item.key !== "ops__BACKUP_AGE_PUBLIC_KEY"),
-      { key: "ops__BACKUP_AGE_PUBLIC_KEY", value: "AGE-SECRET-KEY-1TESTE" },
+      { key: "ops__BACKUP_AGE_PUBLIC_KEY", value: "AGE-SECRET-KEY-1TEST" },
     ],
     "Invalid age public key",
   ],

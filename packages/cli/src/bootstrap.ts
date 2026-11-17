@@ -11,9 +11,7 @@ export async function bootstrap(host: string): Promise<number> {
   const command = sshCommand(host);
   const id = process.env.DANGUS_TAILSCALE_BWS_SECRET_ID;
   if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
-    throw new Error(
-      "Informe DANGUS_TAILSCALE_BWS_SECRET_ID com o ID do secret no BWS.",
-    );
+    throw new Error("Set DANGUS_TAILSCALE_BWS_SECRET_ID to the BWS secret ID.");
   }
   const bws = Bun.spawn(["bws", "secret", "get", id], {
     stdout: "pipe",

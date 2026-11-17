@@ -31,12 +31,12 @@ await retry("Token frontend no Edge", () =>
   }),
 );
 const cookie = login.headers.get("set-cookie")?.split(";")[0];
-if (!cookie) throw new Error("Login falhou");
+if (!cookie) throw new Error("Login failed");
 const headers = { ...json, cookie };
 const created = await fetch(`${server}/api/admin/projects/default/features`, {
   method: "POST",
   headers,
-  body: JSON.stringify({ name: "teste-web", type: "release" }),
+  body: JSON.stringify({ name: "test-web", type: "release" }),
 });
 if (!created.ok) throw new Error(await created.text());
 await OpenFeature.setProviderAndWait(
@@ -49,15 +49,15 @@ await OpenFeature.setProviderAndWait(
   }),
 );
 const client = OpenFeature.getClient();
-if (client.getBooleanValue("teste-web", false))
-  throw new Error("Flag inicial incorreta");
+if (client.getBooleanValue("test-web", false))
+  throw new Error("Incorrect initial Flag");
 const enabled = await fetch(
-  `${server}/api/admin/projects/default/features/teste-web/environments/production/on`,
+  `${server}/api/admin/projects/default/features/test-web/environments/production/on`,
   { method: "POST", headers },
 );
 if (!enabled.ok) throw new Error(await enabled.text());
 for (let i = 0; i < 90; i++) {
-  if (client.getBooleanValue("teste-web", false)) {
+  if (client.getBooleanValue("test-web", false)) {
     console.log(
       "Flag changed in Unleash observed by OpenFeature web without rebuild OK",
     );

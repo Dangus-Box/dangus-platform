@@ -40,7 +40,7 @@ test("reports the exact path of invalid fields", () => {
     [{ ...valid, name: "" }, "name"],
     [{ ...valid, name: "Product" }, "name"],
     [{ ...valid, name: "produto; rm -rf /" }, "name"],
-    [{ ...valid, name: "produto\nservice: outro" }, "name"],
+    [{ ...valid, name: "produto\nservice: other" }, "name"],
     [{ ...valid, apps: {} }, "apps"],
     [
       { ...valid, apps: { api: { domain: "api.produto.com", memoryMb: 0.5 } } },

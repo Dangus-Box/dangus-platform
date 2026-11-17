@@ -88,14 +88,14 @@ test("detects Apps and database, generates files and preserves edits with --yes"
   expect(await read(".github/workflows/restore.yml")).toBe(
     await readFile(join(import.meta.dir, "../templates/restore.yml"), "utf8"),
   );
-  await writeFile(join(root, ".github/workflows/restore.yml"), "editado\n");
-  await writeFile(join(root, "apps/api/Dockerfile"), "editado\n");
+  await writeFile(join(root, ".github/workflows/restore.yml"), "edited\n");
+  await writeFile(join(root, "apps/api/Dockerfile"), "edited\n");
   const second = await run(["--yes"]);
   expect(second.code).toBe(0);
   expect(second.output).toContain("apps/api/Dockerfile: preserved.");
-  expect(await read(".github/workflows/restore.yml")).toBe("editado\n");
+  expect(await read(".github/workflows/restore.yml")).toBe("edited\n");
   expect(second.output).toContain("dangus.config.ts: already up to date.");
-  expect(await read("apps/api/Dockerfile")).toBe("editado\n");
+  expect(await read("apps/api/Dockerfile")).toBe("edited\n");
   expect(await read(".gitignore")).toBe(".dangus/\n");
 });
 
@@ -112,20 +112,20 @@ test("second interactive run asks before overwriting each edited file", async ()
   const { root, run, read } = await product(["api"]);
   expect((await run([], "s\n")).code).toBe(0);
   const dockerfile = await read("apps/api/Dockerfile");
-  await writeFile(join(root, "dangus.config.ts"), "editado\n");
-  await writeFile(join(root, "apps/api/Dockerfile"), "editado\n");
+  await writeFile(join(root, "dangus.config.ts"), "edited\n");
+  await writeFile(join(root, "apps/api/Dockerfile"), "edited\n");
   // Piped answers arrive together: confirm, overwrite Config, preserve Dockerfile.
   const second = await run([], "s\ns\nn\n");
   expect(second.code).toBe(0);
   expect(second.output).toContain("Overwrite dangus.config.ts? [s/N]");
   expect(second.output).toContain("Overwrite apps/api/Dockerfile? [s/N]");
-  expect(await read("dangus.config.ts")).not.toBe("editado\n");
-  expect(await read("apps/api/Dockerfile")).toBe("editado\n");
+  expect(await read("dangus.config.ts")).not.toBe("edited\n");
+  expect(await read("apps/api/Dockerfile")).toBe("edited\n");
   // No answer (end of input) also preserves the file.
   const third = await run([], "s\n");
   expect(third.code).toBe(0);
-  expect(await read("apps/api/Dockerfile")).toBe("editado\n");
-  expect(dockerfile).not.toBe("editado\n");
+  expect(await read("apps/api/Dockerfile")).toBe("edited\n");
+  expect(dockerfile).not.toBe("edited\n");
 });
 
 test("does not edit App code", async () => {

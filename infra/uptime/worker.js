@@ -18,7 +18,7 @@ export async function check(env, request = fetch) {
         });
         ok = response.ok;
       } catch {
-        // Timeout e falhas de rede contam como indisponibilidade.
+        // Timeouts and network failures count as downtime.
       }
       const failures = ok ? 0 : Math.min(state.failures + 1, 2);
       const down = ok ? false : state.down || failures >= 2;
@@ -35,7 +35,7 @@ export async function check(env, request = fetch) {
           },
         );
         if (!response.ok || !(await response.json()).ok)
-          throw new Error("Falha ao enviar alerta ao Telegram");
+          throw new Error("Failed to send Telegram alert");
       }
       // The free plan allows 1,000 KV writes per day.
       if (down !== state.down || failures !== state.failures)

@@ -50,8 +50,7 @@ async function tailscale(run: Command): Promise<string> {
 }
 
 function one<T>(items: T[], description: string): T | undefined {
-  if (items.length > 1)
-    throw new Error(`${description}: registros duplicados.`);
+  if (items.length > 1) throw new Error(`${description}: duplicate records.`);
   return items[0];
 }
 
@@ -63,7 +62,7 @@ async function secrets(run: Command) {
   const project = (name: string) => {
     const found = one(
       projects.filter((p) => p.name === name),
-      `Projeto ${name}`,
+      `Project ${name}`,
     );
     if (!found) throw new Error(`Project ${name} missing in BWS.`);
     return found.id;
@@ -120,7 +119,7 @@ async function api(
   }
   if (!response.ok)
     throw new Error(
-      `Falha na API ${new URL(base).host}: HTTP ${response.status}.`,
+      `${new URL(base).host} API failed: HTTP ${response.status}.`,
     );
   if (response.status === 204) return undefined;
   try {
@@ -216,7 +215,7 @@ async function registerProduct(
     }
     let website = one(
       sites.filter((s) => s.name === config.name),
-      "Website Umami",
+      "Umami website",
     ) as { id: string; domain: string } | undefined;
     if (website && website.domain !== config.apps.web.domain)
       throw new Error("Umami website domain differs from the Product Config.");
@@ -253,7 +252,7 @@ async function registerProduct(
         { headers: uh },
       )
     ).tokens;
-    const token = one(tokens, "Token Unleash") as
+    const token = one(tokens, "Unleash token") as
       | {
           type: string;
           projects: string[];
@@ -423,7 +422,7 @@ async function registerProduct(
   );
   const namespace = one(
     namespaces.filter((n: { title: string }) => n.title === "dangus-uptime"),
-    "KV uptime",
+    "uptime KV",
   ) as { id: string } | undefined;
   if (!namespace) throw new Error("KV namespace dangus-uptime missing.");
   const path = `/accounts/${account}/storage/kv/namespaces/${namespace.id}/values/targets`;

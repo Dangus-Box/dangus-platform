@@ -7,15 +7,15 @@ mock_provider "cloudflare" {
   mock_data "cloudflare_account_api_token_permission_groups_list" {
     defaults = { result = [{ id = "2efd5506f9c8494dacb1fa10a3e7d5b6", name = "Workers R2 Storage Bucket Item Write", scopes = ["com.cloudflare.edge.r2.bucket"], is_selectable = true, category = "developer_platform" }] }
   }
-  mock_resource "cloudflare_workers_kv_namespace" { defaults = { id = "namespace-teste" } }
+  mock_resource "cloudflare_workers_kv_namespace" { defaults = { id = "test-namespace" } }
 }
 variables {
   state_passphrase      = "test-passphrase-not-secret"
-  cloudflare_account_id = "conta-teste"
+  cloudflare_account_id = "test-account"
   data_center_id        = 42
   template_id           = 1002
-  telegram_bot_token    = "token-teste"
-  telegram_chat_id      = "chat-teste"
+  telegram_bot_token    = "test-token"
+  telegram_chat_id      = "test-chat"
 }
 run "uptime" {
   command = plan

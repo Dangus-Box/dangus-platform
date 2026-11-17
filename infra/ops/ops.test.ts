@@ -236,7 +236,7 @@ test("deploy rejects a missing secret before calling Docker", async () => {
 
 for (const [caseName, agePublicKey] of [
   ["missing", ""],
-  ["with private key", "AGE-SECRET-KEY-1TESTE"],
+  ["with private key", "AGE-SECRET-KEY-1TEST"],
 ]) {
   test(`deploy rejects ${caseName} age public key in BWS before calling Docker`, async () => {
     const run = await deploy(

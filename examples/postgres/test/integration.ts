@@ -25,7 +25,7 @@ beforeAll(async () => {
 afterAll(() => server?.kill());
 
 test("the route writes and reads a message in the Product database", async () => {
-  const text = `teste-${crypto.randomUUID()}`;
+  const text = `test-${crypto.randomUUID()}`;
   const response = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },

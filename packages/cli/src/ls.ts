@@ -45,5 +45,5 @@ export async function listProducts(
       // The Platform proxy and Product database also have labels; they are not Apps.
       .filter((line) => /\t(api|web)$/.test(line)),
   );
-  return ["PRODUTO\tAPP", ...[...rows].sort()].join("\n");
+  return ["PRODUCT\tAPP", ...[...rows].sort()].join("\n");
 }

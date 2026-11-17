@@ -50,7 +50,7 @@ objects() { docker run --rm --network "$name" --entrypoint sh "$minio" -c 'mc al
 
 docker run --rm -v "$tmp:/data" --entrypoint sqlite3 "$name" /data/input.sqlite "PRAGMA journal_mode=WAL; CREATE TABLE items (value text); INSERT INTO items VALUES ('backup sqlite');" >/dev/null
 # SQLite in WAL mode receives writes during Backup.
-docker run -d --name "$name-writer" -v "$tmp:/data" --entrypoint bash "$name" -c 'while true; do sqlite3 /data/input.sqlite "PRAGMA busy_timeout=5000; INSERT INTO items VALUES (\"concorrente\");" >/dev/null; done' >/dev/null
+docker run -d --name "$name-writer" -v "$tmp:/data" --entrypoint bash "$name" -c 'while true; do sqlite3 /data/input.sqlite "PRAGMA busy_timeout=5000; INSERT INTO items VALUES (\"concurrent\");" >/dev/null; done' >/dev/null
 sleep 1
 backup -e BACKUP_DATABASE=produto -e BACKUP_TYPE=postgres -e PGHOST=pg -e PGUSER=postgres -e PGDATABASE=produto -e PGPASSWORD=testpass
 backup -e BACKUP_DATABASE=umami -e BACKUP_TYPE=postgres -e PGHOST=pg16 -e PGUSER=postgres -e PGDATABASE=umami -e PGPASSWORD=testpass
@@ -88,7 +88,7 @@ backup -e BACKUP_DATABASE=both -e BACKUP_TYPE=sqlite -e SQLITE_PATH=/data/input.
 
 # Any failed step exits with an error, pings /fail and leaves no temporary files.
 fails=0
-for failure in 'SQLITE_PATH=/missing' 'AGE_PUBLIC_KEY=age1invalida' 'R2_SECRET_ACCESS_KEY=errada' 'PGHOST=inexistente' 'HEALTHCHECKS_URL=http://health:8000/broken'; do
+for failure in 'SQLITE_PATH=/missing' 'AGE_PUBLIC_KEY=age1invalid' 'R2_SECRET_ACCESS_KEY=wrong' 'PGHOST=missing-host' 'HEALTHCHECKS_URL=http://health:8000/broken'; do
   type=sqlite; [[ $failure == PGHOST=* ]] && type=postgres
   if backup -e BACKUP_DATABASE=failure -e BACKUP_TYPE="$type" -e SQLITE_PATH=/data/input.sqlite -e PGUSER=postgres -e PGDATABASE=produto -e PGPASSWORD=testpass -e "$failure" 2>/dev/null; then
     echo "Backup should fail with $failure." >&2; exit 1

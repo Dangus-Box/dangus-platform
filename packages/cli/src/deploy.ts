@@ -213,7 +213,7 @@ async function resolveBindIps(
   const empty = resolved.findIndex((ips) => !ips.length);
   if (empty >= 0)
     throw new Error(
-      `Nenhum IP encontrado no DNS de ${domains[empty]}; defina DANGUS_PROXY_BIND_IPS.`,
+      `No IP found in DNS for ${domains[empty]}; set DANGUS_PROXY_BIND_IPS.`,
     );
   if (new Set(resolved.map((ips) => ips.join(","))).size > 1)
     throw new Error(

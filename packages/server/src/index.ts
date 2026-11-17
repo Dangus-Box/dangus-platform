@@ -65,7 +65,7 @@ export function observability(
     },
     options.destination,
   );
-  // pino descarta formatters.bindings nos filhos; oculta os bindings de cada child.
+  // pino ignores formatters.bindings in children; redact each child's bindings.
   const child = logger.child;
   logger.child = function (this: typeof logger, bindings, childOptions) {
     return child.call(this, redact(bindings) as typeof bindings, childOptions);

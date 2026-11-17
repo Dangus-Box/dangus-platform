@@ -14,7 +14,7 @@ docker exec "$name" sh -c 'mkdir -p /etc/docker; printf "%s\n" '\''{"storage-dri
 # Send the script through stdin as the CLI does over SSH.
 run() {
   docker exec -i -e DANGUS_TEST_SKIP_TAILSCALE_JOIN=1 "$name" bash -s \
-    < <(printf "DANGUS_TAILSCALE_AUTH_KEY='tskey-auth-teste'\n"; cat "$root/packages/cli/src/bootstrap.sh")
+    < <(printf "DANGUS_TAILSCALE_AUTH_KEY='tskey-auth-test'\n"; cat "$root/packages/cli/src/bootstrap.sh")
 }
 if [[ $scenario == docker-ce ]]; then
   docker exec "$name" bash -euc '
@@ -63,7 +63,7 @@ docker exec "$name" curl -fsS http://127.0.0.1:12345/-/ready
 
 # The test shortcut cannot skip the tailnet outside a container.
 docker exec "$name" sh -c 'printf "#!/bin/sh\nexit 1\n" > /usr/local/bin/systemd-detect-virt; chmod 755 /usr/local/bin/systemd-detect-virt'
-if run 2>/dev/null; then echo 'DANGUS_TEST_SKIP_TAILSCALE_JOIN aceito fora de container.' >&2; exit 1; fi
+if run 2>/dev/null; then echo 'DANGUS_TEST_SKIP_TAILSCALE_JOIN accepted outside a container.' >&2; exit 1; fi
 docker exec "$name" rm /usr/local/bin/systemd-detect-virt
 # After a failure between writing and reloading sshd, the next run still reloads.
 docker exec "$name" sh -c 'rm /etc/ssh/sshd_config.d/00-dangus.conf; printf "PasswordAuthentication yes\nAuthenticationMethods any\n" > /etc/ssh/sshd_config.d/00-aaa.conf; systemctl reload ssh'

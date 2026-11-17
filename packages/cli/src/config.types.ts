@@ -12,7 +12,7 @@ defineConfig({
 defineConfig({
   name: "Product",
   apps: {},
-  // @ts-expect-error o banco aceita apenas postgres ou sqlite
+  // @ts-expect-error the database accepts only postgres or sqlite
   database: "mysql",
   deployTimeoutSeconds: 120,
 });

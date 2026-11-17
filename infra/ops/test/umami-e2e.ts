@@ -16,7 +16,7 @@ const auth = { ...headers, authorization: `Bearer ${token}` };
 const site = await fetch(`${url}/api/websites`, {
   method: "POST",
   headers: auth,
-  body: JSON.stringify({ name: "Teste", domain: "example.com" }),
+  body: JSON.stringify({ name: "Test", domain: "example.com" }),
 });
 if (!site.ok) throw new Error(`Create site: ${await site.text()}`);
 const { id } = await site.json();
@@ -32,8 +32,8 @@ const event = await fetch(`${url}/api/e`, {
     payload: {
       website: id,
       hostname: "example.com",
-      url: "/teste",
-      name: "teste",
+      url: "/test",
+      name: "test",
     },
   }),
 });
@@ -44,12 +44,12 @@ const result = await fetch(
   { headers: auth },
 );
 const body = await result.text();
-if (!result.ok || !body.includes("teste"))
+if (!result.ok || !body.includes("test"))
   throw new Error(`Event missing: ${body}`);
 console.log("Event received and queried through the API OK");
 process.env.UMAMI_WEBSITE_ID = id;
 await trackEvent({
-  name: "evento-servidor",
+  name: "server-event",
   hostname: "example.com",
   url: "/",
 });
@@ -58,6 +58,6 @@ const serverEvents = await fetch(
   { headers: auth },
 );
 const serverBody = await serverEvents.text();
-if (!serverEvents.ok || !serverBody.includes("evento-servidor"))
+if (!serverEvents.ok || !serverBody.includes("server-event"))
   throw new Error(`Server event missing: ${serverBody}`);
 console.log("Event sent by @dangus-box/server received OK");

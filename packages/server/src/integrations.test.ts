@@ -22,11 +22,11 @@ test("without configuration, Flags return defaults and analytics does not use th
     delete process.env.UMAMI_WEBSITE_ID;
     process.env.UNLEASH_URL = `${server.url}api`;
     process.env.UMAMI_URL = server.url.toString();
-    await configureFlags("teste");
+    await configureFlags("test");
     const client = OpenFeature.getClient();
     expect(await client.getBooleanValue("flag", true)).toBe(true);
     expect(await client.getStringValue("config", "default")).toBe("default");
-    await trackEvent({ name: "evento", hostname: "teste.local", url: "/" });
+    await trackEvent({ name: "event", hostname: "test.local", url: "/" });
     expect(requests).toBe(0);
   } finally {
     server.stop(true);
@@ -60,7 +60,7 @@ test("provider evaluates Flag through OpenFeature using local Unleash", async ()
   try {
     process.env.UNLEASH_TOKEN = "token-local";
     process.env.UNLEASH_URL = `${server.url}api`;
-    await configureFlags("teste");
+    await configureFlags("test");
     expect(await OpenFeature.getClient().getBooleanValue("ativa", false)).toBe(
       true,
     );
@@ -88,18 +88,18 @@ test("analytics sends an event to configured Umami", async () => {
     process.env.UMAMI_WEBSITE_ID = "website-local";
     process.env.UMAMI_URL = server.url.toString();
     await trackEvent({
-      name: "pedido",
-      hostname: "teste.local",
-      url: "/pedidos",
+      name: "order",
+      hostname: "test.local",
+      url: "/orders",
       data: { total: 3 },
     });
     expect(received).toEqual({
       type: "event",
       payload: {
         website: "website-local",
-        name: "pedido",
-        hostname: "teste.local",
-        url: "/pedidos",
+        name: "order",
+        hostname: "test.local",
+        url: "/orders",
         data: { total: 3 },
       },
     });
@@ -114,7 +114,7 @@ test("slow Unleash does not block boot and Flags return defaults", async () => {
     process.env.UNLEASH_TOKEN = "token-local";
     process.env.UNLEASH_URL = `${server.url}api`;
     const start = Date.now();
-    await configureFlags("teste");
+    await configureFlags("test");
     expect(Date.now() - start).toBeLessThan(5000);
     expect(await OpenFeature.getClient().getBooleanValue("ativa", true)).toBe(
       true,
@@ -129,14 +129,14 @@ test("slow, unavailable or failing Umami neither rejects nor blocks", async () =
   const slow = Bun.serve({ port: 0, fetch: () => new Promise(() => {}) });
   const failing = Bun.serve({
     port: 0,
-    fetch: () => new Response("erro", { status: 500 }),
+    fetch: () => new Response("error", { status: 500 }),
   });
   try {
     process.env.UMAMI_WEBSITE_ID = "website-local";
     for (const url of [slow.url, failing.url, "http://127.0.0.1:1"]) {
       process.env.UMAMI_URL = url.toString();
       const start = Date.now();
-      await trackEvent({ name: "evento", hostname: "teste.local", url: "/" });
+      await trackEvent({ name: "event", hostname: "test.local", url: "/" });
       expect(Date.now() - start).toBeLessThan(5000);
     }
   } finally {

@@ -55,7 +55,7 @@ printf '{}\n' > "$FAKE_STORE"
 if FAKE_BWS_FAIL=list "$tmp/infra/backup/generate-age-key.sh" 2>/dev/null; then exit 1; fi
 [[ ! -e "$tmp/infra/backup/age.pub" ]] && jq -e '. == {}' "$FAKE_STORE" >/dev/null
 # An existing public key in BWS prevents generating another pair.
-printf '{"ops__BACKUP_AGE_PUBLIC_KEY":"age1antiga"}\n' > "$FAKE_STORE"
+printf '{"ops__BACKUP_AGE_PUBLIC_KEY":"age1old"}\n' > "$FAKE_STORE"
 if "$tmp/infra/backup/generate-age-key.sh" 2>/dev/null; then exit 1; fi
 [[ ! -e "$tmp/infra/backup/age.pub" ]] && jq -e 'has("ops__BACKUP_AGE_PRIVATE_KEY") | not' "$FAKE_STORE" >/dev/null
 # A conflict in one secret prevents creating the other.

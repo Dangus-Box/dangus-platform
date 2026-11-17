@@ -109,7 +109,7 @@
     },
     {
       "id": 4,
-      "title": "CPU por container",
+      "title": "CPU by container",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -136,7 +136,7 @@
     },
     {
       "id": 5,
-      "title": "RAM por container",
+      "title": "RAM by container",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",

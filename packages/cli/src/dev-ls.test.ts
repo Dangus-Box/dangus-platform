@@ -45,10 +45,10 @@ test("ls queries labels over SSH, sorts and deduplicates", async () => {
       "--filter",
       "label=product",
     ]);
-    return { code: 0, stdout: "exemplo\tweb\nexemplo\tapi\nexemplo\tapi\n" };
+    return { code: 0, stdout: "example\tweb\nexample\tapi\nexample\tapi\n" };
   };
   expect(await listProducts(".", runner, { DANGUS_HOST: "host.tailnet" })).toBe(
-    "PRODUTO\tAPP\nexemplo\tapi\nexemplo\tweb",
+    "PRODUCT\tAPP\nexample\tapi\nexample\tweb",
   );
 });
 
@@ -128,16 +128,16 @@ test("ls shows only Product Apps, excluding the Platform proxy and database", as
   const runner: Runner = async () => ({
     code: 0,
     stdout:
-      "platform\tproxy\nexemplo\tpostgres\nmeu produto\tapi\nexemplo\tweb\n",
+      "platform\tproxy\nexample\tpostgres\nmy product\tapi\nexample\tweb\n",
   });
   expect(await listProducts(".", runner, {})).toBe(
-    "PRODUTO\tAPP\nexemplo\tweb\nmeu produto\tapi",
+    "PRODUCT\tAPP\nexample\tweb\nmy product\tapi",
   );
 });
 
 test("ls with no Apps on the Host shows only the header", async () => {
   const runner: Runner = async () => ({ code: 0, stdout: "" });
-  expect(await listProducts(".", runner, {})).toBe("PRODUTO\tAPP");
+  expect(await listProducts(".", runner, {})).toBe("PRODUCT\tAPP");
 });
 
 test("ls includes SSH stderr on failure, strips control sequences and limits length", async () => {

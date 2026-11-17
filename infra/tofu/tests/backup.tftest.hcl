@@ -10,11 +10,11 @@ mock_provider "cloudflare" {
 }
 variables {
   state_passphrase      = "test-passphrase-not-secret"
-  cloudflare_account_id = "conta-teste"
+  cloudflare_account_id = "test-account"
   data_center_id        = 42
   template_id           = 1002
-  telegram_bot_token    = "token-teste"
-  telegram_chat_id      = "chat-teste"
+  telegram_bot_token    = "test-token"
+  telegram_chat_id      = "test-chat"
 }
 run "backup" {
   command = plan
@@ -31,7 +31,7 @@ run "backup" {
     error_message = "Lifecycle must delete each prefix after the intended duration."
   }
   assert {
-    condition     = cloudflare_account_token.backup_host.account_id == "conta-teste" && length(cloudflare_account_token.backup_host.policies) == 1 && cloudflare_account_token.backup_host.policies[0].effect == "allow" && cloudflare_account_token.backup_host.policies[0].permission_groups[0].id == "2efd5506f9c8494dacb1fa10a3e7d5b6" && length(cloudflare_account_token.backup_host.policies[0].permission_groups) == 1 && jsondecode(cloudflare_account_token.backup_host.policies[0].resources) == { "com.cloudflare.edge.r2.bucket.conta-teste_default_dangus-backups" = "*" }
+    condition     = cloudflare_account_token.backup_host.account_id == "test-account" && length(cloudflare_account_token.backup_host.policies) == 1 && cloudflare_account_token.backup_host.policies[0].effect == "allow" && cloudflare_account_token.backup_host.policies[0].permission_groups[0].id == "2efd5506f9c8494dacb1fa10a3e7d5b6" && length(cloudflare_account_token.backup_host.policies[0].permission_groups) == 1 && jsondecode(cloudflare_account_token.backup_host.policies[0].resources) == { "com.cloudflare.edge.r2.bucket.test-account_default_dangus-backups" = "*" }
     error_message = "The token must allow only objects in the Backup bucket."
   }
 }

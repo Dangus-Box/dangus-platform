@@ -42,7 +42,7 @@ test("gets the BWS key and sends the script over SSH without including it in arg
   const { tmpdir } = await import("node:os");
   const dir = await mkdtemp(join(tmpdir(), "dangus-cli-"));
   try {
-    const fakeKey = "tskey-auth-teste-nao-e-um-segredo";
+    const fakeKey = "tskey-auth-test-not-a-secret";
     await writeFile(
       join(dir, "bws"),
       `#!/bin/sh\nprintf '%s' '{"value":"${fakeKey}"}'\n`,

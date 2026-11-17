@@ -14,7 +14,7 @@ const site = await fetch(`${umami}/api/websites`, {
   headers: auth,
   body: JSON.stringify({ name: "Product", domain: "produto.test" }),
 });
-if (!site.ok) throw new Error(`Criar site: ${await site.text()}`);
+if (!site.ok) throw new Error(`Create site: ${await site.text()}`);
 const { id } = await site.json();
 
 const product = Bun.serve({
@@ -38,7 +38,7 @@ try {
   // O navegador decodifica o corpo conforme Content-Encoding.
   const decoded =
     encoding === "gzip" ? Bun.gunzipSync(raw) : encoding ? undefined : raw;
-  if (!decoded) throw new Error(`Content-Encoding inesperado: ${encoding}`);
+  if (!decoded) throw new Error(`Unexpected Content-Encoding: ${encoding}`);
   const text = new TextDecoder().decode(decoded);
   if (!script.ok || !text.includes("/api/e"))
     throw new Error(`Invalid tracker through Product (${encoding})`);
@@ -51,7 +51,7 @@ try {
         ...json,
         "user-agent": browser,
         "x-forwarded-for": ip,
-        cookie: "session=secreta",
+        cookie: "session=secret",
       },
       body: JSON.stringify({
         type: "event",
@@ -63,7 +63,7 @@ try {
       }),
     });
     if (!event.ok)
-      throw new Error(`Evento: ${event.status} ${await event.text()}`);
+      throw new Error(`Event: ${event.status} ${await event.text()}`);
   }
   const now = Date.now();
   const range = `startAt=${now - 3600000}&endAt=${now + 60000}`;
@@ -72,7 +72,7 @@ try {
   ).json();
   if (stats.pageviews?.value !== 3 || stats.visitors?.value !== 2)
     throw new Error(
-      `Pageviews e visitantes por IP do cliente: ${JSON.stringify(stats)}`,
+      `Pageviews and visitors by client IP: ${JSON.stringify(stats)}`,
     );
   console.log(
     "Event through Product recorded with visitor IP and User-Agent OK",

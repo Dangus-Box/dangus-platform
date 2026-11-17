@@ -204,8 +204,8 @@ console.log("Unique Umami website and ID stored in BWS OK");
 
 await register(await product("beta"), deps);
 for (const [name, app] of [
-  ["alpha.secreta", "alpha"],
-  ["beta.secreta", "beta"],
+  ["alpha.secret", "alpha"],
+  ["beta.secret", "beta"],
 ]) {
   const path = `${unleash}/api/admin/projects/default/features`;
   const created = await fetch(path, {
@@ -253,9 +253,6 @@ async function visible(product: string) {
 }
 const alphaFlags = await visible("alpha");
 const betaFlags = await visible("beta");
-if (
-  alphaFlags.join() !== "alpha.secreta" ||
-  betaFlags.join() !== "beta.secreta"
-)
+if (alphaFlags.join() !== "alpha.secret" || betaFlags.join() !== "beta.secret")
   throw new Error(`Edge: alpha=${alphaFlags} beta=${betaFlags}`);
 console.log("Edge shows each frontend token only the Flags for its appName OK");

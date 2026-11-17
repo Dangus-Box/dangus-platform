@@ -84,17 +84,17 @@ backup -e BACKUP_TYPE=sqlite -e SQLITE_PATH=/data/input.sqlite
 (cd "$root/examples/sqlite" && bun "$root/packages/cli/src/index.ts" db restore --target "$tmp/restored.sqlite" --yes)
 [[ $(docker run --rm -v "$tmp:/data" --entrypoint sqlite3 "$image" /data/restored.sqlite 'SELECT texto FROM mensagens') == sqlite ]]
 echo 'SQLite: Backup restored and data verified.'
-docker exec "$name-pg" createdb -U postgres alvo
-fails postgres --target 'postgresql://postgres:testpass@pg/alvo' < /dev/null
-[[ $(docker exec "$name-pg" psql -U postgres -d alvo -tAc "SELECT count(*) FROM pg_tables WHERE tablename = 'mensagens'") == 0 ]]
-dangus postgres --target 'postgresql://postgres:testpass@pg/alvo' --yes >/dev/null
-[[ $(docker exec "$name-pg" psql -U postgres -d alvo -tAc 'SELECT texto FROM mensagens') == postgres ]]
+docker exec "$name-pg" createdb -U postgres target
+fails postgres --target 'postgresql://postgres:testpass@pg/target' < /dev/null
+[[ $(docker exec "$name-pg" psql -U postgres -d target -tAc "SELECT count(*) FROM pg_tables WHERE tablename = 'mensagens'") == 0 ]]
+dangus postgres --target 'postgresql://postgres:testpass@pg/target' --yes >/dev/null
+[[ $(docker exec "$name-pg" psql -U postgres -d target -tAc 'SELECT texto FROM mensagens') == postgres ]]
 ! grep -q testpass "$tmp/psql-argv"
 # A second restore to the same target fails without applying part of the dump.
 # The sequence conflicts after CREATE TABLE: without a single transaction, the table would remain.
-docker exec "$name-pg" psql -U postgres -d alvo -c "DROP TABLE mensagens; CREATE SEQUENCE mensagens_id_seq" >/dev/null
-fails postgres --target 'postgresql://postgres:testpass@pg/alvo' --yes
-[[ $(docker exec "$name-pg" psql -U postgres -d alvo -tAc "SELECT count(*) FROM pg_tables WHERE tablename = 'mensagens'") == 0 ]]
+docker exec "$name-pg" psql -U postgres -d target -c "DROP TABLE mensagens; CREATE SEQUENCE mensagens_id_seq" >/dev/null
+fails postgres --target 'postgresql://postgres:testpass@pg/target' --yes
+[[ $(docker exec "$name-pg" psql -U postgres -d target -tAc "SELECT count(*) FROM pg_tables WHERE tablename = 'mensagens'") == 0 ]]
 echo 'Postgres: explicit target requires confirmation and restores atomically.'
 age-keygen() { docker run --rm --entrypoint age-keygen "$image" 2>/dev/null; }
 other=$(age-keygen | sed -n 's/^# public key: //p')
@@ -114,7 +114,7 @@ for key in daily/exemplo-sqlite/produto/x.sqlite.gz.age daily/exemplo-postgres/p
   { dangus postgres --from "$key" 2>&1 || true; } | grep -q 'outside Product'
 done
 echo '--from outside the Product rejected.'
-printf 'corrompido' > "$tmp/corrupt"
+printf 'corrupted' > "$tmp/corrupt"
 docker run --rm --network "$name" -v "$tmp:/data" --entrypoint sh "$minio" -c 'mc alias set local http://minio:9000 testaccess testsecret >/dev/null; mc cp /data/corrupt local/dangus-backups/daily/exemplo-sqlite/produto/corrupt.sqlite.gz.age >/dev/null'
 if (cd "$root/examples/sqlite" && bun "$root/packages/cli/src/index.ts" db restore --from daily/exemplo-sqlite/produto/corrupt.sqlite.gz.age --verify); then echo 'Corrupt Backup accepted' >&2; exit 1; fi
 grep -qx '/check/fail' "$tmp/pings"

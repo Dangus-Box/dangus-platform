@@ -2,11 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { Elysia } from "elysia";
 import { observability } from "./index";
 
-describe("observabilidade", () => {
+describe("observability", () => {
   test("redacts default and extra fields in objects and headers", () => {
     let output = "";
     const { logger } = observability({
-      redact: ["segredo"],
+      redact: ["privateField"],
       destination: {
         write: (chunk) => {
           output += chunk;
@@ -28,7 +28,7 @@ describe("observabilidade", () => {
         "x-auth-token": "secret11",
         "set-cookie": "secret12",
       },
-      nested: [{ segredo: "secret13" }],
+      nested: [{ privateField: "secret13" }],
       visible: "ok",
     });
     const logged = JSON.parse(output);
@@ -44,7 +44,7 @@ describe("observabilidade", () => {
       expect(logged[field]).toBe("[Redacted]");
     for (const value of Object.values(logged.headers))
       expect(value).toBe("[Redacted]");
-    expect(logged.nested[0].segredo).toBe("[Redacted]");
+    expect(logged.nested[0].privateField).toBe("[Redacted]");
     expect(logged.visible).toBe("ok");
     expect(output).not.toContain("secret");
   });

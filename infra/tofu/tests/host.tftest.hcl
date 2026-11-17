@@ -12,12 +12,12 @@ mock_provider "cloudflare" {
 }
 
 variables {
-  cloudflare_account_id = "conta-teste"
+  cloudflare_account_id = "test-account"
   state_passphrase      = "test-passphrase-not-secret"
   data_center_id        = 42
   template_id           = 1002
-  telegram_bot_token    = "token-teste"
-  telegram_chat_id      = "chat-teste"
+  telegram_bot_token    = "test-token"
+  telegram_chat_id      = "test-chat"
 }
 
 run "host_in_brazil" {

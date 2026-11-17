@@ -31,12 +31,12 @@ const admin = { ...json, cookie };
 const created = await fetch(`${server}/api/admin/projects/default/features`, {
   method: "POST",
   headers: admin,
-  body: JSON.stringify({ name: "teste-issue-14", type: "release" }),
+  body: JSON.stringify({ name: "test-issue-14", type: "release" }),
 });
 if (!created.ok)
   throw new Error(`Create Flag: ${created.status} ${await created.text()}`);
 const enabled = await fetch(
-  `${server}/api/admin/projects/default/features/teste-issue-14/environments/production/on`,
+  `${server}/api/admin/projects/default/features/test-issue-14/environments/production/on`,
   { method: "POST", headers: admin },
 );
 if (!enabled.ok)
@@ -45,7 +45,7 @@ for (let i = 0; i < 40; i++) {
   const response = await fetch(`${edge}/api/frontend`, {
     headers: { authorization: required("UNLEASH_FRONTEND_TOKEN") },
   }).catch(() => null);
-  if (response?.ok && (await response.text()).includes("teste-issue-14")) break;
+  if (response?.ok && (await response.text()).includes("test-issue-14")) break;
   if (i === 39) throw new Error("Flag missing from Edge");
   await Bun.sleep(1000);
 }
@@ -66,7 +66,7 @@ const client = Bun.spawnSync([
   "node",
   required("TEST_SERVER_IMAGE"),
   "-e",
-  `const { initialize } = require('unleash-client'); const u = initialize({url: 'http://' + process.env.TEST_SERVER + ':4242/api', appName: 'teste', customHeaders: {Authorization: process.env.UNLEASH_BACKEND_TOKEN}}); const timer = setTimeout(() => process.exit(2), 30000); u.on('synchronized', () => { clearTimeout(timer); const enabled = u.isEnabled('teste-issue-14'); u.destroy(); process.exit(enabled ? 0 : 1); });`,
+  `const { initialize } = require('unleash-client'); const u = initialize({url: 'http://' + process.env.TEST_SERVER + ':4242/api', appName: 'test', customHeaders: {Authorization: process.env.UNLEASH_BACKEND_TOKEN}}); const timer = setTimeout(() => process.exit(2), 30000); u.on('synchronized', () => { clearTimeout(timer); const enabled = u.isEnabled('test-issue-14'); u.destroy(); process.exit(enabled ? 0 : 1); });`,
 ]);
 if (client.exitCode) throw new Error(`Backend: ${client.stderr.toString()}`);
 console.log("Flag evaluated by container on the network with backend token OK");
@@ -83,11 +83,11 @@ for (const path of [
 console.log("Admin API and UI unavailable on Edge OK");
 process.env.UNLEASH_TOKEN = required("UNLEASH_BACKEND_TOKEN");
 process.env.UNLEASH_URL = `${server}/api`;
-await configureFlags("teste");
+await configureFlags("test");
 const flags = OpenFeature.getClient();
 async function waitFlag(expected: boolean) {
   for (let i = 0; i < 40; i++) {
-    if ((await flags.getBooleanValue("teste-issue-14", !expected)) === expected)
+    if ((await flags.getBooleanValue("test-issue-14", !expected)) === expected)
       return;
     await Bun.sleep(1000);
   }
@@ -97,7 +97,7 @@ async function waitFlag(expected: boolean) {
 }
 await waitFlag(true);
 const disabled = await fetch(
-  `${server}/api/admin/projects/default/features/teste-issue-14/environments/production/off`,
+  `${server}/api/admin/projects/default/features/test-issue-14/environments/production/off`,
   { method: "POST", headers: admin },
 );
 if (!disabled.ok) throw new Error(`Disable Flag: ${disabled.status}`);

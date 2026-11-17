@@ -80,8 +80,8 @@ test("proxy does not leak Product cookies or headers to Umami", async () => {
       new Request("http://produto/api/e", {
         method: "POST",
         headers: {
-          cookie: "session=secreta",
-          authorization: "Bearer secreto",
+          cookie: "session=secret",
+          authorization: "Bearer secret",
           "x-client-ip": "198.51.100.9",
           "accept-encoding": "gzip",
           "user-agent": "browser",

@@ -30,7 +30,7 @@ tofu init >/dev/null
 
 # From here onward, all Hostinger calls go to the fake API.
 export HTTPS_PROXY="http://127.0.0.1:$(cat "$WORK/port")" NO_PROXY= no_proxy=
-export SSL_CERT_FILE="$WORK/ca.pem" HOSTINGER_API_TOKEN=falso
+export SSL_CERT_FILE="$WORK/ca.pem" HOSTINGER_API_TOKEN=fake
 export TF_VAR_data_center_id=17
 # Template differs from the installed one: without ignore_changes, it would reinstall the system.
 export TF_VAR_template_id=9999
@@ -47,7 +47,7 @@ for r in s["resources"]:
         r["instances"][0]["attributes"]["ssh_key_ids"] = [123]
 s["resources"].append({"mode": "managed", "type": "hostinger_vps_ssh_key", "name": "host",
     "provider": "provider[\"registry.opentofu.org/hostinger/hostinger\"]",
-    "instances": [{"schema_version": 0, "attributes": {"id": "123", "name": "dangus-host", "key": "ssh-ed25519 AAAA teste"}}]})
+    "instances": [{"schema_version": 0, "attributes": {"id": "123", "name": "dangus-host", "key": "ssh-ed25519 AAAA test"}}]})
 json.dump(s, sys.stdout)' > "$WORK/state.json"
 tofu state push "$WORK/state.json" >/dev/null
 tofu plan -out=plan.tfplan >/dev/null

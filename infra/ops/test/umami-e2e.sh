@@ -4,7 +4,7 @@ root=$(cd "$(dirname "$0")/../../.." && pwd)
 id="test-ops-$$"
 cleanup() { docker rm -f "$id-umami" "$id-db" >/dev/null 2>&1 || true; docker network rm "$id" >/dev/null 2>&1 || true; docker volume rm "$id-db" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
-: "${UMAMI_ADMIN_PASSWORD:?Informe UMAMI_ADMIN_PASSWORD}"
+: "${UMAMI_ADMIN_PASSWORD:?Set UMAMI_ADMIN_PASSWORD}"
 image() { grep -o "$1:[^ ]*" "$root/infra/ops/deploy.yml" | head -1; }
 docker network create "$id" >/dev/null
 docker volume create "$id-db" >/dev/null
