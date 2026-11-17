@@ -269,14 +269,7 @@ export async function deploy(
     env.DANGUS_HOST || DEFAULT_HOST,
     async (dir, apps) => {
       if (!env.SSH_AUTH_SOCK) throw new Error("SSH_AUTH_SOCK é obrigatório.");
-      const git = await runner(
-        ["git", "rev-parse", "--verify", "HEAD"],
-        env,
-        directory,
-      );
-      const version = git.stdout.trim();
-      if (git.code !== 0 || !/^[0-9a-f]{40,64}$/.test(version))
-        throw new Error("Não foi possível determinar o commit do Produto.");
+      const version = await productVersion(runner, env, directory);
       const names = new Set(
         apps.flatMap((app) => config.apps[app]?.secrets ?? []),
       );
@@ -379,6 +372,22 @@ export async function deploy(
   );
 }
 
+async function productVersion(
+  runner: Runner,
+  env: Record<string, string | undefined>,
+  directory: string,
+): Promise<string> {
+  const git = await runner(
+    ["git", "rev-parse", "--verify", "HEAD"],
+    env,
+    directory,
+  );
+  const version = git.stdout.trim();
+  if (git.code !== 0 || !/^[0-9a-f]{40,64}$/.test(version))
+    throw new Error("Não foi possível determinar o commit do Produto.");
+  return version;
+}
+
 export async function backupNow(
   config: ResolvedProductConfig,
   directory: string,
@@ -391,6 +400,7 @@ export async function backupNow(
     config,
     env.DANGUS_HOST || DEFAULT_HOST,
     async (dir) => {
+      const version = await productVersion(runner, env, directory);
       const result = await runner(
         [
           "docker",
@@ -416,6 +426,7 @@ export async function backupNow(
           "--reuse",
           "--config-file",
           "/dangus/deploy.yml",
+          `--version=${version}`,
           "/usr/local/bin/backup.sh",
         ],
         env,
