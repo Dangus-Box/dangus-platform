@@ -8,7 +8,7 @@ afterEach(async () => {
   process.env = { ...original };
 });
 
-test("sem configuração, Flags retornam padrões e analytics não usa rede", async () => {
+test("without configuration, Flags return defaults and analytics does not use the network", async () => {
   let requests = 0;
   const server = Bun.serve({
     port: 0,
@@ -25,7 +25,7 @@ test("sem configuração, Flags retornam padrões e analytics não usa rede", as
     await configureFlags("teste");
     const client = OpenFeature.getClient();
     expect(await client.getBooleanValue("flag", true)).toBe(true);
-    expect(await client.getStringValue("config", "padrão")).toBe("padrão");
+    expect(await client.getStringValue("config", "default")).toBe("default");
     await trackEvent({ name: "evento", hostname: "teste.local", url: "/" });
     expect(requests).toBe(0);
   } finally {
@@ -33,7 +33,7 @@ test("sem configuração, Flags retornam padrões e analytics não usa rede", as
   }
 });
 
-test("provider avalia Flag pelo OpenFeature usando Unleash local", async () => {
+test("provider evaluates Flag through OpenFeature using local Unleash", async () => {
   const requests: string[] = [];
   const server = Bun.serve({
     port: 0,
@@ -108,7 +108,7 @@ test("analytics envia evento ao Umami configurado", async () => {
   }
 });
 
-test("Unleash lento não bloqueia o boot e Flags retornam padrões", async () => {
+test("slow Unleash does not block boot and Flags return defaults", async () => {
   const server = Bun.serve({ port: 0, fetch: () => new Promise(() => {}) });
   try {
     process.env.UNLEASH_TOKEN = "token-local";
@@ -125,7 +125,7 @@ test("Unleash lento não bloqueia o boot e Flags retornam padrões", async () =>
   }
 }, 15000);
 
-test("Umami lento, fora do ar ou com erro não rejeita nem bloqueia", async () => {
+test("slow, unavailable or failing Umami neither rejects nor blocks", async () => {
   const slow = Bun.serve({ port: 0, fetch: () => new Promise(() => {}) });
   const failing = Bun.serve({
     port: 0,

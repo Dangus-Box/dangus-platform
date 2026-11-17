@@ -16,7 +16,7 @@ afterEach(async () => {
   await OpenFeature.close();
 });
 
-test("sem configuração não acessa a rede e usa os padrões", async () => {
+test("without configuration, does not access the network and uses defaults", async () => {
   globalThis.fetch = (() => {
     throw new Error("rede inesperada");
   }) as unknown as typeof fetch;
@@ -26,7 +26,7 @@ test("sem configuração não acessa a rede e usa os padrões", async () => {
   expect(precisaAtualizar("1.0.0")).toBe(false);
 });
 
-test("evento contém website, nome e User-Agent", async () => {
+test("event contains website, name and User-Agent", async () => {
   process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID = "site-teste";
   let request: Request | undefined;
   globalThis.fetch = ((input, init) => {
@@ -49,7 +49,7 @@ test("evento contém website, nome e User-Agent", async () => {
   });
 });
 
-test("payload de variante muda a Versão Mínima", async () => {
+test("variant payload changes the Minimum Version", async () => {
   process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN = "token-teste";
   let version = "1.0.0";
   const server = Bun.serve({
@@ -81,7 +81,7 @@ test("payload de variante muda a Versão Mínima", async () => {
   }
 });
 
-test("User-Agent do iOS identifica o sistema sem fingir navegador", async () => {
+test("iOS User-Agent identifies the system without pretending to be a browser", async () => {
   Platform.OS = "ios";
   let userAgent: string | null | undefined;
   globalThis.fetch = ((_input, init) => {
@@ -92,11 +92,11 @@ test("User-Agent do iOS identifica o sistema sem fingir navegador", async () => 
   expect(userAgent).toBe("Mozilla/5.0 (iPhone; CPU iPhone OS like Mac OS X)");
 });
 
-test("falha de rede no analytics não chega à App", async () => {
+test("analytics network failure does not reach the App", async () => {
   await enviarEvento("clique", "/", "http://127.0.0.1:1", "site");
 });
 
-async function versaoMinima(payload: unknown, versaoAtual: string) {
+async function minimumVersion(payload: unknown, currentVersion: string) {
   const server = Bun.serve({
     port: 0,
     fetch: () =>
@@ -112,21 +112,21 @@ async function versaoMinima(payload: unknown, versaoAtual: string) {
   });
   try {
     await configurarFlags("teste", server.url.href, "token-teste");
-    return precisaAtualizar(versaoAtual);
+    return precisaAtualizar(currentVersion);
   } finally {
     server.stop(true);
   }
 }
 
-test("Versão Mínima compara partes numericamente", async () => {
-  const minima = (value: string) => ({ type: "string", value });
-  expect(await versaoMinima(minima("1.10.0"), "1.9.0")).toBe(true);
-  expect(await versaoMinima(minima("1.9.0"), "1.10.0")).toBe(false);
-  expect(await versaoMinima(minima("2.0.0"), "1.99.99")).toBe(true);
-  expect(await versaoMinima(minima("1.2.3"), "1.2.3")).toBe(false);
+test("Minimum Version compares components numerically", async () => {
+  const minimum = (value: string) => ({ type: "string", value });
+  expect(await minimumVersion(minimum("1.10.0"), "1.9.0")).toBe(true);
+  expect(await minimumVersion(minimum("1.9.0"), "1.10.0")).toBe(false);
+  expect(await minimumVersion(minimum("2.0.0"), "1.99.99")).toBe(true);
+  expect(await minimumVersion(minimum("1.2.3"), "1.2.3")).toBe(false);
 });
 
-test("payload ausente ou inválido não obriga atualização", async () => {
+test("missing or invalid payload does not require an update", async () => {
   for (const payload of [
     undefined,
     { type: "string", value: "" },
@@ -135,10 +135,10 @@ test("payload ausente ou inválido não obriga atualização", async () => {
     { type: "number", value: "2" },
     { type: "json", value: '{"versao":"2.0.0"}' },
   ])
-    expect(await versaoMinima(payload, "1.0.0")).toBe(false);
+    expect(await minimumVersion(payload, "1.0.0")).toBe(false);
 });
 
-test("Edge fora do ar ou recusando o token não obriga atualização", async () => {
+test("unavailable Edge or rejected token does not require an update", async () => {
   await configurarFlags("teste", "http://127.0.0.1:1/api/frontend", "token");
   expect(precisaAtualizar("1.0.0")).toBe(false);
   for (const status of [401, 500]) {

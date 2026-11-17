@@ -8,8 +8,8 @@ export { OpenFeature } from "@openfeature/web-sdk";
 
 const analyticsUrl = "https://analytics.dangus-box.com";
 const flagsUrl = "https://flags.dangus-box.com/api/frontend";
-// O Umami descarta UAs de bot (como o `okhttp/…` padrão do Android); este UA
-// mínimo identifica só o sistema, sem fingir um navegador.
+// Umami rejects bot UAs (such as the Android default `okhttp/…`); this minimal UA
+// identifies only the system without pretending to be a browser.
 const userAgent = () =>
   Platform.OS === "ios"
     ? "Mozilla/5.0 (iPhone; CPU iPhone OS like Mac OS X)"
@@ -18,12 +18,12 @@ const userAgent = () =>
 export async function enviarEvento(
   name: string,
   url = "/",
-  servidor = analyticsUrl,
+  server = analyticsUrl,
   website = process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID,
 ): Promise<void> {
   if (!website) return;
   try {
-    await fetch(`${servidor}/api/send`, {
+    await fetch(`${server}/api/send`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -35,7 +35,7 @@ export async function enviarEvento(
       }),
     });
   } catch {
-    // Analytics nunca quebra a App, por exemplo sem rede.
+    // Analytics never breaks the App, for example when offline.
   }
 }
 
@@ -57,17 +57,17 @@ export async function configurarFlags(
 }
 
 export function precisaAtualizar(
-  versaoAtual: string,
+  currentVersion: string,
   flag = "versao-minima",
 ): boolean {
-  const minima = OpenFeature.getClient().getStringValue(flag, "");
+  const minimum = OpenFeature.getClient().getStringValue(flag, "");
   const parse = (value: string) =>
     /^\d+\.\d+\.\d+$/.test(value) ? value.split(".").map(Number) : null;
-  const atual = parse(versaoAtual);
-  const requerida = parse(minima);
-  if (!atual || !requerida) return false;
+  const current = parse(currentVersion);
+  const required = parse(minimum);
+  if (!current || !required) return false;
   for (let i = 0; i < 3; i++) {
-    if (atual[i] !== requerida[i]) return atual[i] < requerida[i];
+    if (current[i] !== required[i]) return current[i] < required[i];
   }
   return false;
 }

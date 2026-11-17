@@ -12,12 +12,12 @@ const auth = { ...json, authorization: `Bearer ${(await login.json()).token}` };
 const site = await fetch(`${umami}/api/websites`, {
   method: "POST",
   headers: auth,
-  body: JSON.stringify({ name: "Produto", domain: "produto.test" }),
+  body: JSON.stringify({ name: "Product", domain: "produto.test" }),
 });
 if (!site.ok) throw new Error(`Criar site: ${await site.text()}`);
 const { id } = await site.json();
 
-const produto = Bun.serve({
+const product = Bun.serve({
   port: 0,
   async fetch(request) {
     return (
@@ -29,7 +29,7 @@ const produto = Bun.serve({
 try {
   const browser =
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36";
-  const script = await fetch(new URL("/t.js", produto.url), {
+  const script = await fetch(new URL("/t.js", product.url), {
     headers: { "accept-encoding": "gzip, deflate, br", "user-agent": browser },
     decompress: false,
   });
@@ -41,11 +41,11 @@ try {
   if (!decoded) throw new Error(`Content-Encoding inesperado: ${encoding}`);
   const text = new TextDecoder().decode(decoded);
   if (!script.ok || !text.includes("/api/e"))
-    throw new Error(`Tracker inválido pelo Produto (${encoding})`);
-  console.log("Tracker servido pelo domínio do Produto OK");
+    throw new Error(`Invalid tracker through Product (${encoding})`);
+  console.log("Tracker served through Product domain OK");
 
   for (const ip of ["192.0.2.10", "192.0.2.10", "192.0.2.20"]) {
-    const event = await fetch(new URL("/api/e", produto.url), {
+    const event = await fetch(new URL("/api/e", product.url), {
       method: "POST",
       headers: {
         ...json,
@@ -58,7 +58,7 @@ try {
         payload: {
           website: id,
           hostname: "produto.test",
-          url: "/pelo-produto",
+          url: "/via-product",
         },
       }),
     });
@@ -75,8 +75,8 @@ try {
       `Pageviews e visitantes por IP do cliente: ${JSON.stringify(stats)}`,
     );
   console.log(
-    "Evento pelo Produto registrado com IP e User-Agent do visitante OK",
+    "Event through Product recorded with visitor IP and User-Agent OK",
   );
 } finally {
-  produto.stop();
+  product.stop();
 }

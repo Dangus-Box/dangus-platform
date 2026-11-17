@@ -74,13 +74,13 @@ export function observability(
   const provider = new MeterProvider({ readers: [exporter] });
   const meter = provider.getMeter("@dangus-box/server");
   const requests = meter.createCounter("http_server_requests", {
-    description: "Requisições HTTP",
+    description: "HTTP requests",
   });
   const errors = meter.createCounter("http_server_errors", {
     description: "Erros HTTP",
   });
   const duration = meter.createHistogram("http_server_duration_seconds", {
-    description: "Duração das requisições HTTP",
+    description: "HTTP request duration",
     unit: "s",
     advice: {
       explicitBucketBoundaries: [

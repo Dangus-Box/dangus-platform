@@ -89,7 +89,7 @@ async function runBoots(kind: string, connection: string, fail: boolean) {
   }
 }
 
-test("SQLite: dois processos ficam prontos e aplicam a migration uma vez; falha impede readiness", async () => {
+test("SQLite: two processes become ready and apply the migration once; failure prevents readiness", async () => {
   const dir = await mkdtemp(join(tmpdir(), "dangus-sqlite-"));
   try {
     await runBoots("sqlite", join(dir, "success.sqlite"), false);
@@ -100,9 +100,9 @@ test("SQLite: dois processos ficam prontos e aplicam a migration uma vez; falha 
 }, 30000);
 
 test.skipIf(!postgresUrl)(
-  "Postgres: dois processos ficam prontos e aplicam a migration uma vez; falha impede readiness",
+  "Postgres: two processes become ready and apply the migration once; failure prevents readiness",
   async () => {
-    if (!postgresUrl) throw new Error("POSTGRES_TEST_URL ausente");
+    if (!postgresUrl) throw new Error("POSTGRES_TEST_URL missing");
     const admin = postgres(postgresUrl, { max: 1 });
     const name = `test_${crypto.randomUUID().replaceAll("-", "")}`;
     await admin.unsafe(`CREATE DATABASE "${name}"`);
@@ -204,7 +204,7 @@ async function withDatabase(
     }
     return;
   }
-  if (!postgresUrl) throw new Error("POSTGRES_TEST_URL ausente");
+  if (!postgresUrl) throw new Error("POSTGRES_TEST_URL missing");
   const admin = postgres(postgresUrl, { max: 1 });
   const name = `test_${crypto.randomUUID().replaceAll("-", "")}`;
   await admin.unsafe(`CREATE DATABASE "${name}"`);
@@ -229,7 +229,7 @@ for (const kind of ["sqlite", "postgres"] as const) {
   const skip = kind === "postgres" && !postgresUrl;
 
   test.skipIf(skip)(
-    `${kind}: cinco processos simultâneos aplicam a migration uma vez e ficam prontos`,
+    `${kind}: five simultaneous processes apply the migration once and become ready`,
     async () => {
       await withDatabase(kind, async (connection, query) => {
         const dir = await mkdtemp(join(tmpdir(), "dangus-migration-"));
@@ -257,7 +257,7 @@ for (const kind of ["sqlite", "postgres"] as const) {
   );
 
   test.skipIf(skip)(
-    `${kind}: migration que falha no meio não deixa efeitos parciais e o próximo boot se recupera`,
+    `${kind}: migration failure leaves no partial effects and the next boot recovers`,
     async () => {
       await withDatabase(kind, async (connection, query) => {
         const dir = await mkdtemp(join(tmpdir(), "dangus-migration-"));
@@ -298,7 +298,7 @@ for (const kind of ["sqlite", "postgres"] as const) {
   );
 
   test.skipIf(skip)(
-    `${kind}: processo morto no meio da migration libera o lock e o próximo boot aplica`,
+    `${kind}: a process killed during migration releases the lock and the next boot applies it`,
     async () => {
       await withDatabase(kind, async (connection, query) => {
         const slowDir = await mkdtemp(join(tmpdir(), "dangus-migration-"));
@@ -334,7 +334,7 @@ for (const kind of ["sqlite", "postgres"] as const) {
 }
 
 test.skipIf(!postgresUrl)(
-  "postgres: o boot não escreve NOTICEs do Postgres fora do log JSON",
+  "postgres: boot does not write Postgres NOTICEs outside the JSON log",
   async () => {
     await withDatabase("postgres", async (connection) => {
       const dir = await mkdtemp(join(tmpdir(), "dangus-migration-"));
