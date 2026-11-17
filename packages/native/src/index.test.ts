@@ -1,11 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { Platform } from "../test/react-native";
-import {
-  configurarFlags,
-  enviarEvento,
-  OpenFeature,
-  precisaAtualizar,
-} from "./index";
+import { configureFlags, needsUpdate, OpenFeature, trackEvent } from "./index";
 
 const originalFetch = globalThis.fetch;
 afterEach(async () => {
@@ -18,22 +13,22 @@ afterEach(async () => {
 
 test("without configuration, does not access the network and uses defaults", async () => {
   globalThis.fetch = (() => {
-    throw new Error("rede inesperada");
+    throw new Error("unexpected network access");
   }) as unknown as typeof fetch;
-  await enviarEvento("evento");
-  await configurarFlags("teste");
+  await trackEvent("event");
+  await configureFlags("test");
   expect(OpenFeature.getClient().getBooleanValue("flag", true)).toBe(true);
-  expect(precisaAtualizar("1.0.0")).toBe(false);
+  expect(needsUpdate("1.0.0")).toBe(false);
 });
 
 test("event contains website, name and User-Agent", async () => {
-  process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID = "site-teste";
+  process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID = "test-site";
   let request: Request | undefined;
   globalThis.fetch = ((input, init) => {
     request = new Request(input, init);
     return Promise.resolve(new Response("{}"));
   }) as typeof fetch;
-  await enviarEvento("clique");
+  await trackEvent("click");
   expect(request?.url).toBe("https://analytics.dangus-box.com/api/send");
   expect(request?.headers.get("user-agent")).toBe(
     "Mozilla/5.0 (Linux; Android)",
@@ -41,16 +36,16 @@ test("event contains website, name and User-Agent", async () => {
   expect(await request?.json()).toEqual({
     type: "event",
     payload: {
-      website: "site-teste",
+      website: "test-site",
       hostname: "app",
       url: "/",
-      name: "clique",
+      name: "click",
     },
   });
 });
 
 test("variant payload changes the Minimum Version", async () => {
-  process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN = "token-teste";
+  process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN = "test-token";
   let version = "1.0.0";
   const server = Bun.serve({
     port: 0,
@@ -58,10 +53,10 @@ test("variant payload changes the Minimum Version", async () => {
       Response.json({
         toggles: [
           {
-            name: "versao-minima",
+            name: "min-version",
             enabled: true,
             variant: {
-              name: "minima",
+              name: "minimum",
               enabled: true,
               payload: { type: "string", value: version },
             },
@@ -70,12 +65,12 @@ test("variant payload changes the Minimum Version", async () => {
       }),
   });
   try {
-    await configurarFlags("teste", server.url.href);
-    expect(precisaAtualizar("1.0.0")).toBe(false);
+    await configureFlags("test", server.url.href);
+    expect(needsUpdate("1.0.0")).toBe(false);
     version = "1.1.0";
-    await configurarFlags("teste", server.url.href);
-    expect(precisaAtualizar("1.0.0")).toBe(true);
-    expect(precisaAtualizar("1.2.0")).toBe(false);
+    await configureFlags("test", server.url.href);
+    expect(needsUpdate("1.0.0")).toBe(true);
+    expect(needsUpdate("1.2.0")).toBe(false);
   } finally {
     server.stop();
   }
@@ -88,12 +83,12 @@ test("iOS User-Agent identifies the system without pretending to be a browser", 
     userAgent = new Headers(init?.headers).get("user-agent");
     return Promise.resolve(new Response("{}"));
   }) as typeof fetch;
-  await enviarEvento("clique", "/", "http://umami", "site");
+  await trackEvent("click", "/", "http://umami", "site");
   expect(userAgent).toBe("Mozilla/5.0 (iPhone; CPU iPhone OS like Mac OS X)");
 });
 
 test("analytics network failure does not reach the App", async () => {
-  await enviarEvento("clique", "/", "http://127.0.0.1:1", "site");
+  await trackEvent("click", "/", "http://127.0.0.1:1", "site");
 });
 
 async function minimumVersion(payload: unknown, currentVersion: string) {
@@ -103,16 +98,16 @@ async function minimumVersion(payload: unknown, currentVersion: string) {
       Response.json({
         toggles: [
           {
-            name: "versao-minima",
+            name: "min-version",
             enabled: true,
-            variant: { name: "minima", enabled: true, payload },
+            variant: { name: "minimum", enabled: true, payload },
           },
         ],
       }),
   });
   try {
-    await configurarFlags("teste", server.url.href, "token-teste");
-    return precisaAtualizar(currentVersion);
+    await configureFlags("test", server.url.href, "test-token");
+    return needsUpdate(currentVersion);
   } finally {
     server.stop(true);
   }
@@ -133,22 +128,22 @@ test("missing or invalid payload does not require an update", async () => {
     { type: "string", value: "1.2" },
     { type: "string", value: "v2.0.0" },
     { type: "number", value: "2" },
-    { type: "json", value: '{"versao":"2.0.0"}' },
+    { type: "json", value: '{"version":"2.0.0"}' },
   ])
     expect(await minimumVersion(payload, "1.0.0")).toBe(false);
 });
 
 test("unavailable Edge or rejected token does not require an update", async () => {
-  await configurarFlags("teste", "http://127.0.0.1:1/api/frontend", "token");
-  expect(precisaAtualizar("1.0.0")).toBe(false);
+  await configureFlags("test", "http://127.0.0.1:1/api/frontend", "token");
+  expect(needsUpdate("1.0.0")).toBe(false);
   for (const status of [401, 500]) {
     const server = Bun.serve({
       port: 0,
-      fetch: () => new Response("erro", { status }),
+      fetch: () => new Response("error", { status }),
     });
     try {
-      await configurarFlags("teste", server.url.href, "token");
-      expect(precisaAtualizar("1.0.0")).toBe(false);
+      await configureFlags("test", server.url.href, "token");
+      expect(needsUpdate("1.0.0")).toBe(false);
     } finally {
       server.stop(true);
     }

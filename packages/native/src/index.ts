@@ -15,7 +15,7 @@ const userAgent = () =>
     ? "Mozilla/5.0 (iPhone; CPU iPhone OS like Mac OS X)"
     : "Mozilla/5.0 (Linux; Android)";
 
-export async function enviarEvento(
+export async function trackEvent(
   name: string,
   url = "/",
   server = analyticsUrl,
@@ -39,7 +39,7 @@ export async function enviarEvento(
   }
 }
 
-export async function configurarFlags(
+export async function configureFlags(
   appName: string,
   url = flagsUrl,
   clientKey = process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN,
@@ -56,9 +56,9 @@ export async function configurarFlags(
   );
 }
 
-export function precisaAtualizar(
+export function needsUpdate(
   currentVersion: string,
-  flag = "versao-minima",
+  flag = "min-version",
 ): boolean {
   const minimum = OpenFeature.getClient().getStringValue(flag, "");
   const parse = (value: string) =>

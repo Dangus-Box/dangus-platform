@@ -1,5 +1,5 @@
 import { Platform } from "../test/react-native";
-import { enviarEvento } from "./index";
+import { trackEvent } from "./index";
 
 const base = process.env.UMAMI_URL;
 const login = await fetch(`${base}/api/auth/login`, {
@@ -18,14 +18,14 @@ const auth = {
 const site = await fetch(`${base}/api/websites`, {
   method: "POST",
   headers: auth,
-  body: JSON.stringify({ name: "App mobile", domain: "app" }),
+  body: JSON.stringify({ name: "Mobile App", domain: "app" }),
 });
 if (!site.ok) throw new Error(await site.text());
 const { id } = await site.json();
 process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID = id;
-await enviarEvento("exemplo-mobile", "/", base);
+await trackEvent("exemplo-mobile", "/", base);
 Platform.OS = "ios";
-await enviarEvento("exemplo-mobile-ios", "/", base);
+await trackEvent("exemplo-mobile-ios", "/", base);
 const end = Date.now() + 60000;
 const events = await fetch(
   `${base}/api/websites/${id}/events?startAt=${end - 120000}&endAt=${end}`,
@@ -38,7 +38,7 @@ const sessions = await fetch(
   `${base}/api/websites/${id}/sessions?startAt=${end - 120000}&endAt=${end}`,
   { headers: auth },
 ).then((r) => r.json());
-const sistemas = sessions.data.map((s: { os: string }) => s.os).sort();
-if (sistemas.join() !== "Android OS,iOS")
-  throw new Error(`Sistemas inesperados: ${sistemas}`);
+const systems = sessions.data.map((s: { os: string }) => s.os).sort();
+if (systems.join() !== "Android OS,iOS")
+  throw new Error(`Unexpected systems: ${systems}`);
 console.log("Mobile App helper event received by Umami OK");

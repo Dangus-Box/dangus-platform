@@ -1,19 +1,19 @@
 import {
-  configurarFlags,
-  enviarEvento,
+  configureFlags,
+  needsUpdate,
   OpenFeature,
   OpenFeatureProvider,
-  precisaAtualizar,
+  trackEvent,
   useFlag,
 } from "@dangus-box/native";
 import { useEffect, useState } from "react";
 import { Button, Text, View } from "react-native";
 
 function MinimumVersion() {
-  useFlag("exemplo-sqlite.versao-minima", "");
+  useFlag("exemplo-sqlite.min-version", "");
   return (
     <Text>
-      {precisaAtualizar("1.0.0", "exemplo-sqlite.versao-minima")
+      {needsUpdate("1.0.0", "exemplo-sqlite.min-version")
         ? "Update required"
         : "App up to date"}
     </Text>
@@ -23,7 +23,7 @@ function MinimumVersion() {
 export default function App() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    configurarFlags(
+    configureFlags(
       "exemplo-sqlite",
       undefined,
       process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN,
@@ -37,7 +37,7 @@ export default function App() {
         <Button
           title="Send event"
           onPress={() =>
-            void enviarEvento(
+            void trackEvent(
               "exemplo-mobile",
               undefined,
               undefined,

@@ -169,10 +169,10 @@ const proxy = await proxyAnalytics(request, { websiteId: process.env.UMAMI_WEBSI
 if (proxy) return proxy;`);
     if (found.includes("mobile"))
       console.log(`Mobile:
-import { configurarFlags, enviarEvento, OpenFeature, OpenFeatureProvider } from "@dangus-box/native";
-await configurarFlags("${name}", undefined, process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN);
+import { configureFlags, trackEvent, OpenFeature, OpenFeatureProvider } from "@dangus-box/native";
+await configureFlags("${name}", undefined, process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN);
 <OpenFeatureProvider client={OpenFeature.getClient()}>{/* App */}</OpenFeatureProvider>
-await enviarEvento("evento", undefined, undefined, process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID);`);
+await trackEvent("event", undefined, undefined, process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID);`);
     console.log(
       "To complete Adoption, connect Tailscale and run `dangus register` for Registration in the Ops Stack.",
     );
