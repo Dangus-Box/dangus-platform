@@ -2,7 +2,7 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// Loopback e 0.0.0.0 descrevem binds locais, não endereços de infraestrutura.
+// Loopback and 0.0.0.0 describe local binds, not infrastructure addresses.
 const ipv4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
 const localIpv4 = /^(?:127\.\d{1,3}\.\d{1,3}\.\d{1,3}|0\.0\.0\.0)$/;
 
@@ -36,7 +36,7 @@ export async function checkPackage(directory: string): Promise<void> {
     join(directory, "package.json"),
   ).json();
   const script = publishScripts.find((name) => name in scripts);
-  if (script) throw new Error(`Script de publicação não permitido: ${script}`);
+  if (script) throw new Error(`Publish script not allowed: ${script}`);
   const temporary = await mkdtemp(join(tmpdir(), "dangus-pack-"));
   try {
     const pack = Bun.spawnSync(
@@ -50,7 +50,7 @@ export async function checkPackage(directory: string): Promise<void> {
     if (pack.exitCode !== 0) throw new Error(pack.stderr.toString());
     const archives = await readdir(temporary);
     if (archives.length !== 1 || !archives[0])
-      throw new Error("Pacote não gerado");
+      throw new Error("Package not generated");
     const archive = join(temporary, archives[0]);
     const listing = Bun.spawnSync(["tar", "-tzf", archive]);
     if (listing.exitCode !== 0) throw new Error(listing.stderr.toString());
@@ -58,7 +58,7 @@ export async function checkPackage(directory: string): Promise<void> {
       const content = Bun.spawnSync(["tar", "-xOzf", archive, file]);
       if (content.exitCode !== 0) throw new Error(content.stderr.toString());
       if (checkContent(file) || checkContent(content.stdout.toString())) {
-        throw new Error(`Valor proibido no pacote: ${file}`);
+        throw new Error(`Forbidden value in package: ${file}`);
       }
       console.log(file);
     }

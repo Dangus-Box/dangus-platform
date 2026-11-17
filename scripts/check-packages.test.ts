@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkContent, checkPackage } from "./check-packages";
 
-test("aceita loopback e 0.0.0.0, mas rejeita outros IPv4", () => {
-  expect(checkContent("listen 127.0.0.1:12345 e 0.0.0.0")).toBe(false);
-  expect(checkContent("127.0.0.1 e 198.51.100.7")).toBe(true);
+test("accepts loopback and 0.0.0.0 but rejects other IPv4 addresses", () => {
+  expect(checkContent("listen 127.0.0.1:12345 and 0.0.0.0")).toBe(false);
+  expect(checkContent("127.0.0.1 and 198.51.100.7")).toBe(true);
   expect(checkContent("10.0.0.1")).toBe(true);
 });
 
-test("verifica o conteúdo empacotado e rejeita valores proibidos", async () => {
+test("checks packaged content and rejects forbidden values", async () => {
   const dir = await mkdtemp(join(tmpdir(), "dangus-test-"));
   try {
     await writeFile(
@@ -26,7 +26,7 @@ test("verifica o conteúdo empacotado e rejeita valores proibidos", async () => 
       `npm_${"x".repeat(36)}`,
     ]) {
       await writeFile(file, `// ${value}`);
-      await expect(checkPackage(dir)).rejects.toThrow("Valor proibido");
+      await expect(checkPackage(dir)).rejects.toThrow("Forbidden value");
     }
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -46,7 +46,7 @@ async function fixture(
   return dir;
 }
 
-test("rejeita segredos em template literals e tokens do Tailscale e do Telegram", async () => {
+test("rejects secrets in template literals and Tailscale and Telegram tokens", async () => {
   for (const value of [
     "const token = `s3cr3t-value-123`;",
     `// tskey-auth-${"k".repeat(12)}-${"x".repeat(30)}`,
@@ -54,14 +54,14 @@ test("rejeita segredos em template literals e tokens do Tailscale e do Telegram"
   ]) {
     const dir = await fixture({}, value);
     try {
-      await expect(checkPackage(dir)).rejects.toThrow("Valor proibido");
+      await expect(checkPackage(dir)).rejects.toThrow("Forbidden value");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   }
 });
 
-test("rejeita scripts de ciclo de vida que alteram o pacote na publicação", async () => {
+test("rejects lifecycle scripts that change the package during publishing", async () => {
   const dir = await fixture(
     { scripts: { prepublishOnly: "echo 192.0.2.42 > index.js" } },
     "export const ok = true;",

@@ -9,6 +9,6 @@ node_modules/
 *.tfvars
 *.tfvars.json
 
-# Configurações temporárias do deploy da Stack Ops
+# Temporary Ops Stack deployment configuration
 infra/ops/.alerts-generated.yml
 infra/ops/.deploy-private.*
