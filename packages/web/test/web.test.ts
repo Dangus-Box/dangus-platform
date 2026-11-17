@@ -105,7 +105,7 @@ test("proxy does not leak Product cookies or headers to Umami", async () => {
   }
 });
 
-test("proxy encaminha apenas /t.js e /api/e ao Umami", async () => {
+test("proxy forwards only /t.js and /api/e to Umami", async () => {
   const paths: string[] = [];
   const upstream = Bun.serve({
     port: 0,

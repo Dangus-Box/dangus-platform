@@ -231,7 +231,7 @@ export async function withRendered<T>(
   resolver: Resolver = resolveDomain,
 ): Promise<T> {
   const apps = (["api", "web"] as const).filter((app) => config.apps[app]);
-  if (!apps.length) throw new Error("Nenhuma App de servidor declarada.");
+  if (!apps.length) throw new Error("No server App declared.");
   const addresses = bindIps ?? (await resolveBindIps(config, apps, resolver));
   const dir = await mkdtemp(join(tmpdir(), "dangus-"));
   try {

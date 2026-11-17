@@ -15,7 +15,7 @@ export async function trackEvent(event: {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "user-agent": "Mozilla/5.0 (X11; Linux x86_64) DangusPlatform/1.0", // O Umami descarta User-Agents com "compatible;" como bots.
+          "user-agent": "Mozilla/5.0 (X11; Linux x86_64) DangusPlatform/1.0", // Umami rejects User-Agents with "compatible;" as bots.
         },
         body: JSON.stringify({ type: "event", payload: { website, ...event } }),
         signal: AbortSignal.timeout(timeoutMs),

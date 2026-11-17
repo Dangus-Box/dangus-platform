@@ -49,7 +49,7 @@ describe("observabilidade", () => {
     expect(output).not.toContain("secret");
   });
 
-  test("oculta campos em bindings de child loggers", () => {
+  test("redacts fields in child logger bindings", () => {
     let output = "";
     const { logger } = observability({
       destination: {
