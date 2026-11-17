@@ -45,25 +45,25 @@ if "$tmp/infra/backup/copy-r2-credentials.sh" 2>/dev/null; then exit 1; fi
 "$tmp/infra/backup/generate-age-key.sh"
 [[ $(cat "$tmp/infra/backup/age.pub") == age1example ]]
 jq -e '.ops__BACKUP_AGE_PRIVATE_KEY | contains("AGE-SECRET-KEY-EXAMPLE")' "$FAKE_STORE" >/dev/null
-# A chave pública também vai ao BWS, para Produtos que fazem deploy do próprio repositório.
+# The public key also goes to BWS for Products that deploy from their own repositories.
 jq -e '.ops__BACKUP_AGE_PUBLIC_KEY == "age1example"' "$FAKE_STORE" >/dev/null
 if "$tmp/infra/backup/generate-age-key.sh" 2>/dev/null; then exit 1; fi
 rm "$tmp/infra/backup/age.pub"
 if "$tmp/infra/backup/generate-age-key.sh" 2>/dev/null; then exit 1; fi
-# Falha ao listar o BWS não pode levar a criar uma segunda chave privada.
+# Failure to list BWS secrets must not create a second private key.
 printf '{}\n' > "$FAKE_STORE"
 if FAKE_BWS_FAIL=list "$tmp/infra/backup/generate-age-key.sh" 2>/dev/null; then exit 1; fi
 [[ ! -e "$tmp/infra/backup/age.pub" ]] && jq -e '. == {}' "$FAKE_STORE" >/dev/null
-# Chave pública já no BWS impede gerar outro par.
+# An existing public key in BWS prevents generating another pair.
 printf '{"ops__BACKUP_AGE_PUBLIC_KEY":"age1antiga"}\n' > "$FAKE_STORE"
 if "$tmp/infra/backup/generate-age-key.sh" 2>/dev/null; then exit 1; fi
 [[ ! -e "$tmp/infra/backup/age.pub" ]] && jq -e 'has("ops__BACKUP_AGE_PRIVATE_KEY") | not' "$FAKE_STORE" >/dev/null
-# Conflito em um secret impede criar o outro.
+# A conflict in one secret prevents creating the other.
 printf '{"ops__R2_BACKUP_SECRET_ACCESS_KEY":"different"}\n' > "$FAKE_STORE"
 if "$tmp/infra/backup/copy-r2-credentials.sh" 2>/dev/null; then exit 1; fi
 jq -e 'has("ops__R2_BACKUP_ACCESS_KEY_ID") | not' "$FAKE_STORE" >/dev/null
-# Nenhum valor secreto aparece na saída.
+# No secret value appears in the output.
 printf '{}\n' > "$FAKE_STORE"
 out=$("$tmp/infra/backup/copy-r2-credentials.sh" 2>&1; "$tmp/infra/backup/generate-age-key.sh" 2>&1)
 [[ $out != *test-secret* && $out != *AGE-SECRET-KEY* ]]
-echo 'Scripts: criação, repetição, conflitos e proteção contra sobrescrita passaram.'
+echo 'Scripts: creation, repetition, conflicts and overwrite protection passed.'

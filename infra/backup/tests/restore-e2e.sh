@@ -48,7 +48,7 @@ print(json.dumps([{'key': k, 'value': v} for k,v in {
 'exemplo-sqlite__HEALTHCHECKS_RESTORE_URL': os.environ['RESTORE_HEALTH']}.items()]))
 PY
 chmod +x "$tmp/bin/bws"
-# psql do operador: roda na rede de teste e recebe a senha só pelo ambiente.
+# Operator psql runs on the test network and receives the password only through the environment.
 cat > "$tmp/bin/psql" <<PSQL
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$tmp/psql-argv"
@@ -58,13 +58,13 @@ chmod +x "$tmp/bin/psql"
 export PATH="$tmp/bin:$PATH" TMPDIR="$tmp/restore-tmp"
 mkdir -p "$TMPDIR"
 dangus() { (cd "$root/examples/$1" && shift && timeout 300 bun "$root/packages/cli/src/index.ts" db restore "$@"); }
-fails() { if dangus "$@" >/dev/null 2>&1; then echo "Restore aceito: $*" >&2; exit 1; fi; }
+fails() { if dangus "$@" >/dev/null 2>&1; then echo "Restore accepted: $*" >&2; exit 1; fi; }
 upload() { docker run --rm --network "$name" -v "$tmp:/data" --entrypoint sh "$minio" -c "mc alias set local http://minio:9000 testaccess testsecret >/dev/null; mc cp /data/$1 local/dangus-backups/$2 >/dev/null"; }
 encrypt() { docker run --rm -i --entrypoint sh "$image" -c "gzip | age -r $1"; }
 : > "$tmp/pings"
 fails sqlite --verify
 [[ $(cat "$tmp/pings") == $'/check/start\n/check/fail' ]]
-echo 'Prefixo vazio: falha e ping /fail confirmados.'
+echo 'Empty prefix: failure and /fail ping confirmed.'
 backup() {
   docker run --rm --network "$name" -v "$tmp:/data" \
     -e BACKUP_PRODUCT="$product" -e BACKUP_DATABASE=produto -e AGE_PUBLIC_KEY="$pub" \
@@ -77,25 +77,25 @@ backup -e BACKUP_TYPE=postgres -e PGHOST=pg -e PGUSER=postgres -e PGDATABASE=pro
 : > "$tmp/pings"
 dangus postgres --verify
 [[ $(cat "$tmp/pings") == $'/check/start\n/check' ]]
-echo 'Postgres: Backup restaurado e schema verificado.'
+echo 'Postgres: Backup restored and schema verified.'
 docker run --rm -v "$tmp:/data" --entrypoint sqlite3 "$image" /data/input.sqlite "CREATE TABLE mensagens (id integer primary key autoincrement, texto text not null); INSERT INTO mensagens (texto) VALUES ('sqlite');"
 product=exemplo-sqlite
 backup -e BACKUP_TYPE=sqlite -e SQLITE_PATH=/data/input.sqlite
 (cd "$root/examples/sqlite" && bun "$root/packages/cli/src/index.ts" db restore --target "$tmp/restored.sqlite" --yes)
 [[ $(docker run --rm -v "$tmp:/data" --entrypoint sqlite3 "$image" /data/restored.sqlite 'SELECT texto FROM mensagens') == sqlite ]]
-echo 'SQLite: Backup restaurado e dados conferidos.'
+echo 'SQLite: Backup restored and data verified.'
 docker exec "$name-pg" createdb -U postgres alvo
 fails postgres --target 'postgresql://postgres:testpass@pg/alvo' < /dev/null
 [[ $(docker exec "$name-pg" psql -U postgres -d alvo -tAc "SELECT count(*) FROM pg_tables WHERE tablename = 'mensagens'") == 0 ]]
 dangus postgres --target 'postgresql://postgres:testpass@pg/alvo' --yes >/dev/null
 [[ $(docker exec "$name-pg" psql -U postgres -d alvo -tAc 'SELECT texto FROM mensagens') == postgres ]]
 ! grep -q testpass "$tmp/psql-argv"
-# Um segundo restore no mesmo destino falha inteiro, sem aplicar parte do dump.
-# A sequência conflita depois do CREATE TABLE: sem transação única, a tabela ficaria criada.
+# A second restore to the same target fails without applying part of the dump.
+# The sequence conflicts after CREATE TABLE: without a single transaction, the table would remain.
 docker exec "$name-pg" psql -U postgres -d alvo -c "DROP TABLE mensagens; CREATE SEQUENCE mensagens_id_seq" >/dev/null
 fails postgres --target 'postgresql://postgres:testpass@pg/alvo' --yes
 [[ $(docker exec "$name-pg" psql -U postgres -d alvo -tAc "SELECT count(*) FROM pg_tables WHERE tablename = 'mensagens'") == 0 ]]
-echo 'Postgres: destino explícito exige confirmação e restaura atomicamente.'
+echo 'Postgres: explicit target requires confirmation and restores atomically.'
 age-keygen() { docker run --rm --entrypoint age-keygen "$image" 2>/dev/null; }
 other=$(age-keygen | sed -n 's/^# public key: //p')
 printf 'SELECT 1;' | encrypt "$other" > "$tmp/wrong-key"
@@ -109,16 +109,16 @@ for key in wrongkey badsql truncated; do
   fails postgres --from "daily/exemplo-postgres/produto/99999999T000000Z-$key.sql.gz.age" --verify
   [[ $(tail -1 "$tmp/pings") == /check/fail ]]
 done
-echo 'Chave errada, SQL inválido e objeto truncado: falha e ping /fail confirmados.'
+echo 'Wrong key, invalid SQL and truncated object: failure and /fail ping confirmed.'
 for key in daily/exemplo-sqlite/produto/x.sqlite.gz.age daily/exemplo-postgres/produto/../../exemplo-sqlite/produto/x; do
   { dangus postgres --from "$key" 2>&1 || true; } | grep -q 'fora do Produto'
 done
-echo '--from fora do Produto recusado.'
+echo '--from outside the Product rejected.'
 printf 'corrompido' > "$tmp/corrupt"
 docker run --rm --network "$name" -v "$tmp:/data" --entrypoint sh "$minio" -c 'mc alias set local http://minio:9000 testaccess testsecret >/dev/null; mc cp /data/corrupt local/dangus-backups/daily/exemplo-sqlite/produto/corrupt.sqlite.gz.age >/dev/null'
-if (cd "$root/examples/sqlite" && bun "$root/packages/cli/src/index.ts" db restore --from daily/exemplo-sqlite/produto/corrupt.sqlite.gz.age --verify); then echo 'Backup corrompido aceito' >&2; exit 1; fi
+if (cd "$root/examples/sqlite" && bun "$root/packages/cli/src/index.ts" db restore --from daily/exemplo-sqlite/produto/corrupt.sqlite.gz.age --verify); then echo 'Corrupt Backup accepted' >&2; exit 1; fi
 grep -qx '/check/fail' "$tmp/pings"
-echo 'Backup corrompido: falha e ping /fail confirmados.'
+echo 'Corrupt Backup: failure and /fail ping confirmed.'
 [[ -z $(ls -A "$TMPDIR") ]]
 [[ -z $(docker ps -aq --filter name=dangus-restore-) ]]
-echo 'Nenhum arquivo temporário ou container descartável restante.'
+echo 'No temporary files or disposable containers remain.'
