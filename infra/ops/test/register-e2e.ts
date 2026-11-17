@@ -1,5 +1,5 @@
-// Registro contra Unleash 6.9.1 e Umami 2.19 reais; Healthchecks, Cloudflare,
-// BWS e Tailscale são simulados. Iniciado por register-e2e.sh.
+// Registration against real Unleash 6.9.1 and Umami 2.19; Healthchecks, Cloudflare,
+// BWS and Tailscale are mocked. Started by register-e2e.sh.
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,7 +7,7 @@ import { register } from "../../../packages/cli/src/register";
 
 const env = (name: string) => {
   const value = process.env[name];
-  if (!value) throw new Error(`${name} ausente`);
+  if (!value) throw new Error(`${name} missing`);
   return value;
 };
 const unleash = env("UNLEASH_URL");
@@ -43,7 +43,7 @@ async function command(args: string[]) {
   if (args[0] === "bws" && args[2] === "list")
     return JSON.stringify(vault[args[3] as string]);
   if (args[0] === "bws" && args[2] === "create") {
-    if (failBwsCreate) throw new Error("Falha ao executar bws.");
+    if (failBwsCreate) throw new Error("Failed to run bws.");
     bwsWrites++;
     vault[args[5] as string]?.push({
       id: args[3] as string,
@@ -52,7 +52,7 @@ async function command(args: string[]) {
     });
     return "";
   }
-  throw new Error(`comando inesperado: ${args.slice(0, 3).join(" ")}`);
+  throw new Error(`unexpected command: ${args.slice(0, 3).join(" ")}`);
 }
 
 const realWrites = { unleash: 0, umami: 0 };
@@ -128,18 +128,18 @@ const deps = {
 };
 const prod = (key: string) => vault.prod?.find((s) => s.key === key)?.value;
 
-// Falha parcial: Umami e Unleash gravados, BWS indisponível depois disso.
+// Partial failure: Umami and Unleash written, then BWS unavailable.
 const alpha = await product("alpha");
 failBwsCreate = true;
 await register(alpha, deps).then(
   () => {
-    throw new Error("Registro deveria falhar com BWS indisponível");
+    throw new Error("Registration should fail when BWS is unavailable");
   },
   () => {},
 );
 failBwsCreate = false;
 await register(alpha, deps);
-console.log("Reexecução após falha parcial do BWS OK");
+console.log("Rerun after partial BWS failure OK");
 
 const before = { ...realWrites, bws: bwsWrites };
 await register(alpha, deps);
@@ -149,9 +149,9 @@ if (
   bwsWrites !== before.bws
 )
   throw new Error(
-    `Segunda execução gravou: ${JSON.stringify({ before, realWrites, bwsWrites })}`,
+    `Second run wrote: ${JSON.stringify({ before, realWrites, bwsWrites })}`,
   );
-console.log("Segunda execução sem gravações em Unleash, Umami e BWS OK");
+console.log("Second run made no writes to Unleash, Umami or BWS OK");
 
 const login = await fetch(`${unleash}/auth/simple/login`, {
   method: "POST",
@@ -175,7 +175,7 @@ const names = tokens.tokens
   .filter((n) => /^alpha/.test(n));
 if (names.sort().join() !== "alpha-backend,alpha-frontend")
   throw new Error(`Tokens Unleash: ${names}`);
-console.log("Tokens backend e frontend únicos no Unleash OK");
+console.log("Unique backend and frontend tokens in Unleash OK");
 
 const sites = (await (
   await fetch(`${umami}/api/websites`, {
@@ -200,12 +200,12 @@ const sites = (await (
 const site = sites.data.filter((s) => s.name === "alpha");
 if (site.length !== 1 || site[0]?.id !== prod("alpha__UMAMI_WEBSITE_ID"))
   throw new Error(`Websites Umami: ${JSON.stringify(sites.data)}`);
-console.log("Website Umami único e ID gravado no BWS OK");
+console.log("Unique Umami website and ID stored in BWS OK");
 
 await register(await product("beta"), deps);
 for (const [name, app] of [
-  ["alpha.secreta", "alpha"],
-  ["beta.secreta", "beta"],
+  ["alpha.secret", "alpha"],
+  ["beta.secret", "beta"],
 ]) {
   const path = `${unleash}/api/admin/projects/default/features`;
   const created = await fetch(path, {
@@ -213,7 +213,7 @@ for (const [name, app] of [
     headers: admin,
     body: JSON.stringify({ name, type: "release" }),
   });
-  if (!created.ok) throw new Error(`Criar Flag: ${created.status}`);
+  if (!created.ok) throw new Error(`Create Flag: ${created.status}`);
   const strategy = await fetch(
     `${path}/${name}/environments/production/strategies`,
     {
@@ -228,12 +228,12 @@ for (const [name, app] of [
       }),
     },
   );
-  if (!strategy.ok) throw new Error(`Estratégia: ${strategy.status}`);
+  if (!strategy.ok) throw new Error(`Strategy: ${strategy.status}`);
   const on = await fetch(`${path}/${name}/environments/production/on`, {
     method: "POST",
     headers: admin,
   });
-  if (!on.ok) throw new Error(`Ativar Flag: ${on.status}`);
+  if (!on.ok) throw new Error(`Enable Flag: ${on.status}`);
 }
 async function visible(product: string) {
   const token = prod(`${product}__FLAGS_FRONTEND_TOKEN`) ?? "";
@@ -253,9 +253,6 @@ async function visible(product: string) {
 }
 const alphaFlags = await visible("alpha");
 const betaFlags = await visible("beta");
-if (
-  alphaFlags.join() !== "alpha.secreta" ||
-  betaFlags.join() !== "beta.secreta"
-)
+if (alphaFlags.join() !== "alpha.secret" || betaFlags.join() !== "beta.secret")
   throw new Error(`Edge: alpha=${alphaFlags} beta=${betaFlags}`);
-console.log("Edge mostra a cada token frontend só as Flags do seu appName OK");
+console.log("Edge shows each frontend token only the Flags for its appName OK");

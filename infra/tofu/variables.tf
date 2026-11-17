@@ -1,16 +1,16 @@
 variable "state_passphrase" {
-  description = "Frase secreta usada para criptografar o state e os planos."
+  description = "Passphrase used to encrypt state and plans."
   type        = string
   sensitive   = true
 }
 
 variable "data_center_id" {
-  description = "ID do datacenter da Hostinger no Brasil."
+  description = "Hostinger datacenter ID in Brazil."
   type        = number
 }
 
 variable "template_id" {
-  description = "ID do template de sistema operacional da Hostinger."
+  description = "Hostinger operating system template ID."
   type        = number
 }
 

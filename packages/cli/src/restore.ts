@@ -25,15 +25,15 @@ export function parseRestoreArgs(args: string[]): RestoreOptions {
       !args[0].startsWith("--")
     ) {
       const key = arg === "--from" ? "from" : "target";
-      if (options[key]) throw new Error("Opção repetida.");
+      if (options[key]) throw new Error("Repeated option.");
       options[key] = args.shift();
     } else
       throw new Error(
-        "Uso: dangus db restore [--from <object-key>] [--target <DATABASE_URL|caminho>] [--yes] [--verify]",
+        "Usage: dangus db restore [--from <object-key>] [--target <DATABASE_URL|path>] [--yes] [--verify]",
       );
   }
   if (options.verify && options.target)
-    throw new Error("A Verificação de Restore exige destino descartável.");
+    throw new Error("Restore Verification requires a disposable target.");
   return options;
 }
 
@@ -57,7 +57,7 @@ async function command(
     new Response(child.stderr).text(),
     child.exited,
   ]);
-  if (code) throw new Error(`Falha em ${args[0]}: ${err.trim()}`);
+  if (code) throw new Error(`Failed to run ${args[0]}: ${err.trim()}`);
   return out;
 }
 
@@ -94,13 +94,13 @@ export async function restore(
   options: RestoreOptions,
 ): Promise<void> {
   if (options.target && !options.yes) {
-    process.stdout.write("Restaurar no destino informado? [s/N] ");
-    // Sem resposta (stdin fechado) conta como não, em vez de travar.
+    process.stdout.write("Restore to the specified target? [s/N] ");
+    // No answer (closed stdin) counts as no instead of hanging.
     const prompt = createInterface({ input: process.stdin });
     const answer = await prompt[Symbol.asyncIterator]().next();
     prompt.close();
     if (answer.done || !/^(s|sim)$/i.test(answer.value.trim()))
-      throw new Error("Restore cancelado.");
+      throw new Error("Restore canceled.");
   }
   const prefix = `daily/${config.name}/produto/`;
   if (
@@ -109,7 +109,9 @@ export async function restore(
       `^(daily|weekly|monthly)/${config.name}/produto/(?!\\.\\.?$)[^/]+$`,
     ).test(options.from)
   )
-    throw new Error(`Backup ${options.from} fora do Produto ${config.name}.`);
+    throw new Error(
+      `Backup ${options.from} is outside Product ${config.name}.`,
+    );
   const entries = JSON.parse(await command(["bws", "secret", "list"])) as {
     key: string;
     value: string;
@@ -117,7 +119,7 @@ export async function restore(
   const secret = (key: string) => {
     const matches = entries.filter((item) => item.key === key);
     if (matches.length !== 1 || !matches[0].value)
-      throw new Error(`Secret ${key} ausente ou duplicado no BWS.`);
+      throw new Error(`Secret ${key} is missing or duplicated in BWS.`);
     return matches[0].value;
   };
   const health = options.verify
@@ -142,7 +144,7 @@ export async function restore(
   await ping("/start").catch(() => {});
   let dir = "";
   let container = "";
-  // Ctrl-C ou SIGTERM não deixam o dump em texto nem o container para trás.
+  // Ctrl-C or SIGTERM leaves neither the plain-text dump nor the container behind.
   const abort = () => {
     if (dir) rmSync(dir, { recursive: true, force: true });
     if (container) Bun.spawnSync(["docker", "rm", "-f", container]);
@@ -188,7 +190,7 @@ export async function restore(
         );
       } while (token);
     }
-    if (!key) throw new Error("Nenhum Backup diário encontrado.");
+    if (!key) throw new Error("No daily Backup found.");
     dir = await mkdtemp(join(tmpdir(), "dangus-restore-"));
     const encrypted = join(dir, "backup.age");
     const data = join(dir, "data");
@@ -196,7 +198,7 @@ export async function restore(
       `${endpoint}/dangus-backups/${key.split("/").map(encodeURIComponent).join("/")}`,
       encrypted,
     );
-    // A identidade vai pelo stdin: a chave privada nunca é gravada em disco.
+    // The identity goes through stdin: the private key is never written to disk.
     await command(
       ["age", "-d", "-i", "-", "-o", join(dir, "backup.gz"), encrypted],
       identity,
@@ -207,7 +209,7 @@ export async function restore(
     });
     const gzipError = await new Response(decompressed.stderr).text();
     if (await decompressed.exited)
-      throw new Error(`Falha ao descomprimir Backup: ${gzipError}`);
+      throw new Error(`Failed to decompress Backup: ${gzipError}`);
     if (config.database === "sqlite") {
       const db = new Database(data, { readonly: true, strict: true });
       try {
@@ -216,20 +218,20 @@ export async function restore(
             .query<{ integrity_check: string }, []>("PRAGMA integrity_check")
             .get()?.integrity_check !== "ok"
         )
-          throw new Error("integrity_check falhou.");
+          throw new Error("integrity_check failed.");
       } finally {
         db.close();
       }
       if (options.target) {
-        // Um -wal antigo seria reaplicado sobre o banco restaurado.
+        // An old -wal would be reapplied to the restored database.
         if (existsSync(`${options.target}-wal`))
-          throw new Error("Pare a App: o destino SQLite está em uso.");
+          throw new Error("Stop the App: the SQLite target is in use.");
         await Bun.write(options.target, Bun.file(data));
       }
     } else {
       const sql = await Bun.file(data).text();
       if (options.target) {
-        // libpq não lê URL em PGDATABASE; a senha sai do argv e vai pelo ambiente.
+        // libpq does not read a URL in PGDATABASE; the password goes through the environment instead of argv.
         const url = new URL(options.target);
         const password = decodeURIComponent(url.password);
         url.password = "";
@@ -267,7 +269,7 @@ export async function restore(
             await Bun.sleep(1000);
           }
         }
-        if (!ready) throw new Error("Postgres descartável não iniciou.");
+        if (!ready) throw new Error("Disposable Postgres did not start.");
         await command(
           [
             "docker",
@@ -294,11 +296,11 @@ export async function restore(
           "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema')",
         ]);
         if (Number(schema.trim()) < 1)
-          throw new Error("Restore sem tabelas no schema.");
+          throw new Error("Restore has no tables in the schema.");
       }
     }
     await ping("");
-    console.log(`Backup ${key} restaurado e verificado.`);
+    console.log(`Backup ${key} restored and verified.`);
   } catch (error) {
     await ping("/fail").catch(() => {});
     throw error;

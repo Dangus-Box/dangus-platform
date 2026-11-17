@@ -1,5 +1,5 @@
 variable "cloudflare_account_id" {
-  description = "ID da conta Cloudflare que contém o bucket de Backups."
+  description = "Cloudflare account ID containing the Backup bucket."
   type        = string
 }
 
@@ -34,9 +34,9 @@ resource "cloudflare_r2_bucket_lifecycle" "backups" {
   }]
 }
 
-# "Workers R2 Storage Bucket Item Write". A Cloudflare recomenda referenciar
-# permission groups pelo ID: o nome é cosmético e pode mudar. O ID fica fixo e
-# a lista da conta confirma que ele existe e tem escopo de bucket R2.
+# "Workers R2 Storage Bucket Item Write". Cloudflare recommends referencing
+# permission groups by ID: the name is cosmetic and may change. The ID is fixed and
+# the account list confirms it exists and has R2 bucket scope.
 locals {
   r2_bucket_item_write = "2efd5506f9c8494dacb1fa10a3e7d5b6"
 }
@@ -60,7 +60,7 @@ resource "cloudflare_account_token" "backup_host" {
         for group in data.cloudflare_account_api_token_permission_groups_list.all.result :
         group.id == local.r2_bucket_item_write && contains(group.scopes, "com.cloudflare.edge.r2.bucket")
       ])
-      error_message = "O permission group ${local.r2_bucket_item_write} (Workers R2 Storage Bucket Item Write) não existe na conta ou não tem escopo de bucket R2."
+      error_message = "Permission group ${local.r2_bucket_item_write} (Workers R2 Storage Bucket Item Write) does not exist in the account or lacks R2 bucket scope."
     }
   }
 }

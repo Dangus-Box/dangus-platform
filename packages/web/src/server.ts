@@ -1,6 +1,6 @@
 const DEFAULT_UMAMI_URL = "http://dangus-ops-umami:3000";
-// Somente o que o Umami usa: tipo do corpo, visitante (IP e User-Agent) e
-// token de sessão do tracker. Cookies e credenciais do Produto não saem.
+// Only what Umami uses: body type, visitor (IP and User-Agent), and
+// tracker session token. Product cookies and credentials are not forwarded.
 const FORWARDED_HEADERS = [
   "content-type",
   "user-agent",

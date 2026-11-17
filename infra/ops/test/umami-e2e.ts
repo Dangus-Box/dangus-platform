@@ -10,15 +10,15 @@ const login = await fetch(`${url}/api/auth/login`, {
     password: process.env.UMAMI_ADMIN_PASSWORD,
   }),
 });
-if (!login.ok) throw new Error("Login falhou");
+if (!login.ok) throw new Error("Login failed");
 const { token } = await login.json();
 const auth = { ...headers, authorization: `Bearer ${token}` };
 const site = await fetch(`${url}/api/websites`, {
   method: "POST",
   headers: auth,
-  body: JSON.stringify({ name: "Teste", domain: "example.com" }),
+  body: JSON.stringify({ name: "Test", domain: "example.com" }),
 });
-if (!site.ok) throw new Error(`Criar site: ${await site.text()}`);
+if (!site.ok) throw new Error(`Create site: ${await site.text()}`);
 const { id } = await site.json();
 const event = await fetch(`${url}/api/e`, {
   method: "POST",
@@ -32,24 +32,24 @@ const event = await fetch(`${url}/api/e`, {
     payload: {
       website: id,
       hostname: "example.com",
-      url: "/teste",
-      name: "teste",
+      url: "/test",
+      name: "test",
     },
   }),
 });
-if (!event.ok) throw new Error(`Enviar evento: ${await event.text()}`);
+if (!event.ok) throw new Error(`Send event: ${await event.text()}`);
 const end = Date.now() + 60000;
 const result = await fetch(
   `${url}/api/websites/${id}/events?startAt=${end - 120000}&endAt=${end}`,
   { headers: auth },
 );
 const body = await result.text();
-if (!result.ok || !body.includes("teste"))
-  throw new Error(`Evento ausente: ${body}`);
-console.log("Evento recebido e consultado pela API OK");
+if (!result.ok || !body.includes("test"))
+  throw new Error(`Event missing: ${body}`);
+console.log("Event received and queried through the API OK");
 process.env.UMAMI_WEBSITE_ID = id;
 await trackEvent({
-  name: "evento-servidor",
+  name: "server-event",
   hostname: "example.com",
   url: "/",
 });
@@ -58,6 +58,6 @@ const serverEvents = await fetch(
   { headers: auth },
 );
 const serverBody = await serverEvents.text();
-if (!serverEvents.ok || !serverBody.includes("evento-servidor"))
-  throw new Error(`Evento do servidor ausente: ${serverBody}`);
-console.log("Evento enviado pelo @dangus-box/server recebido OK");
+if (!serverEvents.ok || !serverBody.includes("server-event"))
+  throw new Error(`Server event missing: ${serverBody}`);
+console.log("Event sent by @dangus-box/server received OK");

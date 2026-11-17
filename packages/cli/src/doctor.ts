@@ -33,10 +33,7 @@ export async function doctor(
     config = await loadConfig(directory);
   } catch (error) {
     return [
-      result(
-        "fail",
-        `Config do Produto: corrija dangus.config.ts: ${String(error)}`,
-      ),
+      result("fail", `Product Config: fix dangus.config.ts: ${String(error)}`),
     ];
   }
   const results: Result[] = [];
@@ -65,11 +62,11 @@ export async function doctor(
       result(
         ok ? "pass" : "fail",
         ok
-          ? "Integração do SDK na API presente."
-          : `API: em apps/api/index.ts, importe observability e ${migration} de @dangus-box/server e execute ambos antes de .listen().`,
+          ? "SDK integration in API present."
+          : `API: in apps/api/index.ts, import observability and ${migration} from @dangus-box/server and run both before .listen().`,
       ),
     );
-  } else results.push(result("pass", "Integração do SDK: Produto sem API."));
+  } else results.push(result("pass", "SDK integration: Product has no API."));
   const exact = /^\d+\.\d+\.\d+(?:-[\w.-]+)?$/;
   try {
     const lock = (
@@ -90,12 +87,12 @@ export async function doctor(
       entry[0] !== `@dangus-box/cli@${spec}`
     )
       throw new Error();
-    results.push(result("pass", `Versão do CLI fixada em bun.lock: ${spec}.`));
+    results.push(result("pass", `CLI version pinned in bun.lock: ${spec}.`));
   } catch {
     results.push(
       result(
         "fail",
-        "CLI: fixe uma versão publicada com bun add --dev --exact @dangus-box/cli@<versão> e inclua bun.lock no repositório.",
+        "CLI: pin a published version with bun add --dev --exact @dangus-box/cli@<version> and include bun.lock in the repository.",
       ),
     );
   }
@@ -104,8 +101,8 @@ export async function doctor(
     result(
       tailscale.code === 0 ? "pass" : "fail",
       tailscale.code === 0
-        ? "Tailscale conectado."
-        : "Tailscale: instale e conecte o Tailscale; confirme com tailscale status.",
+        ? "Tailscale connected."
+        : "Tailscale: install and connect Tailscale; confirm with tailscale status.",
     ),
   );
   const git = await runner(["git", "rev-parse", "--show-prefix"], directory);
@@ -117,7 +114,7 @@ export async function doctor(
     results.push(
       result(
         "fail",
-        `Migrations: disponibilize a ref Git ${base} (por exemplo, git fetch origin main) ou informe --base <ref>.`,
+        `Migrations: make Git ref ${base} available (for example, git fetch origin main) or provide --base <ref>.`,
       ),
     );
     return results;
@@ -137,10 +134,7 @@ export async function doctor(
   );
   if (existing.code) {
     results.push(
-      result(
-        "fail",
-        `Migrations: não foi possível ler ${base}; verifique a ref Git.`,
-      ),
+      result("fail", `Migrations: could not read ${base}; check the Git ref.`),
     );
     return results;
   }
@@ -161,13 +155,13 @@ export async function doctor(
       );
     }
   }
-  if (!found) results.push(result("pass", "Migrations novas são aditivas."));
+  if (!found) results.push(result("pass", "New migrations are additive."));
   return results;
 }
 
 export function lintSql(sql: string): Issue[] {
-  // Oculta comentários, literais e identificadores entre aspas preservando as
-  // posições; corpos $$ (blocos DO) continuam analisados porque executam SQL.
+  // Hide comments, literals and quoted identifiers while preserving
+  // positions; $$ bodies (DO blocks) remain analyzed because they execute SQL.
   const clean = sql.replace(
     /--[^\n]*|\/\*[\s\S]*?\*\/|'(?:''|[^'])*'|"(?:""|[^"])*"/g,
     (match) =>
@@ -184,29 +178,26 @@ export function lintSql(sql: string): Issue[] {
     const add = (status: Result["status"], message: string) =>
       issues.push({ status, message, line });
     if (/\bDROP\b/i.test(statement))
-      add("fail", "remova DROP e faça a remoção em um deploy posterior.");
+      add("fail", "remove DROP and perform the removal in a later deploy.");
     if (/\bRENAME\b/i.test(statement))
       add(
         "fail",
-        "substitua RENAME por uma migration aditiva em dois deploys.",
+        "replace RENAME with an additive migration across two deploys.",
       );
     if (
       /\bALTER\s+(?:COLUMN\s+)?\S+\s+(?:SET\s+DATA\s+)?TYPE\b/i.test(statement)
     )
       add(
         "warn",
-        "evite ALTER COLUMN TYPE; planeje a mudança sem bloquear a tabela.",
+        "avoid ALTER COLUMN TYPE; plan the change without locking the table.",
       );
     if (/\bSET\s+NOT\s+NULL\b/i.test(statement))
       add(
         "warn",
-        "evite SET NOT NULL; planeje a validação sem bloquear a tabela.",
+        "avoid SET NOT NULL; plan validation without locking the table.",
       );
     if (/\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+(?!CONCURRENTLY\b)/i.test(statement))
-      add(
-        "warn",
-        "use CREATE INDEX CONCURRENTLY para evitar bloquear a tabela.",
-      );
+      add("warn", "use CREATE INDEX CONCURRENTLY to avoid locking the table.");
   }
   return issues;
 }

@@ -33,7 +33,7 @@ export function defineConfig(config: ProductConfig): ProductConfig {
 }
 
 function fail(path: string, message: string): never {
-  throw new Error(`Config do Produto: ${path || "export default"}: ${message}`);
+  throw new Error(`Product Config: ${path || "export default"}: ${message}`);
 }
 
 function object(
@@ -42,25 +42,25 @@ function object(
   keys: string[],
 ): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return fail(path, "deve ser um objeto");
+    return fail(path, "must be an object");
   }
   const result = value as Record<string, unknown>;
   for (const key of Object.keys(result)) {
     if (!keys.includes(key))
-      fail(path ? `${path}.${key}` : key, "campo desconhecido");
+      fail(path ? `${path}.${key}` : key, "unknown field");
   }
   return result;
 }
 
 function positiveInteger(value: unknown, path: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-    return fail(path, "deve ser um número inteiro positivo");
+    return fail(path, "must be a positive integer");
   }
   return value;
 }
 
-// Os secrets viram variáveis de ambiente do Docker e do Kamal no deploy; estes
-// nomes controlam o deploy ou são fornecidos pela Plataforma.
+// Secrets become Docker and Kamal environment variables during deploy; these
+// names control deploy or are supplied by the Platform.
 const RESERVED_SECRET =
   /^(?:KAMAL_.*|DOCKER_.*|PATH|HOME|SSH_AUTH_SOCK|DATABASE_URL|POSTGRES_PASSWORD|SQLITE_PATH)$/;
 
@@ -73,21 +73,21 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
     "logger",
     "backup",
   ]);
-  // O nome vira nome de serviço, container e banco na config gerada (ADR-0004).
+  // The name becomes the service, container and database name in generated config (ADR-0004).
   if (
     typeof config.name !== "string" ||
     !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(config.name)
   )
-    fail("name", "deve usar apenas letras minúsculas, números e hífens");
+    fail("name", "must contain only lowercase letters, numbers and hyphens");
   const inputApps = object(config.apps, "apps", ["api", "web", "mobile"]);
   if (Object.keys(inputApps).length === 0)
-    fail("apps", "deve declarar ao menos uma App");
+    fail("apps", "must declare at least one App");
   const apps: ResolvedProductConfig["apps"] = {};
   for (const key of ["api", "web", "mobile"] as const) {
     if (inputApps[key] === undefined) continue;
     const path = `apps.${key}`;
     const app = object(inputApps[key], path, ["domain", "memoryMb", "secrets"]);
-    // ADR-0009: um nível de subdomínio, inclusive em domínios .com.br.
+    // ADR-0009: one subdomain level, including .com.br domains.
     if (
       typeof app.domain !== "string" ||
       !/^(?!-)[a-z0-9-]+(?<!-)\.(?!-)[a-z0-9-]+(?<!-)\.(?:com\.br|[a-z]{2,})$/i.test(
@@ -96,7 +96,7 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
     ) {
       fail(
         `${path}.domain`,
-        "deve ser um domínio com um nível de subdomínio (ex.: api.produto.com)",
+        "must be a domain with one subdomain level (e.g. api.product.com)",
       );
     }
     const secrets = app.secrets === undefined ? [] : app.secrets;
@@ -112,7 +112,7 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
     ) {
       fail(
         `${path}.secrets`,
-        "deve conter nomes únicos em maiúsculas, sem nomes reservados ao deploy",
+        "must contain unique uppercase names, excluding names reserved for deploy",
       );
     }
     apps[key] = {
@@ -125,7 +125,7 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
     };
   }
   if (config.database !== "postgres" && config.database !== "sqlite")
-    fail("database", "deve ser postgres ou sqlite");
+    fail("database", "must be postgres or sqlite");
   const deployTimeoutSeconds = positiveInteger(
     config.deployTimeoutSeconds,
     "deployTimeoutSeconds",
@@ -139,7 +139,7 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
     !Array.isArray(redact) ||
     !redact.every((item) => typeof item === "string" && item.length > 0)
   ) {
-    fail("logger.redact", "deve ser uma lista de campos não vazios");
+    fail("logger.redact", "must be a list of nonempty fields");
   }
   const backup =
     config.backup === undefined
@@ -148,7 +148,7 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
   const destination =
     backup.destination === undefined ? "r2" : backup.destination;
   if (destination !== "r2" && destination !== "s3")
-    fail("backup.destination", "deve ser r2 ou s3");
+    fail("backup.destination", "must be r2 or s3");
   return {
     name: config.name,
     apps,

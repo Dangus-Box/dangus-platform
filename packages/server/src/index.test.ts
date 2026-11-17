@@ -2,11 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { Elysia } from "elysia";
 import { observability } from "./index";
 
-describe("observabilidade", () => {
-  test("oculta campos padrão e extras em objetos e headers", () => {
+describe("observability", () => {
+  test("redacts default and extra fields in objects and headers", () => {
     let output = "";
     const { logger } = observability({
-      redact: ["segredo"],
+      redact: ["privateField"],
       destination: {
         write: (chunk) => {
           output += chunk;
@@ -28,7 +28,7 @@ describe("observabilidade", () => {
         "x-auth-token": "secret11",
         "set-cookie": "secret12",
       },
-      nested: [{ segredo: "secret13" }],
+      nested: [{ privateField: "secret13" }],
       visible: "ok",
     });
     const logged = JSON.parse(output);
@@ -44,12 +44,12 @@ describe("observabilidade", () => {
       expect(logged[field]).toBe("[Redacted]");
     for (const value of Object.values(logged.headers))
       expect(value).toBe("[Redacted]");
-    expect(logged.nested[0].segredo).toBe("[Redacted]");
+    expect(logged.nested[0].privateField).toBe("[Redacted]");
     expect(logged.visible).toBe("ok");
     expect(output).not.toContain("secret");
   });
 
-  test("oculta campos em bindings de child loggers", () => {
+  test("redacts fields in child logger bindings", () => {
     let output = "";
     const { logger } = observability({
       destination: {
@@ -65,7 +65,7 @@ describe("observabilidade", () => {
     expect(output).not.toContain("secret");
   });
 
-  test("preserva erros e datas, ocultando campos sensíveis do erro", () => {
+  test("preserves errors and dates while redacting sensitive error fields", () => {
     let output = "";
     const { logger } = observability({
       destination: {
@@ -86,7 +86,7 @@ describe("observabilidade", () => {
     expect(output).not.toContain("secret");
   });
 
-  test("rotas inexistentes não criam séries por path", async () => {
+  test("nonexistent routes do not create per-path series", async () => {
     const obs = observability();
     const app = new Elysia().use(obs.plugin);
     for (const id of ["1", "2", "3"])
@@ -102,7 +102,7 @@ describe("observabilidade", () => {
     );
   });
 
-  test("health, readiness e métricas por rota", async () => {
+  test("health, readiness and metrics per route", async () => {
     const obs = observability();
     const app = new Elysia()
       .use(obs.plugin)
@@ -127,7 +127,7 @@ describe("observabilidade", () => {
     expect(metrics).toContain("http_server_errors");
   });
 
-  test("latência usa buckets em segundos", async () => {
+  test("latency uses buckets in seconds", async () => {
     const obs = observability();
     const app = new Elysia().use(obs.plugin).get("/", () => "ok");
     await app.handle(new Request("http://localhost/"));
@@ -135,8 +135,8 @@ describe("observabilidade", () => {
     const metrics = await (
       await app.handle(new Request("http://localhost/metrics"))
     ).text();
-    // Buckets em segundos: existe um limite de 5 ms e a requisição cabe em 10 s.
-    // Não exige que caia em 0.005, pois a duração varia com a carga da máquina.
+    // Buckets are in seconds: there is a 5 ms bound and the request fits in 10 s.
+    // Do not require it to fall in 0.005 because duration varies with machine load.
     expect(metrics).toMatch(/status_code="200",le="0\.005"} [01]\n/);
     expect(metrics).toContain('status_code="200",le="10"} 1');
     expect(metrics).not.toContain('le="5000"');

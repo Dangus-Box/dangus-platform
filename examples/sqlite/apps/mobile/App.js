@@ -1,21 +1,21 @@
 import {
-  configurarFlags,
-  enviarEvento,
+  configureFlags,
+  needsUpdate,
   OpenFeature,
   OpenFeatureProvider,
-  precisaAtualizar,
+  trackEvent,
   useFlag,
 } from "@dangus-box/native";
 import { useEffect, useState } from "react";
 import { Button, Text, View } from "react-native";
 
-function VersaoMinima() {
-  useFlag("exemplo-sqlite.versao-minima", "");
+function MinimumVersion() {
+  useFlag("exemplo-sqlite.min-version", "");
   return (
     <Text>
-      {precisaAtualizar("1.0.0", "exemplo-sqlite.versao-minima")
-        ? "Precisa atualizar"
-        : "App atualizada"}
+      {needsUpdate("1.0.0", "exemplo-sqlite.min-version")
+        ? "Update required"
+        : "App up to date"}
     </Text>
   );
 }
@@ -23,7 +23,7 @@ function VersaoMinima() {
 export default function App() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    configurarFlags(
+    configureFlags(
       "exemplo-sqlite",
       undefined,
       process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN,
@@ -32,12 +32,12 @@ export default function App() {
   return (
     <OpenFeatureProvider client={OpenFeature.getClient()}>
       <View>
-        <Text>Produto de exemplo</Text>
-        {ready && <VersaoMinima />}
+        <Text>Example Product</Text>
+        {ready && <MinimumVersion />}
         <Button
-          title="Enviar evento"
+          title="Send event"
           onPress={() =>
-            void enviarEvento(
+            void trackEvent(
               "exemplo-mobile",
               undefined,
               undefined,

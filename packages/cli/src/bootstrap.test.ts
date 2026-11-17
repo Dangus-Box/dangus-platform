@@ -6,7 +6,7 @@ import { sshCommand } from "./bootstrap";
 
 const workspaceBin = join(import.meta.dir, "../../../node_modules/.bin/dangus");
 
-test("rejeita Host que injeta opções ou comandos no ssh", () => {
+test("rejects a Host that injects SSH options or commands", () => {
   for (const host of [
     "root@-oProxyCommand=x",
     "-l",
@@ -17,7 +17,7 @@ test("rejeita Host que injeta opções ou comandos no ssh", () => {
     "host&&id",
     "root@host\tx",
   ]) {
-    expect(() => sshCommand(host)).toThrow("Host inválido.");
+    expect(() => sshCommand(host)).toThrow("Invalid Host.");
   }
 });
 
@@ -46,17 +46,17 @@ async function runWithFakes(bws: string) {
   return { code, stderr, sshCalled };
 }
 
-test("não chama o ssh quando o BWS falha", async () => {
+test("does not call SSH when BWS fails", async () => {
   const result = await runWithFakes("exit 1");
   expect(result.code).toBe(1);
   expect(result.sshCalled).toBe(false);
 });
 
-test("rejeita chave do BWS que escaparia da atribuição no shell remoto", async () => {
+test("rejects a BWS key that would escape assignment in the remote shell", async () => {
   const result = await runWithFakes(
     `printf '%s' '{"value":"tskey-auth-x'"'"'; touch /pwned #"}'`,
   );
   expect(result.code).toBe(1);
-  expect(result.stderr).toContain("Chave Tailscale inválida no BWS.");
+  expect(result.stderr).toContain("Invalid Tailscale key in BWS.");
   expect(result.sshCalled).toBe(false);
 });

@@ -198,21 +198,21 @@ finish() {
 # the whole file before the first prompt, so an edit mid-run can't break it.
 # ──────────────────────────────────────────────────────────────────────────
 
-# Contas e credenciais externas da Plataforma (issue #2).
+# Platform external accounts and credentials (issue #2).
 #
-# Os valores ficam num cache local (0600, no .gitignore) para que a execução
-# possa ser interrompida e retomada. O penúltimo estágio envia tudo ao BWS
-# (projeto `ops`, nomes `platform__<CHAVE>`, ADR-0005) e o último apaga o cache.
+# Values are stored in a local cache (0600, in .gitignore) so the run
+# can be interrupted and resumed. The penultimate stage sends everything to BWS
+# (`ops` project, `platform__<KEY>` names, ADR-0005) and the last deletes the cache.
 
 GH_ORG="Dangus-Box"
 GH_REPO="Dangus-Box/dangus-platform"
 ISSUE_NUMBER=2
 BWS_PREFIX="platform__"
-# Cache sempre na raiz do repositório, independente de onde o wizard é chamado.
+# Always cache at the repository root, regardless of where the wizard is called.
 ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.external-accounts.env"
 
-# Chaves do cache que vão para o BWS (projeto `ops`). Ficam de fora o token do
-# CI (vai para o GitHub) e o token do operador (só serve para esta escrita).
+# Cache keys sent to BWS (`ops` project). Excludes the
+# CI token (sent to GitHub) and the operator token (used only for this write).
 BWS_KEYS=(
   BWS_HOST_TOKEN
   HOSTINGER_API_TOKEN
@@ -230,7 +230,7 @@ require_value() {
   while :; do
     if [[ "$kind" == secret ]]; then ask_secret "$key" "$prompt"; else ask "$key" "$prompt"; fi
     [[ -n "${!key}" ]] && break
-    warn "valor vazio, tente de novo"
+    warn "empty value, try again"
   done
   write_env "$key" "${!key}"
 }
@@ -241,137 +241,137 @@ run_wizard() {
 
 TOTAL_STAGES=17
 
-banner "Contas e credenciais externas da Plataforma"
+banner "Platform external accounts and credentials"
 
 # ── 1 ─────────────────────────────────────────────────────────────────────
-stage "Ferramentas locais"
-say "O wizard usa gh, jq, curl e o CLI do Bitwarden Secrets Manager (bws)."
+stage "Local tools"
+say "The wizard uses gh, jq, curl and the Bitwarden Secrets Manager CLI (bws)."
 missing=()
 for tool in gh jq curl bws; do command -v "$tool" >/dev/null 2>&1 || missing+=("$tool"); done
 if (( ${#missing[@]} )); then
-  warn "faltando: ${missing[*]}"
+  warn "missing: ${missing[*]}"
   if [[ " ${missing[*]} " == *" bws "* ]]; then
-    note "bws: baixe o binário da última release bws-v* em"
+    note "bws: download the binary from the latest bws-v* release at"
     open_url "https://github.com/bitwarden/sdk-sm/releases"
-    note "ou: cargo install bws"
+    note "or: cargo install bws"
   fi
-  say "Instale o que falta e rode o wizard de novo (os valores já salvos ficam)."
+  say "Install the missing tools and run the wizard again (saved values are kept)."
   exit 1
 fi
 if ! gh auth status >/dev/null 2>&1; then
-  warn "gh não está autenticado. Rode: gh auth login -s admin:org"
+  warn "gh is not authenticated. Run: gh auth login -s admin:org"
   exit 1
 fi
-say "Cache local dos valores: $ENV_FILE (modo 0600, apagado no último estágio)."
-pause "Tudo pronto. Enter para continuar"
+say "Local value cache: $ENV_FILE (mode 0600, deleted in the last stage)."
+pause "Everything ready. Press Enter to continue"
 
 # ── 2 ─────────────────────────────────────────────────────────────────────
-stage "Bitwarden Secrets Manager: organização e projetos"
-say "O BWS é um produto separado do gerenciador de senhas (ADR-0005)."
-say "Primeiro, a região da conta Bitwarden onde a organização vai ficar:"
+stage "Bitwarden Secrets Manager: organization and projects"
+say "BWS is a separate product from the password manager (ADR-0005)."
+say "First, choose the Bitwarden account region for the organization:"
 note "  US: https://vault.bitwarden.com   EU: https://vault.bitwarden.eu"
 BWS_SERVER_URL=$(_existing BWS_SERVER_URL || true)
 if [[ -z "$BWS_SERVER_URL" ]]; then
-  if confirm "A conta é da região EU?"; then BWS_SERVER_URL="https://vault.bitwarden.eu"
+  if confirm "Is the account in the EU region?"; then BWS_SERVER_URL="https://vault.bitwarden.eu"
   else BWS_SERVER_URL="https://vault.bitwarden.com"; fi
 fi
 write_env BWS_SERVER_URL "$BWS_SERVER_URL"
 open_url "$BWS_SERVER_URL/#/create-organization"
-step "Crie a organização (nome sugerido: Dangus Box) no plano Free."
-step "No Admin Console da organização, ative o Secrets Manager (plano Free)."
-note "  Se não aparecer de cara, procure em Billing → Subscription."
-step "Abra o Secrets Manager pelo seletor de produtos (canto superior)."
-step "Projects → New project: crie 'prod' e 'ops' (exatamente esses nomes)."
-pause "Enter quando a organização e os dois projetos existirem"
+step "Create the organization (suggested name: Dangus Box) on the Free plan."
+step "In the organization Admin Console, enable Secrets Manager (Free plan)."
+note "  If it does not appear immediately, look under Billing → Subscription."
+step "Open Secrets Manager from the product switcher (top corner)."
+step "Projects → New project: create 'prod' and 'ops' (exactly those names)."
+pause "Press Enter when the organization and both projects exist"
 
 # ── 3 ─────────────────────────────────────────────────────────────────────
-stage "BWS: machine accounts do CI e do Host"
-say "Duas machine accounts, só com leitura (o plano Free permite 3)."
+stage "BWS: CI and Host machine accounts"
+say "Two read-only machine accounts (the Free plan allows 3)."
 step "Secrets Manager → Machine accounts → New machine account: 'ci'."
-step "  Aba Projects: adicione 'prod' e 'ops' com permissão Can read."
-step "  Aba Access tokens → Create access token (nome 'github-actions', sem expiração)."
-require_value BWS_CI_TOKEN "Cole o access token da machine account 'ci':" secret
-step "Repita para a machine account 'host': projetos 'prod' e 'ops', Can read."
-step "  Access token com nome 'host-1', sem expiração."
-require_value BWS_HOST_TOKEN "Cole o access token da machine account 'host':" secret
-pause "Enter para continuar"
+step "  Projects tab: add 'prod' and 'ops' with Can read permission."
+step "  Access tokens tab → Create access token (name 'github-actions', no expiration)."
+require_value BWS_CI_TOKEN "Paste the access token for machine account 'ci':" secret
+step "Repeat for machine account 'host': projects 'prod' and 'ops', Can read."
+step "  Access token named 'host-1', no expiration."
+require_value BWS_HOST_TOKEN "Paste the access token for machine account 'host':" secret
+pause "Press Enter to continue"
 
 # ── 4 ─────────────────────────────────────────────────────────────────────
-stage "BWS: token de escrita para este wizard"
-say "O wizard precisa escrever no projeto 'ops'. Para isso, uma terceira machine"
-say "account 'operator' (a última do plano Free), usada por pessoas, não pelo CI."
+stage "BWS: write token for this wizard"
+say "The wizard must write to the 'ops' project. Use a third machine"
+say "account 'operator' (the last on the Free plan), used by people rather than CI."
 step "Machine accounts → New machine account: 'operator'."
-step "  Aba Projects: 'prod' e 'ops' com permissão Can read, write."
-step "  Access tokens → Create access token, nome 'wizard', expiração de 1 dia."
-note "  O token expira sozinho; a machine account fica para usos futuros."
-require_value BWS_OPERATOR_TOKEN "Cole o access token da machine account 'operator':" secret
-say "Testando o token e buscando o ID do projeto 'ops'..."
+step "  Projects tab: 'prod' and 'ops' with Can read, write permission."
+step "  Access tokens → Create access token, name 'wizard', expiration 1 day."
+note "  The token expires automatically; the machine account remains for future use."
+require_value BWS_OPERATOR_TOKEN "Paste the access token for machine account 'operator':" secret
+say "Testing the token and fetching the 'ops' project ID..."
 if ! projects_json=$(bws_cli project list -o json 2>&1); then
-  warn "o bws recusou o token: $projects_json"
-  say "Confira o token e a região e rode o wizard de novo."
+  warn "bws rejected the token: $projects_json"
+  say "Check the token and region and run the wizard again."
   exit 1
 fi
 BWS_OPS_PROJECT_ID=$(jq -r '.[] | select(.name=="ops") | .id' <<<"$projects_json")
 BWS_PROD_PROJECT_ID=$(jq -r '.[] | select(.name=="prod") | .id' <<<"$projects_json")
 if [[ -z "$BWS_OPS_PROJECT_ID" || -z "$BWS_PROD_PROJECT_ID" ]]; then
-  warn "não achei os projetos 'ops' e 'prod' com esse token. Confira o acesso da 'operator'."
+  warn "Could not find projects 'ops' and 'prod' with this token. Check 'operator' access."
   exit 1
 fi
 write_env BWS_OPS_PROJECT_ID "$BWS_OPS_PROJECT_ID"
 write_env BWS_PROD_PROJECT_ID "$BWS_PROD_PROJECT_ID"
-pause "Enter para continuar"
+pause "Press Enter to continue"
 
 # ── 5 ─────────────────────────────────────────────────────────────────────
-stage "Hostinger: token da API"
-say "Usado pelo OpenTofu no Provisionamento (ADR-0002, issue #6)."
+stage "Hostinger: API token"
+say "Used by OpenTofu for provisioning (ADR-0002, issue #6)."
 open_url "https://hpanel.hostinger.com/profile/api"
-step "Na página API do perfil, gere um novo token (nome 'opentofu')."
-step "Escolha a expiração mais longa disponível e anote a data de renovação."
-require_value HOSTINGER_API_TOKEN "Cole o token da API da Hostinger:" secret
-pause "Enter para continuar"
+step "On the profile API page, generate a new token (name 'opentofu')."
+step "Choose the longest available expiration and note the renewal date."
+require_value HOSTINGER_API_TOKEN "Paste the Hostinger API token:" secret
+pause "Press Enter to continue"
 
 # ── 6 ─────────────────────────────────────────────────────────────────────
-stage "Cloudflare: zona dangus-box.com"
+stage "Cloudflare: dangus-box.com zone"
 open_url "https://dash.cloudflare.com/"
-step "Add a domain → dangus-box.com → plano Free."
-step "Troque os nameservers no registrador do domínio pelos dois que a Cloudflare mostrar."
-note "  A ativação pode levar algumas horas; dá para seguir sem esperar."
-step "Na página Overview da zona, coluna da direita (API): copie Zone ID e Account ID."
+step "Add a domain → dangus-box.com → Free plan."
+step "Replace the nameservers at the domain registrar with the two shown by Cloudflare."
+note "  Activation may take a few hours; you can continue without waiting."
+step "On the zone Overview page, right column (API): copy Zone ID and Account ID."
 require_value CLOUDFLARE_ZONE_ID "Zone ID:"
 require_value CLOUDFLARE_ACCOUNT_ID "Account ID:"
-pause "Enter para continuar"
+pause "Press Enter to continue"
 
 # ── 7 ─────────────────────────────────────────────────────────────────────
-stage "Cloudflare: token de DNS"
-say "Token só com edição de DNS da zona dangus-box.com."
+stage "Cloudflare: DNS token"
+say "Token with DNS edit permission only for the dangus-box.com zone."
 open_url "https://dash.cloudflare.com/profile/api-tokens"
 step "Create Token → template 'Edit zone DNS' → Use template."
 step "Zone Resources: Include → Specific zone → dangus-box.com."
-step "Continue to summary → Create Token → copie o token."
-require_value CLOUDFLARE_DNS_TOKEN "Cole o token de DNS:" secret
-pause "Enter para continuar"
+step "Continue to summary → Create Token → copy the token."
+require_value CLOUDFLARE_DNS_TOKEN "Paste the DNS token:" secret
+pause "Press Enter to continue"
 
 # ── 8 ─────────────────────────────────────────────────────────────────────
-stage "Cloudflare R2: habilitar, bucket de state e token do OpenTofu"
+stage "Cloudflare R2: enable, state bucket and OpenTofu token"
 open_url "https://dash.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/r2/overview"
-step "Habilite o R2 (pede um meio de pagamento, mesmo no uso grátis)."
-step "Create bucket → nome 'dangus-tofu-state', location Automatic, Standard."
-note "  Os buckets de Backup são criados pelo OpenTofu (issue #21), não aqui."
-step "Volte ao R2 Overview → Manage API tokens → Create Account API token."
-step "  Nome 'opentofu', permissão Admin Read & Write, TTL Forever → Create."
-say "A tela final mostra três valores; ela não volta a aparecer:"
+step "Enable R2 (requires a payment method, even on the free tier)."
+step "Create bucket → name 'dangus-tofu-state', location Automatic, Standard."
+note "  Backup buckets are created by OpenTofu (issue #21), not here."
+step "Return to R2 Overview → Manage API tokens → Create Account API token."
+step "  Name 'opentofu', permission Admin Read & Write, TTL Forever → Create."
+say "The final screen shows three values and will not appear again:"
 require_value CLOUDFLARE_R2_TOKEN "Token value:" secret
 require_value R2_ACCESS_KEY_ID "Access Key ID:"
 require_value R2_SECRET_ACCESS_KEY "Secret Access Key:" secret
 write_env R2_ENDPOINT "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
-pause "Enter para continuar"
+pause "Press Enter to continue"
 
 # ── 9 ─────────────────────────────────────────────────────────────────────
-stage "Tailscale: tailnet e ACLs básicas"
-say "Acesso administrativo só via Tailscale (ADR-0009)."
+stage "Tailscale: tailnet and basic ACLs"
+say "Administrative access only through Tailscale (ADR-0009)."
 open_url "https://login.tailscale.com/admin/acls/file"
-step "Crie a tailnet se ainda não existir (login com a conta do time)."
-step "Em Access controls (editor JSON), garanta estes trechos na policy:"
+step "Create the tailnet if it does not exist (log in with the team account)."
+step "In Access controls (JSON editor), ensure the policy contains these entries:"
 cat <<'ACL'
 
       "tagOwners": {
@@ -379,170 +379,170 @@ cat <<'ACL'
         "tag:host": ["autogroup:admin"],
       },
       "acls": [
-        // pessoas do time alcançam tudo
+        // team members can reach everything
         {"action": "accept", "src": ["autogroup:member"], "dst": ["*:*"]},
-        // o runner do GitHub Actions só fala SSH com os Hosts (deploy do Kamal)
+        // the GitHub Actions runner only uses SSH to reach Hosts (Kamal deploy)
         {"action": "accept", "src": ["tag:ci"], "dst": ["tag:host:22"]},
       ],
 
 ACL
-note "  Se a policy ainda é a padrão, substitua o bloco 'acls' inteiro por esse."
-step "Salve. Em Settings → General, copie o Tailnet ID (ou o nome da tailnet)."
+note "  If the policy is still the default, replace the entire 'acls' block with this one."
+step "Save. Under Settings → General, copy the Tailnet ID (or tailnet name)."
 require_value TAILSCALE_TAILNET "Tailnet ID:"
-pause "Enter para continuar"
+pause "Press Enter to continue"
 
 # ── 10 ────────────────────────────────────────────────────────────────────
-stage "Tailscale: OAuth client do GitHub Actions"
-say "Para o CI entrar na tailnet como nó efêmero (ADR-0009, issue #11)."
+stage "Tailscale: GitHub Actions OAuth client"
+say "Lets CI join the tailnet as an ephemeral node (ADR-0009, issue #11)."
 open_url "https://login.tailscale.com/admin/settings/oauth"
-step "Generate OAuth client (pode aparecer como 'Trust credentials')."
-step "Escopo: Keys → Auth Keys → Write, com a tag 'tag:ci'."
-step "Generate client → copie Client ID e Client secret (o secret só aparece agora)."
+step "Generate OAuth client (may appear as 'Trust credentials')."
+step "Scope: Keys → Auth Keys → Write, with tag 'tag:ci'."
+step "Generate client → copy Client ID and Client secret (the secret appears only now)."
 require_value TAILSCALE_OAUTH_CLIENT_ID "Client ID:"
 require_value TAILSCALE_OAUTH_CLIENT_SECRET "Client secret:" secret
-pause "Enter para continuar"
+pause "Press Enter to continue"
 
 # ── 11 ────────────────────────────────────────────────────────────────────
 stage "Healthchecks.io"
-say "Dead-man's switch dos Backups e das Verificações de Restore (ADR-0008)."
+say "Dead-man's switch for Backups and Restore Verifications (ADR-0008)."
 open_url "https://healthchecks.io/accounts/signup/"
-step "Crie a conta no plano Hobbyist (grátis)."
-step "Renomeie o projeto padrão para 'Dangus Platform'."
-step "Settings do projeto → API Access → Create API key (a de leitura e escrita)."
-require_value HEALTHCHECKS_API_KEY "Cole a API key (read-write):" secret
-pause "Enter para continuar"
+step "Create the account on the Hobbyist (free) plan."
+step "Rename the default project to 'Dangus Platform'."
+step "Project Settings → API Access → Create API key (read-write)."
+require_value HEALTHCHECKS_API_KEY "Paste the API key (read-write):" secret
+pause "Press Enter to continue"
 
 # ── 12 ────────────────────────────────────────────────────────────────────
-stage "Telegram: bot de alertas"
+stage "Telegram: alerts bot"
 open_url "https://t.me/BotFather"
-step "No chat com o @BotFather, envie /newbot."
-step "Nome: Dangus Alerts. Username: algo terminado em 'bot', ex.: dangus_alerts_bot."
-step "Copie o token HTTP API que ele responder."
-require_value TELEGRAM_BOT_TOKEN "Cole o token do bot:" secret
+step "In the chat with @BotFather, send /newbot."
+step "Name: Dangus Alerts. Username: something ending in 'bot', e.g. dangus_alerts_bot."
+step "Copy the HTTP API token in the reply."
+require_value TELEGRAM_BOT_TOKEN "Paste the bot token:" secret
 if ! curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe" >/dev/null 2>&1; then
-  warn "o Telegram não reconheceu o token; confira antes de seguir."
+  warn "Telegram did not recognize the token; check it before continuing."
 else
-  say "Token conferido com o Telegram."
+  say "Token verified with Telegram."
 fi
-pause "Enter para continuar"
+pause "Press Enter to continue"
 
 # ── 13 ────────────────────────────────────────────────────────────────────
-stage "Telegram: chat dos alertas"
-step "No Telegram, crie um grupo 'Dangus Alerts' com o time e adicione o bot."
-step "No grupo, envie a mensagem: /start"
-pause "Enter depois de enviar o /start"
+stage "Telegram: alerts chat"
+step "In Telegram, create a 'Dangus Alerts' group with the team and add the bot."
+step "In the group, send the message: /start"
+pause "Press Enter after sending /start"
 chats=$(curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates" 2>/dev/null \
   | jq -r '[.result[] | (.message // .my_chat_member // empty) | .chat]
            | unique_by(.id)[] | "\(.id)\t\(.title // .username // .first_name)"' 2>/dev/null || true)
 if [[ -n "$chats" ]]; then
-  say "Chats que o bot enxerga (id → nome):"
+  say "Chats visible to the bot (id → name):"
   while IFS=$'\t' read -r id title; do note "  $id → $title"; done <<<"$chats"
 else
-  warn "não encontrei chats. Envie o /start de novo no grupo, ou informe o ID à mão."
+  warn "No chats found. Send /start again in the group, or enter the ID manually."
 fi
-note "  IDs de grupo são negativos (ex.: -1001234567890)."
-require_value TELEGRAM_CHAT_ID "Chat ID do grupo:"
+note "  Group IDs are negative (e.g. -1001234567890)."
+require_value TELEGRAM_CHAT_ID "Group chat ID:"
 if curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
      --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-     --data-urlencode "text=✓ Dangus Platform: canal de alertas configurado." >/dev/null 2>&1; then
-  say "Mensagem de teste enviada; confira no grupo."
+     --data-urlencode "text=✓ Dangus Platform: alerts channel configured." >/dev/null 2>&1; then
+  say "Test message sent; check the group."
 else
-  warn "não consegui enviar a mensagem de teste para esse chat ID."
+  warn "Could not send the test message to that chat ID."
 fi
-pause "Enter para continuar"
+pause "Press Enter to continue"
 
 # ── 14 ────────────────────────────────────────────────────────────────────
-stage "npm: organização @dangus-box e token de publicação"
-say "Pacotes públicos do Kit de Integração (ADR-0014, issue #4)."
+stage "npm: @dangus-box organization and publishing token"
+say "Public Integration Kit packages (ADR-0014, issue #4)."
 open_url "https://www.npmjs.com/org/create"
-step "Crie a organização 'dangus-box' no plano Free (pacotes públicos ilimitados)."
+step "Create the 'dangus-box' organization on the Free plan (unlimited public packages)."
 step "Avatar → Access Tokens → Generate New Token → Granular Access Token."
-step "  Nome 'github-actions-release'; Packages and scopes: Read and write,"
-step "  restrito ao escopo @dangus-box; expiração: a mais longa permitida."
-note "  Se a opção existir, marque 'Bypass two-factor authentication' para o CI publicar."
-step "Generate token → copie."
-require_value NPM_TOKEN "Cole o token do npm:" secret
-pause "Enter para continuar"
+step "  Name 'github-actions-release'; Packages and scopes: Read and write,"
+step "  restricted to the @dangus-box scope; expiration: the longest allowed."
+note "  If available, select 'Bypass two-factor authentication' so CI can publish."
+step "Generate token → copy."
+require_value NPM_TOKEN "Paste the npm token:" secret
+pause "Press Enter to continue"
 
 # ── 15 ────────────────────────────────────────────────────────────────────
-stage "Enviar as credenciais ao BWS (projeto ops)"
-say "Cada valor vira o secret ${BWS_PREFIX}<CHAVE> no projeto 'ops'."
-say "Os que já existirem com o mesmo nome têm o valor atualizado."
+stage "Send credentials to BWS (ops project)"
+say "Each value becomes secret ${BWS_PREFIX}<KEY> in the 'ops' project."
+say "Existing secrets with the same name have their values updated."
 for key in "${BWS_KEYS[@]}"; do note "  ${BWS_PREFIX}${key}"; done
-if confirm "Gravar ${#BWS_KEYS[@]} secrets no BWS agora?"; then
+if confirm "Write ${#BWS_KEYS[@]} secrets to BWS now?"; then
   existing_json=$(bws_cli secret list "$BWS_OPS_PROJECT_ID" -o json)
   for key in "${BWS_KEYS[@]}"; do
     name="${BWS_PREFIX}${key}"
     value=$(_existing "$key" || true)
     if [[ -z "$value" ]]; then
-      SKIPPED+=("BWS $name: sem valor no cache"); warn "sem valor para $key"; continue
+      SKIPPED+=("BWS $name: no value in cache"); warn "no value for $key"; continue
     fi
     id=$(jq -r --arg k "$name" '.[] | select(.key==$k) | .id' <<<"$existing_json" | head -n1)
     if [[ -n "$id" ]]; then
-      # --value=... e "--" evitam que valores começando com "-" (ex.: chat ID
-      # negativo do Telegram) sejam lidos como flags.
+      # --value=... and "--" prevent values beginning with "-" (e.g. Telegram
+      # negative chat ID) from being interpreted as flags.
       bws_cli secret edit -o none --value="$value" -- "$id"
-      printf '  %s✓ atualizado%s %s\n' "$GREEN" "$RESET" "$name"
+      printf '  %s✓ updated%s %s\n' "$GREEN" "$RESET" "$name"
     else
       bws_cli secret create -o none -- "$name" "$value" "$BWS_OPS_PROJECT_ID"
-      printf '  %s✓ criado%s %s\n' "$GREEN" "$RESET" "$name"
+      printf '  %s✓ created%s %s\n' "$GREEN" "$RESET" "$name"
     fi
   done
 else
-  SKIPPED+=("enviar os secrets ao BWS (rode o wizard de novo)")
+  SKIPPED+=("send secrets to BWS (run the wizard again)")
 fi
-pause "Enter para continuar"
+pause "Press Enter to continue"
 
 # ── 16 ────────────────────────────────────────────────────────────────────
-stage "GitHub: token do CI como secret da organização"
-say "O único secret no GitHub é o token da machine account 'ci' (ADR-0005)."
-warn "No GitHub Free, secrets de organização não chegam a repositórios privados."
-note "  Se os repositórios forem privados nesse plano, use secret por repositório."
-if confirm "Gravar BWS_ACCESS_TOKEN como secret da organização $GH_ORG (todos os repos)?"; then
+stage "GitHub: CI token as an organization secret"
+say "The only GitHub secret is the 'ci' machine account token (ADR-0005)."
+warn "On GitHub Free, organization secrets are unavailable to private repositories."
+note "  For private repositories on that plan, use repository secrets."
+if confirm "Write BWS_ACCESS_TOKEN as an organization secret for $GH_ORG (all repos)?"; then
   if printf '%s' "$BWS_CI_TOKEN" | gh secret set BWS_ACCESS_TOKEN --org "$GH_ORG" --visibility all >/dev/null 2>&1; then
     WRITTEN_SECRET+=("BWS_ACCESS_TOKEN (org $GH_ORG)")
-    printf '  %s✓ set%s secret BWS_ACCESS_TOKEN na organização %s\n' "$GREEN" "$RESET" "$GH_ORG"
+    printf '  %s✓ set%s secret BWS_ACCESS_TOKEN in organization %s\n' "$GREEN" "$RESET" "$GH_ORG"
   else
-    SKIPPED+=("secret da organização: gh secret set BWS_ACCESS_TOKEN --org $GH_ORG --visibility all")
-    warn "falhou; o gh precisa do escopo admin:org (gh auth refresh -s admin:org)"
+    SKIPPED+=("organization secret: gh secret set BWS_ACCESS_TOKEN --org $GH_ORG --visibility all")
+    warn "failed; gh needs the admin:org scope (gh auth refresh -s admin:org)"
   fi
 else
-  SKIPPED+=("secret da organização BWS_ACCESS_TOKEN")
+  SKIPPED+=("organization secret BWS_ACCESS_TOKEN")
 fi
 if gh variable set BWS_SERVER_URL --org "$GH_ORG" --visibility all --body "$BWS_SERVER_URL" >/dev/null 2>&1; then
-  printf '  %s✓ set%s variável BWS_SERVER_URL na organização %s\n' "$GREEN" "$RESET" "$GH_ORG"
+  printf '  %s✓ set%s variable BWS_SERVER_URL in organization %s\n' "$GREEN" "$RESET" "$GH_ORG"
 else
-  SKIPPED+=("variável da organização: gh variable set BWS_SERVER_URL --org $GH_ORG --visibility all --body $BWS_SERVER_URL")
+  SKIPPED+=("organization variable: gh variable set BWS_SERVER_URL --org $GH_ORG --visibility all --body $BWS_SERVER_URL")
 fi
-pause "Enter para continuar"
+pause "Press Enter to continue"
 
 # ── 17 ────────────────────────────────────────────────────────────────────
-stage "Documentar no issue e limpar o cache"
-comment="Credenciais criadas pelo \`scripts/setup-external-accounts.sh\`.
+stage "Document in the issue and clear the cache"
+comment="Credentials created by \`scripts/setup-external-accounts.sh\`.
 
-**BWS, projeto \`ops\`:**
+**BWS, project \`ops\`:**
 $(for key in "${BWS_KEYS[@]}"; do printf -- '- `%s%s`\n' "$BWS_PREFIX" "$key"; done)
 
-**GitHub:** secret de organização \`BWS_ACCESS_TOKEN\` (machine account \`ci\`, leitura em \`prod\` e \`ops\`).
+**GitHub:** organization secret \`BWS_ACCESS_TOKEN\` (machine account \`ci\`, read access to \`prod\` and \`ops\`).
 
-**Machine accounts do BWS:** \`ci\` (leitura), \`host\` (leitura; token em \`${BWS_PREFIX}BWS_HOST_TOKEN\`), \`operator\` (leitura e escrita, tokens de curta duração para pessoas)."
-say "Comentário a publicar no issue #$ISSUE_NUMBER (só nomes, nenhum valor):"
+**BWS machine accounts:** \`ci\` (read), \`host\` (read; token in \`${BWS_PREFIX}BWS_HOST_TOKEN\`), \`operator\` (read and write, short-lived tokens for people)."
+say "Comment to publish on issue #$ISSUE_NUMBER (names only, no values):"
 printf '%s\n' "$comment" | sed 's/^/    /'
-if confirm "Publicar esse comentário no issue #$ISSUE_NUMBER?"; then
+if confirm "Publish this comment on issue #$ISSUE_NUMBER?"; then
   gh issue comment "$ISSUE_NUMBER" -R "$GH_REPO" --body "$comment" >/dev/null \
-    && say "Comentário publicado." \
-    || SKIPPED+=("comentar os nomes no issue #$ISSUE_NUMBER")
+    && say "Comment published." \
+    || SKIPPED+=("comment the names on issue #$ISSUE_NUMBER")
 else
-  SKIPPED+=("comentar os nomes no issue #$ISSUE_NUMBER")
+  SKIPPED+=("comment the names on issue #$ISSUE_NUMBER")
 fi
-warn "O cache $ENV_FILE tem todos os valores em texto puro."
+warn "The $ENV_FILE cache contains all values in plain text."
 if (( ${#SKIPPED[@]} )); then
-  note "  Há pendências; mantenha o cache para re-rodar o wizard e apague depois."
+  note "  Some steps remain; keep the cache to rerun the wizard and delete it afterward."
 fi
-if confirm "Apagar $ENV_FILE agora?"; then
-  rm -f "$ENV_FILE"; WRITTEN_ENV=(); say "Cache apagado."
+if confirm "Delete $ENV_FILE now?"; then
+  rm -f "$ENV_FILE"; WRITTEN_ENV=(); say "Cache deleted."
 else
-  SKIPPED+=("apagar $ENV_FILE quando terminar")
+  SKIPPED+=("delete $ENV_FILE when finished")
 fi
 
 finish

@@ -253,7 +253,7 @@ else process.exit(1);
   };
 }
 
-test("Registro integra serviços e uma segunda execução não altera nada", async () => {
+test("Registration integrates services and a second run changes nothing", async () => {
   const f = await fixture();
   try {
     await register(f.dir, f.deps);
@@ -335,12 +335,12 @@ test("Registro integra serviços e uma segunda execução não altera nada", asy
   }
 });
 
-test("Tailscale desconectado falha antes de qualquer operação externa", async () => {
+test("disconnected Tailscale fails before any external operation", async () => {
   const f = await fixture();
   try {
     f.disconnect();
     await expect(register(f.dir, f.deps)).rejects.toThrow(
-      "Tailscale desconectado",
+      "Tailscale is disconnected",
     );
     expect(f.calls).toBe(0);
     expect((await f.bws()).writes).toBe(0);
@@ -350,7 +350,7 @@ test("Tailscale desconectado falha antes de qualquer operação externa", async 
   }
 });
 
-test("registro DNS divergente é preservado e exige revisão", async () => {
+test("conflicting DNS record is preserved and requires review", async () => {
   const f = await fixture();
   try {
     await register(f.dir, f.deps);
@@ -358,7 +358,7 @@ test("registro DNS divergente é preservado e exige revisão", async () => {
     const writes = f.writes;
     const bwsWrites = (await f.bws()).writes;
     await expect(register(f.dir, f.deps)).rejects.toThrow(
-      "DNS api.example.com A diverge",
+      "DNS api.example.com A differs",
     );
     expect(f.records[0].proxied).toBe(true);
     expect(f.writes).toBe(writes);
@@ -368,7 +368,7 @@ test("registro DNS divergente é preservado e exige revisão", async () => {
   }
 });
 
-test("CLI recusa Registro sem Tailscale antes de consultar BWS", async () => {
+test("CLI rejects Registration without Tailscale before querying BWS", async () => {
   const f = await fixture();
   try {
     const tailscale = join(f.dir, "tailscale");
@@ -388,7 +388,7 @@ test("CLI recusa Registro sem Tailscale antes de consultar BWS", async () => {
     );
     const error = await new Response(child.stderr).text();
     expect(await child.exited).toBe(1);
-    expect(error).toContain("Tailscale desconectado");
+    expect(error).toContain("Tailscale is disconnected");
     expect(f.calls).toBe(0);
     expect((await f.bws()).writes).toBe(0);
   } finally {
@@ -396,10 +396,10 @@ test("CLI recusa Registro sem Tailscale antes de consultar BWS", async () => {
   }
 });
 
-test("aguarda a sessão do Unleash ficar válida após o login", async () => {
+test("waits for the Unleash session to become valid after login", async () => {
   const f = await fixture();
   try {
-    // Unleash 6.9.1 responde ao login antes de persistir a sessão.
+    // Unleash 6.9.1 responds to login before persisting the session.
     f.delayUnleashSession(2);
     await register(f.dir, f.deps);
     expect(f.tokens).toHaveLength(2);
@@ -408,7 +408,7 @@ test("aguarda a sessão do Unleash ficar válida após o login", async () => {
   }
 });
 
-test("token criado no Unleash sem gravação no BWS é recuperado ao reexecutar", async () => {
+test("token created in Unleash without a BWS write is recovered on rerun", async () => {
   const f = await fixture();
   try {
     await f.failBwsCreate("produto__UNLEASH_TOKEN");
@@ -429,7 +429,7 @@ test("token criado no Unleash sem gravação no BWS é recuperado ao reexecutar"
   }
 });
 
-test("secret manual no BWS sem cadastro correspondente impede criar duplicata", async () => {
+test("manual BWS secret without matching registration prevents duplicate creation", async () => {
   for (const [key, created] of [
     ["produto__UMAMI_WEBSITE_ID", "sites"],
     ["produto__HEALTHCHECKS_BACKUP_URL", "checks"],

@@ -26,7 +26,7 @@ const backupBws = [
   },
 ];
 for (const variant of ["postgres", "sqlite"]) {
-  test(`render da variante ${variant} corresponde aos arquivos de referência`, async () => {
+  test(`${variant} render matches golden files`, async () => {
     const product = join(root, "examples", variant);
     const config = await loadConfig(product);
     await withRendered(
@@ -81,7 +81,7 @@ for (const variant of ["postgres", "sqlite"]) {
   });
 }
 
-test("deploy transmite secrets apenas pelo ambiente e usa comandos exatos", async () => {
+test("deploy passes secrets only through the environment and uses exact commands", async () => {
   const config = validateConfig({
     name: "produto",
     apps: {
@@ -100,23 +100,23 @@ test("deploy transmite secrets apenas pelo ambiente e usa comandos exatos", asyn
       return {
         code: 0,
         stdout: JSON.stringify([
-          { key: "produto__TOKEN", value: "valor-secreto" },
-          { key: "produto__POSTGRES_PASSWORD", value: "senha-secreta" },
+          { key: "produto__TOKEN", value: "secret-value" },
+          { key: "produto__POSTGRES_PASSWORD", value: "secret-password" },
           ...backupBws,
         ]),
       };
-    expect(env.TOKEN).toBe("valor-secreto");
+    expect(env.TOKEN).toBe("secret-value");
     expect(env.AGE_PUBLIC_KEY).toBe(agePublicKey);
     expect(env.DATABASE_URL).toBe(
-      "postgres://produto:senha-secreta@produto-api-db:5432/produto",
+      "postgres://produto:secret-password@produto-api-db:5432/produto",
     );
     temp = args[args.indexOf("-v", args.indexOf("-w")) + 1].split(":")[0];
     const configPath = join(temp, "deploy.yml");
     const files =
       (await readFile(configPath, "utf8")) +
       (await readFile(join(temp, ".kamal/secrets"), "utf8"));
-    expect(files).not.toContain("valor-secreto");
-    expect(files).not.toContain("senha-secreta");
+    expect(files).not.toContain("secret-value");
+    expect(files).not.toContain("secret-password");
     if (args.includes("/dangus/deploy.yml") && files.includes("backup:"))
       expect(files).toContain("AGE_PUBLIC_KEY=$AGE_PUBLIC_KEY");
     return { code: 0, stdout: "" };
@@ -124,8 +124,8 @@ test("deploy transmite secrets apenas pelo ambiente e usa comandos exatos", asyn
   await deploy(config, "/produto", runner, {
     SSH_AUTH_SOCK: "/ssh-agent",
     DANGUS_PROXY_BIND_IPS: "192.0.2.1",
-    KAMAL_REGISTRY_USERNAME: "usuario",
-    KAMAL_REGISTRY_PASSWORD: "registro-secreto",
+    KAMAL_REGISTRY_USERNAME: "user",
+    KAMAL_REGISTRY_PASSWORD: "secret-registry",
   });
   expect(calls[0]).toEqual(["git", "rev-parse", "--verify", "HEAD"]);
   expect(calls[1]).toEqual(["bws", "secret", "list"]);
@@ -178,12 +178,13 @@ test("deploy transmite secrets apenas pelo ambiente e usa comandos exatos", asyn
       `--version=${"a".repeat(40)}`,
     ]);
   }
-  expect(JSON.stringify(calls)).not.toContain("secreta");
-  expect(JSON.stringify(calls)).not.toContain("secreto");
+  expect(JSON.stringify(calls)).not.toContain("secret-password");
+  expect(JSON.stringify(calls)).not.toContain("secret-value");
+  expect(JSON.stringify(calls)).not.toContain("secret-registry");
   expect(await Bun.file(join(temp, "deploy.yml")).exists()).toBe(false);
 });
 
-test("secret ausente interrompe deploy antes de chamar Docker", async () => {
+test("missing secret stops deploy before calling Docker", async () => {
   const config = validateConfig({
     name: "produto",
     apps: { api: { domain: "api.produto.com", secrets: ["TOKEN"] } },
@@ -207,14 +208,14 @@ test("secret ausente interrompe deploy antes de chamar Docker", async () => {
   ]);
 });
 
-test("DANGUS_HOST substitui o Host padrão devbox-1", async () => {
+test("DANGUS_HOST overrides the default Host devbox-1", async () => {
   const cli = Bun.spawn(
     ["bun", join(root, "packages/cli/src/index.ts"), "render"],
     {
       cwd: join(root, "examples/sqlite"),
       env: {
         ...process.env,
-        DANGUS_HOST: "outro-host",
+        DANGUS_HOST: "other-host",
         DANGUS_PROXY_BIND_IPS: "192.0.2.1",
       },
       stdout: "pipe",
@@ -222,11 +223,11 @@ test("DANGUS_HOST substitui o Host padrão devbox-1", async () => {
   );
   const output = await new Response(cli.stdout).text();
   expect(await cli.exited).toBe(0);
-  expect(output).toContain("- outro-host");
+  expect(output).toContain("- other-host");
   expect(output).not.toContain("devbox-1");
 });
 
-test("render usa recursos, timeout, Host e contexto informados, sem App mobile", async () => {
+test("render uses supplied resources, timeout, Host and context without a mobile App", async () => {
   const config = validateConfig({
     name: "produto",
     apps: {
@@ -262,7 +263,7 @@ test("render usa recursos, timeout, Host e contexto informados, sem App mobile",
   );
 });
 
-test("falha do Kamal remove a pasta temporária sem expor secrets", async () => {
+test("Kamal failure removes the temporary directory without exposing secrets", async () => {
   const config = validateConfig({
     name: "produto",
     apps: { api: { domain: "api.produto.com", secrets: ["TOKEN"] } },
@@ -276,8 +277,8 @@ test("falha do Kamal remove a pasta temporária sem expor secrets", async () => 
       return {
         code: 0,
         stdout: JSON.stringify([
-          { key: "produto__TOKEN", value: "valor-secreto" },
-          { key: "produto__POSTGRES_PASSWORD", value: "senha-secreta" },
+          { key: "produto__TOKEN", value: "secret-value" },
+          { key: "produto__POSTGRES_PASSWORD", value: "secret-password" },
           ...backupBws,
         ]),
       };
@@ -295,7 +296,7 @@ test("falha do Kamal remove a pasta temporária sem expor secrets", async () => 
   expect(await Bun.file(temp).exists()).toBe(false);
 });
 
-test("Kamal mostra a saída do deploy no terminal", async () => {
+test("Kamal displays deploy output in the terminal", async () => {
   const config = validateConfig({
     name: "produto",
     apps: { web: { domain: "web.produto.com" } },
@@ -322,7 +323,7 @@ test("Kamal mostra a saída do deploy no terminal", async () => {
   expect(streamed).toEqual([true]);
 });
 
-test("Postgres fica só na rede interna, com labels e imagem fixada", async () => {
+test("Postgres stays on the internal network with labels and a pinned image", async () => {
   const config = validateConfig({
     name: "produto",
     apps: { api: { domain: "api.produto.com" } },
@@ -341,7 +342,7 @@ test("Postgres fica só na rede interna, com labels e imagem fixada", async () =
   expect(db.image).toMatch(/^postgres:17\.6@sha256:[0-9a-f]{64}$/);
 });
 
-test("render imprime YAML legível, um campo por linha", () => {
+test("render prints readable YAML with one field per line", () => {
   const config = validateConfig({
     name: "produto",
     apps: { web: { domain: "web.produto.com" } },
@@ -353,7 +354,7 @@ test("render imprime YAML legível, um campo por linha", () => {
   );
 });
 
-test("rollback verifica todas as imagens antes de deployar sem build", async () => {
+test("rollback checks all images before deploying without a build", async () => {
   const config = validateConfig({
     name: "produto",
     apps: {
@@ -410,11 +411,11 @@ test("rollback verifica todas as imagens antes de deployar sem build", async () 
       { SSH_AUTH_SOCK: "/agent", DANGUS_PROXY_BIND_IPS: "192.0.2.1" },
       true,
     ),
-  ).rejects.toThrow("Imagem indisponível");
+  ).rejects.toThrow("Image unavailable");
   expect(calls.some((args) => args[1] === "run")).toBe(false);
 });
 
-test("deploy de push constrói as imagens e ignora DANGUS_SKIP_BUILD do ambiente", async () => {
+test("push deploy builds images and ignores DANGUS_SKIP_BUILD from the environment", async () => {
   const config = validateConfig({
     name: "produto",
     apps: { api: { domain: "api.produto.com" } },
@@ -443,7 +444,7 @@ test("deploy de push constrói as imagens e ignora DANGUS_SKIP_BUILD do ambiente
   expect(calls.some((args) => args.includes("--skip-push"))).toBe(false);
 });
 
-test("render usa os registros DNS do domínio de cada App", async () => {
+test("render uses DNS records for each App domain", async () => {
   const config = validateConfig({
     name: "produto",
     apps: { web: { domain: "web.produto.com" } },
@@ -472,7 +473,7 @@ test("render usa os registros DNS do domínio de cada App", async () => {
   expect(domains).toEqual(["web.produto.com"]);
 });
 
-test("DANGUS_PROXY_BIND_IPS substitui os IPs padrão no render", async () => {
+test("DANGUS_PROXY_BIND_IPS overrides default IPs in render", async () => {
   const cli = Bun.spawn(
     ["bun", join(root, "packages/cli/src/index.ts"), "render"],
     {
@@ -490,8 +491,8 @@ test("DANGUS_PROXY_BIND_IPS substitui os IPs padrão no render", async () => {
   expect(output).toContain("- 2001:db8::1");
 });
 
-test("DANGUS_PROXY_BIND_IPS inválido ou vazio interrompe o render", async () => {
-  for (const value of ["", " ", "192.0.2.1,,2001:db8::1", "inválido"]) {
+test("invalid or empty DANGUS_PROXY_BIND_IPS stops render", async () => {
+  for (const value of ["", " ", "192.0.2.1,,2001:db8::1", "invalid"]) {
     const cli = Bun.spawn(
       ["bun", join(root, "packages/cli/src/index.ts"), "render"],
       {
@@ -507,7 +508,7 @@ test("DANGUS_PROXY_BIND_IPS inválido ou vazio interrompe o render", async () =>
   }
 });
 
-test("deploy usa DANGUS_PROXY_BIND_IPS", async () => {
+test("deploy uses DANGUS_PROXY_BIND_IPS", async () => {
   const config = validateConfig({
     name: "produto",
     apps: { web: { domain: "web.produto.com" } },
@@ -536,7 +537,7 @@ test("deploy usa DANGUS_PROXY_BIND_IPS", async () => {
   expect(found).toBe(true);
 });
 
-test("DNS sem registros informa domínio e override", async () => {
+test("DNS without records reports domain and override", async () => {
   const config = validateConfig({
     name: "produto",
     apps: { web: { domain: "web.produto.com" } },
@@ -555,7 +556,7 @@ test("DNS sem registros informa domínio e override", async () => {
   ).rejects.toThrow(/web\.produto\.com.*DANGUS_PROXY_BIND_IPS/);
 });
 
-test("override dispensa consulta DNS", async () => {
+test("override skips DNS lookup", async () => {
   const config = validateConfig({
     name: "produto",
     apps: { web: { domain: "web.produto.com" } },
@@ -576,7 +577,7 @@ test("override dispensa consulta DNS", async () => {
     ".",
     ["192.0.2.5"],
     async () => {
-      throw new Error("DNS consultado");
+      throw new Error("DNS queried");
     },
   );
 });
@@ -584,7 +585,7 @@ test("override dispensa consulta DNS", async () => {
 const dnsError = (code: string) =>
   Object.assign(new Error(`query ${code}`), { code });
 
-test("domínio só com A ou só com AAAA usa os registros existentes", async () => {
+test("domain with only A or AAAA uses existing records", async () => {
   const onlyA = await resolveDomain("a.produto.com", [
     async () => ["192.0.2.1"],
     async () => {
@@ -600,7 +601,7 @@ test("domínio só com A ou só com AAAA usa os registros existentes", async () 
   expect([onlyA, onlyAaaa]).toEqual([["192.0.2.1"], ["2001:db8::1"]]);
 });
 
-test("NXDOMAIN resulta em lista vazia e outras falhas de DNS propagam", async () => {
+test("NXDOMAIN returns an empty list and other DNS failures propagate", async () => {
   const nx = async () => {
     throw dnsError("ENOTFOUND");
   };
@@ -620,16 +621,16 @@ const twoApps = () =>
     name: "produto",
     apps: {
       api: { domain: "api.produto.com" },
-      web: { domain: "web.outro.com" },
+      web: { domain: "web.other.com" },
     },
     database: "sqlite",
     deployTimeoutSeconds: 10,
   });
 
-test("Apps com IPs diferentes no DNS interrompem o render", async () => {
+test("Apps with different DNS IPs stop render", async () => {
   const ips: Record<string, string[]> = {
     "api.produto.com": ["192.0.2.1"],
-    "web.outro.com": ["192.0.2.2"],
+    "web.other.com": ["192.0.2.2"],
   };
   await expect(
     withRendered(
@@ -641,14 +642,14 @@ test("Apps com IPs diferentes no DNS interrompem o render", async () => {
       async (domain) => ips[domain] ?? [],
     ),
   ).rejects.toThrow(
-    /api\.produto\.com.*web\.outro\.com.*DANGUS_PROXY_BIND_IPS/,
+    /api\.produto\.com.*web\.other\.com.*DANGUS_PROXY_BIND_IPS/,
   );
 });
 
-test("ordem dos registros DNS não altera o bind_ips", async () => {
+test("DNS record order does not change bind_ips", async () => {
   const ips: Record<string, string[]> = {
     "api.produto.com": ["2001:db8::1", "192.0.2.1"],
-    "web.outro.com": ["192.0.2.1", "2001:db8::1"],
+    "web.other.com": ["192.0.2.1", "2001:db8::1"],
   };
   await withRendered(
     twoApps(),
@@ -667,7 +668,7 @@ test("ordem dos registros DNS não altera o bind_ips", async () => {
   );
 });
 
-test("accessory protege cada variante e não inclui chave privada", async () => {
+test("accessory protects each variant and does not include a private key", async () => {
   for (const database of ["postgres", "sqlite"] as const) {
     const config = validateConfig({
       name: "produto",
@@ -701,22 +702,22 @@ test("accessory protege cada variante e não inclui chave privada", async () => 
   }
 });
 
-for (const [caso, secrets, erro] of [
+for (const [scenario, secrets, expectedError] of [
   [
-    "ausente",
+    "missing",
     backupBws.filter((item) => item.key !== "ops__BACKUP_AGE_PUBLIC_KEY"),
-    "Secret ops__BACKUP_AGE_PUBLIC_KEY ausente",
+    "Secret ops__BACKUP_AGE_PUBLIC_KEY is missing",
   ],
   [
-    "com chave privada",
+    "private key",
     [
       ...backupBws.filter((item) => item.key !== "ops__BACKUP_AGE_PUBLIC_KEY"),
-      { key: "ops__BACKUP_AGE_PUBLIC_KEY", value: "AGE-SECRET-KEY-1TESTE" },
+      { key: "ops__BACKUP_AGE_PUBLIC_KEY", value: "AGE-SECRET-KEY-1TEST" },
     ],
-    "Chave pública age inválida",
+    "Invalid age public key",
   ],
 ] as const) {
-  test(`deploy falha claramente com chave pública ${caso} no BWS`, async () => {
+  test(`deploy fails clearly with ${scenario} public key in BWS`, async () => {
     const config = validateConfig({
       name: "produto",
       apps: { api: { domain: "api.produto.com" } },
@@ -734,12 +735,12 @@ for (const [caso, secrets, erro] of [
         SSH_AUTH_SOCK: "/ssh-agent",
         DANGUS_PROXY_BIND_IPS: "192.0.2.1",
       }),
-    ).rejects.toThrow(erro);
+    ).rejects.toThrow(expectedError);
     expect(calls.some((args) => args[0] === "docker")).toBe(false);
   });
 }
 
-test("db backup executa o script no accessory existente", async () => {
+test("db backup runs the script on the existing accessory", async () => {
   const config = validateConfig({
     name: "produto",
     apps: { api: { domain: "api.produto.com" } },
@@ -757,7 +758,7 @@ test("db backup executa o script no accessory existente", async () => {
     },
     { SSH_AUTH_SOCK: "/agent", DANGUS_PROXY_BIND_IPS: "192.0.2.1" },
   );
-  // O Kamal roda sem repositório git no container e exige a versão.
+  // Kamal runs without a git repository in the container and requires the version.
   expect(command.slice(-8)).toEqual([
     "accessory",
     "exec",

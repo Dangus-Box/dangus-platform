@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import type { ResolvedProductConfig } from "./config";
 
 const BACKUP_IMAGE = "ghcr.io/dangus-box/backup:1.0.0";
-// Secrets do accessory de Backup e suas chaves no BWS.
+// Backup accessory secrets and their BWS keys.
 const backupSecretKeys = (product: string): Record<string, string> => ({
   R2_ACCESS_KEY_ID: "ops__R2_BACKUP_ACCESS_KEY_ID",
   R2_SECRET_ACCESS_KEY: "ops__R2_BACKUP_SECRET_ACCESS_KEY",
@@ -17,7 +17,7 @@ const backupSecretKeys = (product: string): Record<string, string> => ({
 const backupSecrets = Object.keys(backupSecretKeys(""));
 export const KAMAL_IMAGE =
   "ghcr.io/basecamp/kamal:v2.12.0@sha256:7a3893b47dd328955f86fbf9ba887d08d612b74f96867f077750a53312537625";
-// Nome do Host na tailnet; DANGUS_HOST substitui.
+// Host name on the tailnet; DANGUS_HOST overrides it.
 export const DEFAULT_HOST = "devbox-1";
 export type Resolver = (domain: string) => Promise<string[]>;
 export async function resolveDomain(
@@ -73,7 +73,7 @@ export function proxyBindIps(value: string | undefined): string[] | undefined {
     : value.split(",").map((ip) => ip.trim());
 }
 
-// Variáveis que o container do Kamal recebe do ambiente para a App.
+// Variables the Kamal container receives from the environment for the App.
 function kamalSecrets(config: ResolvedProductConfig, app: App): string[] {
   const names = [
     "KAMAL_REGISTRY_PASSWORD",
@@ -93,12 +93,12 @@ export function render(
   bindIps: string[] = [],
 ): string {
   const settings = config.apps[app];
-  if (!settings) throw new Error(`App ${app} não declarada.`);
+  if (!settings) throw new Error(`App ${app} is not declared.`);
   if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(host))
-    throw new Error("Host Tailscale inválido.");
+    throw new Error("Invalid Tailscale Host.");
   if (!bindIps.length || bindIps.some((ip) => !isIP(ip)))
     throw new Error(
-      "DANGUS_PROXY_BIND_IPS deve conter IPs válidos, separados por vírgulas.",
+      "DANGUS_PROXY_BIND_IPS must contain valid IPs separated by commas.",
     );
   const service = `${config.name}-${app}`;
   const secrets = [...settings.secrets];
@@ -181,7 +181,7 @@ export function render(
                 PGDATABASE: "produto",
               }),
         },
-        // pg_dump lê a senha do ambiente; uma URL no argv ficaria visível em /proc.
+        // pg_dump reads the password from the environment; a URL in argv would be visible in /proc.
         secret: [
           ...backupSecrets,
           ...(config.database === "postgres"
@@ -189,7 +189,7 @@ export function render(
             : []),
         ],
       },
-      // Sem :ro: o SQLite em WAL precisa escrever o -shm para abrir o banco.
+      // Without :ro: SQLite in WAL mode needs to write -shm to open the database.
       ...(config.database === "sqlite"
         ? { volumes: [`${config.name}-sqlite:/app/data`] }
         : {}),
@@ -199,8 +199,8 @@ export function render(
   return Bun.YAML.stringify(doc, null, 2);
 }
 
-// O kamal-proxy é um container por Host e o Kamal ignora o bind_ips de um
-// deploy quando o container já existe, então todas as Apps precisam do mesmo.
+// There is one kamal-proxy container per Host and Kamal ignores bind_ips in a
+// deploy when the container already exists, so all Apps need the same value.
 async function resolveBindIps(
   config: ResolvedProductConfig,
   apps: App[],
@@ -213,11 +213,11 @@ async function resolveBindIps(
   const empty = resolved.findIndex((ips) => !ips.length);
   if (empty >= 0)
     throw new Error(
-      `Nenhum IP encontrado no DNS de ${domains[empty]}; defina DANGUS_PROXY_BIND_IPS.`,
+      `No IP found in DNS for ${domains[empty]}; set DANGUS_PROXY_BIND_IPS.`,
     );
   if (new Set(resolved.map((ips) => ips.join(","))).size > 1)
     throw new Error(
-      `${domains.join(" e ")} apontam para IPs diferentes no DNS; o proxy do Host é único, aponte-os para o mesmo Host ou defina DANGUS_PROXY_BIND_IPS.`,
+      `${domains.join(" and ")} resolve to different DNS IPs; the Host has one proxy, so point them to the same Host or set DANGUS_PROXY_BIND_IPS.`,
     );
   return resolved[0] ?? [];
 }
@@ -231,7 +231,7 @@ export async function withRendered<T>(
   resolver: Resolver = resolveDomain,
 ): Promise<T> {
   const apps = (["api", "web"] as const).filter((app) => config.apps[app]);
-  if (!apps.length) throw new Error("Nenhuma App de servidor declarada.");
+  if (!apps.length) throw new Error("No server App declared.");
   const addresses = bindIps ?? (await resolveBindIps(config, apps, resolver));
   const dir = await mkdtemp(join(tmpdir(), "dangus-"));
   try {
@@ -268,7 +268,7 @@ export async function deploy(
     config,
     env.DANGUS_HOST || DEFAULT_HOST,
     async (dir, apps) => {
-      if (!env.SSH_AUTH_SOCK) throw new Error("SSH_AUTH_SOCK é obrigatório.");
+      if (!env.SSH_AUTH_SOCK) throw new Error("SSH_AUTH_SOCK is required.");
       const version = await productVersion(runner, env, directory);
       const names = new Set(
         apps.flatMap((app) => config.apps[app]?.secrets ?? []),
@@ -280,7 +280,7 @@ export async function deploy(
       if (names.size) {
         const result = await runner(["bws", "secret", "list"], env, directory);
         if (result.code !== 0)
-          throw new Error("Falha ao consultar secrets no BWS.");
+          throw new Error("Failed to query secrets in BWS.");
         let found: { key: string; value: string }[];
         try {
           const parsed: unknown = JSON.parse(result.stdout);
@@ -293,14 +293,14 @@ export async function deploy(
               typeof item.value === "string",
           );
         } catch {
-          throw new Error("Resposta inválida do BWS.");
+          throw new Error("Invalid BWS response.");
         }
         const keys = backupSecretKeys(config.name);
         for (const name of names) {
           const key = keys[name] ?? `${config.name}__${name}`;
           const matches = found.filter((item) => item.key === key);
           if (matches.length !== 1 || typeof matches[0].value !== "string")
-            throw new Error(`Secret ${key} ausente ou duplicado no BWS.`);
+            throw new Error(`Secret ${key} is missing or duplicated in BWS.`);
           values[name] = matches[0].value;
         }
       }
@@ -308,7 +308,7 @@ export async function deploy(
         values.AGE_PUBLIC_KEY !== undefined &&
         !/^age1[0-9a-z]+$/.test(values.AGE_PUBLIC_KEY)
       )
-        throw new Error("Chave pública age inválida no BWS.");
+        throw new Error("Invalid age public key in BWS.");
       if (config.database === "postgres" && config.apps.api)
         values.DATABASE_URL = `postgres://produto:${encodeURIComponent(values.POSTGRES_PASSWORD)}@${config.name}-api-db:5432/produto`;
       if (skipBuild) {
@@ -320,7 +320,7 @@ export async function deploy(
             directory,
           );
           if (result.code !== 0)
-            throw new Error(`Imagem indisponível: ${image}.`);
+            throw new Error(`Image unavailable: ${image}.`);
         }
       }
       for (const app of apps) {
@@ -362,8 +362,7 @@ export async function deploy(
           directory,
           true,
         );
-        if (result.code !== 0)
-          throw new Error(`Falha no deploy da App ${app}.`);
+        if (result.code !== 0) throw new Error(`Failed to deploy App ${app}.`);
       }
     },
     env.DANGUS_BUILD_CONTEXT || ".",
@@ -384,7 +383,7 @@ async function productVersion(
   );
   const version = git.stdout.trim();
   if (git.code !== 0 || !/^[0-9a-f]{40,64}$/.test(version))
-    throw new Error("Não foi possível determinar o commit do Produto.");
+    throw new Error("Could not determine the Product commit.");
   return version;
 }
 
@@ -394,8 +393,8 @@ export async function backupNow(
   runner: Runner = run,
   env: Record<string, string | undefined> = process.env,
 ): Promise<void> {
-  if (!config.apps.api) throw new Error("Backup exige uma App API.");
-  if (!env.SSH_AUTH_SOCK) throw new Error("SSH_AUTH_SOCK é obrigatório.");
+  if (!config.apps.api) throw new Error("Backup requires an API App.");
+  if (!env.SSH_AUTH_SOCK) throw new Error("SSH_AUTH_SOCK is required.");
   await withRendered(
     config,
     env.DANGUS_HOST || DEFAULT_HOST,
@@ -433,7 +432,7 @@ export async function backupNow(
         directory,
         true,
       );
-      if (result.code !== 0) throw new Error("Falha no Backup.");
+      if (result.code !== 0) throw new Error("Backup failed.");
     },
     env.DANGUS_BUILD_CONTEXT || ".",
     proxyBindIps(env.DANGUS_PROXY_BIND_IPS),

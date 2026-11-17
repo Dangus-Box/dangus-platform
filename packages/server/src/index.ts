@@ -65,7 +65,7 @@ export function observability(
     },
     options.destination,
   );
-  // pino descarta formatters.bindings nos filhos; oculta os bindings de cada child.
+  // pino ignores formatters.bindings in children; redact each child's bindings.
   const child = logger.child;
   logger.child = function (this: typeof logger, bindings, childOptions) {
     return child.call(this, redact(bindings) as typeof bindings, childOptions);
@@ -74,13 +74,13 @@ export function observability(
   const provider = new MeterProvider({ readers: [exporter] });
   const meter = provider.getMeter("@dangus-box/server");
   const requests = meter.createCounter("http_server_requests", {
-    description: "Requisições HTTP",
+    description: "HTTP requests",
   });
   const errors = meter.createCounter("http_server_errors", {
     description: "Erros HTTP",
   });
   const duration = meter.createHistogram("http_server_duration_seconds", {
-    description: "Duração das requisições HTTP",
+    description: "HTTP request duration",
     unit: "s",
     advice: {
       explicitBucketBoundaries: [

@@ -16,8 +16,8 @@ Os quatro pacotes `@dangus-box` são públicos no npm. Para preparar uma versão
 registre as mudanças com `bunx changeset`, execute `bunx changeset version` e
 inclua as versões e os changelogs resultantes na alteração revisada. A primeira
 publicação já tem um changeset para os quatro pacotes. Depois de integrar a
-alteração na branch principal, execute manualmente o workflow **Publicar
-pacotes**. Ele busca `platform__NPM_TOKEN` no projeto `ops` do BWS usando o
+alteração na branch principal, execute manualmente o workflow **Publish
+packages**. Ele busca `platform__NPM_TOKEN` no projeto `ops` do BWS usando o
 secret de organização `BWS_ACCESS_TOKEN` e a variável `BWS_SERVER_URL`.
 O token npm precisa permitir publicar os quatro pacotes públicos.
 

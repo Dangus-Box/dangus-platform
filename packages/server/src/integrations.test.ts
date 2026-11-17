@@ -8,7 +8,7 @@ afterEach(async () => {
   process.env = { ...original };
 });
 
-test("sem configuração, Flags retornam padrões e analytics não usa rede", async () => {
+test("without configuration, Flags return defaults and analytics does not use the network", async () => {
   let requests = 0;
   const server = Bun.serve({
     port: 0,
@@ -22,18 +22,18 @@ test("sem configuração, Flags retornam padrões e analytics não usa rede", as
     delete process.env.UMAMI_WEBSITE_ID;
     process.env.UNLEASH_URL = `${server.url}api`;
     process.env.UMAMI_URL = server.url.toString();
-    await configureFlags("teste");
+    await configureFlags("test");
     const client = OpenFeature.getClient();
     expect(await client.getBooleanValue("flag", true)).toBe(true);
-    expect(await client.getStringValue("config", "padrão")).toBe("padrão");
-    await trackEvent({ name: "evento", hostname: "teste.local", url: "/" });
+    expect(await client.getStringValue("config", "default")).toBe("default");
+    await trackEvent({ name: "event", hostname: "test.local", url: "/" });
     expect(requests).toBe(0);
   } finally {
     server.stop(true);
   }
 });
 
-test("provider avalia Flag pelo OpenFeature usando Unleash local", async () => {
+test("provider evaluates Flag through OpenFeature using local Unleash", async () => {
   const requests: string[] = [];
   const server = Bun.serve({
     port: 0,
@@ -46,7 +46,7 @@ test("provider avalia Flag pelo OpenFeature usando Unleash local", async () => {
           version: 2,
           features: [
             {
-              name: "ativa",
+              name: "enabled-flag",
               enabled: true,
               strategies: [{ name: "default", parameters: {} }],
               variants: [],
@@ -60,10 +60,10 @@ test("provider avalia Flag pelo OpenFeature usando Unleash local", async () => {
   try {
     process.env.UNLEASH_TOKEN = "token-local";
     process.env.UNLEASH_URL = `${server.url}api`;
-    await configureFlags("teste");
-    expect(await OpenFeature.getClient().getBooleanValue("ativa", false)).toBe(
-      true,
-    );
+    await configureFlags("test");
+    expect(
+      await OpenFeature.getClient().getBooleanValue("enabled-flag", false),
+    ).toBe(true);
     expect(requests).toContain("GET /api/client/features token-local");
   } finally {
     await OpenFeature.close();
@@ -71,7 +71,7 @@ test("provider avalia Flag pelo OpenFeature usando Unleash local", async () => {
   }
 });
 
-test("analytics envia evento ao Umami configurado", async () => {
+test("analytics sends an event to configured Umami", async () => {
   let received: unknown;
   const server = Bun.serve({
     port: 0,
@@ -88,18 +88,18 @@ test("analytics envia evento ao Umami configurado", async () => {
     process.env.UMAMI_WEBSITE_ID = "website-local";
     process.env.UMAMI_URL = server.url.toString();
     await trackEvent({
-      name: "pedido",
-      hostname: "teste.local",
-      url: "/pedidos",
+      name: "order",
+      hostname: "test.local",
+      url: "/orders",
       data: { total: 3 },
     });
     expect(received).toEqual({
       type: "event",
       payload: {
         website: "website-local",
-        name: "pedido",
-        hostname: "teste.local",
-        url: "/pedidos",
+        name: "order",
+        hostname: "test.local",
+        url: "/orders",
         data: { total: 3 },
       },
     });
@@ -108,35 +108,35 @@ test("analytics envia evento ao Umami configurado", async () => {
   }
 });
 
-test("Unleash lento não bloqueia o boot e Flags retornam padrões", async () => {
+test("slow Unleash does not block boot and Flags return defaults", async () => {
   const server = Bun.serve({ port: 0, fetch: () => new Promise(() => {}) });
   try {
     process.env.UNLEASH_TOKEN = "token-local";
     process.env.UNLEASH_URL = `${server.url}api`;
     const start = Date.now();
-    await configureFlags("teste");
+    await configureFlags("test");
     expect(Date.now() - start).toBeLessThan(5000);
-    expect(await OpenFeature.getClient().getBooleanValue("ativa", true)).toBe(
-      true,
-    );
+    expect(
+      await OpenFeature.getClient().getBooleanValue("enabled-flag", true),
+    ).toBe(true);
   } finally {
     await OpenFeature.close();
     server.stop(true);
   }
 }, 15000);
 
-test("Umami lento, fora do ar ou com erro não rejeita nem bloqueia", async () => {
+test("slow, unavailable or failing Umami neither rejects nor blocks", async () => {
   const slow = Bun.serve({ port: 0, fetch: () => new Promise(() => {}) });
   const failing = Bun.serve({
     port: 0,
-    fetch: () => new Response("erro", { status: 500 }),
+    fetch: () => new Response("error", { status: 500 }),
   });
   try {
     process.env.UMAMI_WEBSITE_ID = "website-local";
     for (const url of [slow.url, failing.url, "http://127.0.0.1:1"]) {
       process.env.UMAMI_URL = url.toString();
       const start = Date.now();
-      await trackEvent({ name: "evento", hostname: "teste.local", url: "/" });
+      await trackEvent({ name: "event", hostname: "test.local", url: "/" });
       expect(Date.now() - start).toBeLessThan(5000);
     }
   } finally {

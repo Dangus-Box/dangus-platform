@@ -11,7 +11,7 @@ const valid = defineConfig({
   deployTimeoutSeconds: 120,
 });
 
-test("aplica os padrões de recursos, redaction e Backup", () => {
+test("applies default resources, redaction and Backup", () => {
   expect(validateConfig(valid)).toEqual({
     ...valid,
     apps: { api: { domain: "api.produto.com", memoryMb: 512, secrets: [] } },
@@ -20,7 +20,7 @@ test("aplica os padrões de recursos, redaction e Backup", () => {
   });
 });
 
-test("aceita opções explícitas", () => {
+test("accepts explicit options", () => {
   expect(
     validateConfig({
       ...valid,
@@ -35,12 +35,12 @@ test("aceita opções explícitas", () => {
   ).toBe("s3");
 });
 
-test("aponta o caminho exato dos campos inválidos", () => {
+test("reports the exact path of invalid fields", () => {
   for (const [config, path] of [
     [{ ...valid, name: "" }, "name"],
-    [{ ...valid, name: "Produto" }, "name"],
+    [{ ...valid, name: "Product" }, "name"],
     [{ ...valid, name: "produto; rm -rf /" }, "name"],
-    [{ ...valid, name: "produto\nservice: outro" }, "name"],
+    [{ ...valid, name: "produto\nservice: other" }, "name"],
     [{ ...valid, apps: {} }, "apps"],
     [
       { ...valid, apps: { api: { domain: "api.produto.com", memoryMb: 0.5 } } },
@@ -74,7 +74,7 @@ test("aponta o caminho exato dos campos inválidos", () => {
     expect(() => validateConfig(config)).toThrow(path);
 });
 
-test("rejeita secrets que colidem com variáveis do deploy ou da Plataforma", () => {
+test("rejects secrets that collide with deploy or Platform variables", () => {
   for (const name of [
     "PATH",
     "HOME",
@@ -93,13 +93,13 @@ test("rejeita secrets que colidem com variáveis do deploy ou da Plataforma", ()
     ).toThrow("apps.api.secrets");
 });
 
-test("nomeia o export default quando a Config não é um objeto", () => {
+test("names the default export when Config is not an object", () => {
   expect(() => validateConfig(undefined)).toThrow(
-    "Config do Produto: export default: deve ser um objeto",
+    "Product Config: export default: must be an object",
   );
 });
 
-test("carrega e valida dangus.config.ts do Produto", async () => {
+test("loads and validates the Product dangus.config.ts", async () => {
   const dir = await mkdtemp(join(tmpdir(), "dangus-config-"));
   try {
     await writeFile(

@@ -6,7 +6,7 @@ groups:
     interval: 1m
     rules:
       - uid: host-disco
-        title: Disco do Host acima de 85%
+        title: Host disk usage above 85%
         condition: B
         data:
           - refId: A
@@ -42,7 +42,7 @@ groups:
         execErrState: Error
         for: 1m
         annotations:
-          summary: Disco raiz do Host acima de 85%.
+          summary: Host root disk usage above 85%.
 contactPoints:
   - orgId: 1
     name: Telegram

@@ -21,7 +21,7 @@ const dashboard = JSON.parse(
   readFileSync(`${path}dashboards/stack-ops.json`, "utf8"),
 );
 
-test("Stack Ops mantém serviços internos, limites e retenção", () => {
+test("Ops Stack maintains internal services, limits and retention", () => {
   const { grafana, loki, prometheus } = config.accessories;
   expect(grafana.port).toBe("127.0.0.1:3300:3000");
   expect(loki.port).toBeUndefined();
@@ -37,7 +37,12 @@ test("Stack Ops mantém serviços internos, limites e retenção", () => {
   }
 });
 
-test("dashboard consulta sinais por Produto", () => {
+test("Ops Stack e2e checks the provisioned dashboard title", () => {
+  const script = readFileSync(`${path}test/stack-ops-e2e.sh`, "utf8");
+  expect(script).toContain(`'"title":"${dashboard.title}"'`);
+});
+
+test("dashboard queries signals by Product", () => {
   expect(dashboard.templating.list[0].name).toBe("product");
   expect(dashboard.panels).toHaveLength(6);
   for (const panel of dashboard.panels)
@@ -90,8 +95,8 @@ async function deploy(
   if (route) writeFileSync(`${bin}/route`, "");
   if (edgeContainer) writeFileSync(`${bin}/edge-container`, "");
   if (edgeRoute) writeFileSync(`${bin}/edge-route`, "");
-  // Imita o Kamal: stop/reboot de accessory com proxy executa
-  // `kamal-proxy remove`, que falha se a rota não existe.
+  // Simulate Kamal: stopping or rebooting an accessory with a proxy runs
+  // `kamal-proxy remove`, which fails if the route does not exist.
   const pub = "umami --config-file deploy.yml ";
   fake(
     "docker",
@@ -104,7 +109,7 @@ case " $* " in
     rm ${bin}/route ;;
 esac
 case " $* " in *" accessory boot ${pub}"*|*" accessory reboot ${pub}"*) touch ${bin}/route ;; esac
-# Imita o Kamal: boot pula accessory cujo container já existe.
+# Simulate Kamal: boot skips an accessory whose container already exists.
 case " $* " in
   *" accessory exec unleash "*) ${failUnleashHealth ? "exit 1" : ":"} ;;
   *" accessory stop unleash-edge --config-file deploy.yml "*)
@@ -142,13 +147,13 @@ esac`,
   };
 }
 
-test("deploy da Stack Ops recusa senha do Grafana vazia", async () => {
+test("Ops Stack deploy rejects an empty Grafana password", async () => {
   const run = await deploy([{ key: "ops__GRAFANA_ADMIN_PASSWORD", value: "" }]);
   expect(run.code).not.toBe(0);
   expect(run.args).toBe("");
 });
 
-test("deploy da Stack Ops passa a senha só por ambiente, sem Docker socket", async () => {
+test("Ops Stack deploy passes the password only through the environment, without the Docker socket", async () => {
   const run = await deploy([
     { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "s3nt1nel" },
     { key: "ops__UMAMI_APP_SECRET", value: "secret" },
@@ -167,7 +172,7 @@ test("deploy da Stack Ops passa a senha só por ambiente, sem Docker socket", as
   expect(run.env).toContain("GF_SECURITY_ADMIN_PASSWORD=s3nt1nel");
 });
 
-test("falha ao configurar senha impede publicação", async () => {
+test("failure to configure the password prevents publication", async () => {
   const run = await deploy(
     [
       { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "x" },
@@ -182,14 +187,14 @@ test("falha ao configurar senha impede publicação", async () => {
   expect(run.args).not.toContain(
     "accessory\nboot\numami\n--config-file\ndeploy.yml",
   );
-  // O container privado com admin/umami não fica rodando na rede do Host.
+  // The private container with admin/umami does not keep running on the Host network.
   expect(run.args).toMatch(
     /accessory\nstop\numami\n--config-file\n\/work\/\.deploy-private\.\w+\n--version=\w+\n$/,
   );
 });
 
 for (const route of [false, true])
-  test(`deploy publica o Umami ${route ? "no redeploy" : "no primeiro deploy"}`, async () => {
+  test(`deploy publishes Umami ${route ? "on redeploy" : "on first deploy"}`, async () => {
     const run = await deploy(
       [
         { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "x" },
@@ -203,7 +208,7 @@ for (const route of [false, true])
     expect(run.routed).toBe(true);
   });
 
-test("Umami e banco têm limites, imagens fixas e caminhos neutros", () => {
+test("Umami and database have limits, pinned images and neutral paths", () => {
   const { umami, "umami-db": db } = config.accessories;
   expect(umami.port).toBeUndefined();
   expect(db.port).toBeUndefined();
@@ -216,12 +221,12 @@ test("Umami e banco têm limites, imagens fixas e caminhos neutros", () => {
   expect(yaml).toContain("path: /api/heartbeat");
 });
 
-test("kamal-proxy espera o boot do Umami com 0,2 vCPU", () => {
-  // Medido: ~33 s até /api/heartbeat responder; o padrão do Kamal é 30 s.
+test("kamal-proxy waits for Umami boot with 0.2 vCPU", () => {
+  // Measured: ~33 s until /api/heartbeat responds; the Kamal default is 30 s.
   expect(config.deploy_timeout).toBeGreaterThanOrEqual(120);
 });
 
-test("deploy recusa secret ausente antes de chamar Docker", async () => {
+test("deploy rejects a missing secret before calling Docker", async () => {
   const run = await deploy([
     { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "ok" },
   ]);
@@ -229,11 +234,11 @@ test("deploy recusa secret ausente antes de chamar Docker", async () => {
   expect(run.args).toBe("");
 });
 
-for (const [caso, agePublicKey] of [
-  ["ausente", ""],
-  ["com chave privada", "AGE-SECRET-KEY-1TESTE"],
+for (const [caseName, agePublicKey] of [
+  ["missing", ""],
+  ["with private key", "AGE-SECRET-KEY-1TEST"],
 ]) {
-  test(`deploy recusa chave pública age ${caso} no BWS antes de chamar Docker`, async () => {
+  test(`deploy rejects ${caseName} age public key in BWS before calling Docker`, async () => {
     const run = await deploy(
       [
         { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "ok" },
@@ -248,24 +253,24 @@ for (const [caso, agePublicKey] of [
   });
 }
 
-test("Backups da Stack Ops recebem a chave pública age como secret", () => {
+test("Ops Stack Backups receive the age public key as a secret", () => {
   for (const name of ["backup-umami", "backup-unleash", "backup-grafana"]) {
     expect(config.accessories[name].env.secret).toContain("AGE_PUBLIC_KEY");
     expect(config.accessories[name].env.clear.AGE_PUBLIC_KEY).toBeUndefined();
   }
 });
 
-test("Stack Ops não faz login em registry", () => {
+test("Ops Stack does not log in to a registry", () => {
   expect(config.registry).toEqual({ server: "localhost:5555" });
 });
 
-test('"All" do filtro de Produto é aceito pelo Loki', () => {
-  // O Loki recusa seletores que casam com valor vazio, como product=~".*".
+test('"All" in the Product filter is accepted by Loki', () => {
+  // Loki rejects selectors that match an empty value, such as product=~".*".
   const { allValue } = dashboard.templating.list[0];
   expect(new RegExp(`^(?:${allValue})$`).test("")).toBe(false);
 });
 
-test("Unleash mantém admin privado e Edge público", () => {
+test("Unleash keeps admin private and Edge public", () => {
   const {
     unleash,
     "unleash-db": db,
@@ -289,7 +294,7 @@ for (const name of [
   "FRONTEND_TOKEN",
   "BACKEND_TOKEN",
 ])
-  test(`deploy recusa secret vazio do Unleash: ${name}`, async () => {
+  test(`deploy rejects an empty Unleash secret: ${name}`, async () => {
     const run = await deploy(
       [
         { key: "ops__GRAFANA_ADMIN_PASSWORD", value: "x" },
@@ -310,8 +315,8 @@ const unleashSecrets = () => [
   { key: "ops__UMAMI_ADMIN_PASSWORD", value: "adminpass" },
 ];
 
-// O Edge encerra se não valida TOKENS no upstream ao iniciar.
-test("deploy só sobe o Edge depois do Unleash server responder", async () => {
+// Edge exits if it cannot validate TOKENS with upstream at startup.
+test("deploy starts Edge only after the Unleash server responds", async () => {
   const run = await deploy(unleashSecrets());
   expect(run.code).toBe(0);
   for (const secret of ["dbpass", "adminpass", "production."])
@@ -326,24 +331,27 @@ test("deploy só sobe o Edge depois do Unleash server responder", async () => {
   );
 });
 
-test("Unleash server sem resposta impede o boot do Edge", async () => {
+test("an unresponsive Unleash server prevents Edge boot", async () => {
   const run = await deploy(unleashSecrets(), { failUnleashHealth: true });
   expect(run.code).not.toBe(0);
   expect(run.args).not.toContain("accessory\nboot\nunleash-edge\n");
 });
 
 for (const [name, state] of [
-  ["no primeiro deploy", { edgeContainer: false, edgeRoute: false }],
-  ["no redeploy", { edgeContainer: true, edgeRoute: true }],
-  ["após primeiro deploy sem rota", { edgeContainer: true, edgeRoute: false }],
+  ["on first deploy", { edgeContainer: false, edgeRoute: false }],
+  ["on redeploy", { edgeContainer: true, edgeRoute: true }],
+  [
+    "after first deploy without a route",
+    { edgeContainer: true, edgeRoute: false },
+  ],
 ] as const)
-  test(`deploy publica o Edge ${name}`, async () => {
+  test(`deploy publishes Edge ${name}`, async () => {
     const run = await deploy(unleashSecrets(), state);
     expect(run.code).toBe(0);
     expect(run.edgeRouted).toBe(true);
   });
 
-test("deploy provisiona o Telegram sem gravar o token", async () => {
+test("deploy provisions Telegram without writing the token", async () => {
   const run = await deploy(unleashSecrets());
   expect(run.code).toBe(0);
   expect(run.env).toContain("TELEGRAM_BOT_TOKEN=test-token");
@@ -354,15 +362,15 @@ test("deploy provisiona o Telegram sem gravar o token", async () => {
   expect(existsSync(`${path}.alerts-generated.yml`)).toBe(false);
 });
 
-test("deploy recusa chat ID do Telegram inválido antes de chamar Docker", async () => {
+test("deploy rejects an invalid Telegram chat ID before calling Docker", async () => {
   const run = await deploy(unleashSecrets(), { chatId: '1"\nbottoken: x' });
   expect(run.code).not.toBe(0);
   expect(run.args).toBe("");
 });
 
-// O boot do Kamal pula container existente: sem recriar, o Grafana já no Host
-// não recebe o arquivo de alertas nem o TELEGRAM_BOT_TOKEN.
-test("redeploy recria o Grafana para aplicar os alertas", async () => {
+// Kamal boot skips an existing container: without recreation, Grafana on the Host
+// does not receive the alerts file or TELEGRAM_BOT_TOKEN.
+test("redeploy recreates Grafana to apply alerts", async () => {
   const run = await deploy(unleashSecrets());
   expect(run.code).toBe(0);
   const remove = run.args.indexOf("accessory\nremove_container\ngrafana\n");

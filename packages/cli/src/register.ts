@@ -17,7 +17,7 @@ function parseBws(output: string): unknown {
   try {
     return JSON.parse(output);
   } catch {
-    throw new Error("Resposta inválida do BWS.");
+    throw new Error("Invalid BWS response.");
   }
 }
 const defaultTargets = [
@@ -32,7 +32,7 @@ async function command(args: string[]): Promise<string> {
     new Response(process.stderr).text(),
     process.exited,
   ]);
-  if (code !== 0) throw new Error(`Falha ao executar ${args[0]}.`);
+  if (code !== 0) throw new Error(`Failed to run ${args[0]}.`);
   return stdout;
 }
 
@@ -43,13 +43,14 @@ async function tailscale(run: Command): Promise<string> {
       throw new Error();
     return status.MagicDNSSuffix;
   } catch {
-    throw new Error("Tailscale desconectado: conecte-o antes do Registro.");
+    throw new Error(
+      "Tailscale is disconnected: connect it before Registration.",
+    );
   }
 }
 
 function one<T>(items: T[], description: string): T | undefined {
-  if (items.length > 1)
-    throw new Error(`${description}: registros duplicados.`);
+  if (items.length > 1) throw new Error(`${description}: duplicate records.`);
   return items[0];
 }
 
@@ -61,9 +62,9 @@ async function secrets(run: Command) {
   const project = (name: string) => {
     const found = one(
       projects.filter((p) => p.name === name),
-      `Projeto ${name}`,
+      `Project ${name}`,
     );
-    if (!found) throw new Error(`Projeto ${name} ausente no BWS.`);
+    if (!found) throw new Error(`Project ${name} missing in BWS.`);
     return found.id;
   };
   const opsId = project("ops");
@@ -79,7 +80,7 @@ async function secrets(run: Command) {
     )?.value;
   const required = (key: string) => {
     const value = get(ops, key);
-    if (!value) throw new Error(`Secret ${key} ausente no BWS.`);
+    if (!value) throw new Error(`Secret ${key} missing in BWS.`);
     return value;
   };
   async function save(
@@ -88,7 +89,7 @@ async function secrets(run: Command) {
     key: string,
     value: string,
   ) {
-    if (!value) throw new Error(`Valor ausente para ${key}.`);
+    if (!value) throw new Error(`Missing value for ${key}.`);
     const existing = get(list, key);
     if (existing !== undefined) {
       if (existing !== value) throw new Error(`Secret ${key} diverge no BWS.`);
@@ -114,17 +115,17 @@ async function api(
   try {
     response = await request(`${base}${path}`, options);
   } catch {
-    throw new Error(`Falha de conexão com ${new URL(base).host}.`);
+    throw new Error(`Failed to connect to ${new URL(base).host}.`);
   }
   if (!response.ok)
     throw new Error(
-      `Falha na API ${new URL(base).host}: HTTP ${response.status}.`,
+      `${new URL(base).host} API failed: HTTP ${response.status}.`,
     );
   if (response.status === 204) return undefined;
   try {
     return await response.json();
   } catch {
-    throw new Error(`Resposta inválida da API ${new URL(base).host}.`);
+    throw new Error(`Invalid response from ${new URL(base).host} API.`);
   }
 }
 const json = (value: unknown): RequestInit => ({
@@ -144,8 +145,8 @@ async function unleashLogin(
   });
   const cookie = response.headers.get("set-cookie")?.split(";")[0];
   if (!response.ok || !cookie)
-    throw new Error("Falha ao autenticar no Unleash.");
-  // O Unleash responde ao login antes de persistir a sessão.
+    throw new Error("Failed to authenticate with Unleash.");
+  // Unleash responds to login before persisting the session.
   for (let attempt = 0; attempt < 20; attempt++) {
     const user = await request(`${base}/api/admin/user`, {
       headers: { cookie },
@@ -153,7 +154,7 @@ async function unleashLogin(
     if (user.ok) return { cookie, "content-type": "application/json" };
     await Bun.sleep(250);
   }
-  throw new Error("Falha ao autenticar no Unleash.");
+  throw new Error("Failed to authenticate with Unleash.");
 }
 
 export async function register(root: string, deps: Dependencies = {}) {
@@ -178,12 +179,12 @@ async function registerProduct(
   const key = (name: string) => `${config.name}__${name}`;
   const save = (name: string, value: string) =>
     vault.saveProd(key(name), value);
-  // Antes de criar, um secret já presente indica cadastro feito fora do Registro.
+  // Before creation, an existing secret indicates setup performed outside Registration.
   const assertUnsaved = (...names: string[]) => {
     for (const name of names)
       if (vault.prod(key(name)) !== undefined)
         throw new Error(
-          `${key(name)} existe no BWS sem cadastro correspondente; revise antes de registrar.`,
+          `${key(name)} exists in BWS without a matching registration; review before registering.`,
         );
   };
   const login = await api(
@@ -210,14 +211,14 @@ async function registerProduct(
       );
       sites.push(...result.data);
       if (sites.length >= result.count) break;
-      if (!result.data.length) throw new Error("Paginação do Umami inválida.");
+      if (!result.data.length) throw new Error("Invalid Umami pagination.");
     }
     let website = one(
       sites.filter((s) => s.name === config.name),
-      "Website Umami",
+      "Umami website",
     ) as { id: string; domain: string } | undefined;
     if (website && website.domain !== config.apps.web.domain)
-      throw new Error("Domínio do website Umami diverge da Config do Produto.");
+      throw new Error("Umami website domain differs from the Product Config.");
     if (!website) {
       assertUnsaved(
         "UMAMI_WEBSITE_ID",
@@ -228,7 +229,7 @@ async function registerProduct(
         headers: umamiHeaders,
       });
     }
-    if (!website) throw new Error("Website Umami ausente.");
+    if (!website) throw new Error("Umami website missing.");
     await save("UMAMI_WEBSITE_ID", website.id);
     if (config.apps.mobile)
       await save("EXPO_PUBLIC_UMAMI_WEBSITE_ID", website.id);
@@ -251,7 +252,7 @@ async function registerProduct(
         { headers: uh },
       )
     ).tokens;
-    const token = one(tokens, "Token Unleash") as
+    const token = one(tokens, "Unleash token") as
       | {
           type: string;
           projects: string[];
@@ -266,7 +267,9 @@ async function registerProduct(
         token.projects.length !== 1 ||
         token.projects[0] !== "default")
     )
-      throw new Error(`Token ${tokenName} diverge da configuração esperada.`);
+      throw new Error(
+        `Token ${tokenName} differs from the expected configuration.`,
+      );
     if (!token)
       assertUnsaved(
         secretName,
@@ -302,7 +305,7 @@ async function registerProduct(
     (c: { kind: string }) => c.kind === "telegram",
   );
   if (!telegram.length)
-    throw new Error("Integração Telegram ausente no Healthchecks.");
+    throw new Error("Telegram integration missing from Healthchecks.");
   const checks = (
     await api(request, health, "/api/v3/checks/", { headers: hh })
   ).checks;
@@ -324,7 +327,7 @@ async function registerProduct(
           (c: { id: string }) => !check?.channels.split(",").includes(c.id),
         ))
     )
-      throw new Error(`Check ${name} diverge da configuração esperada.`);
+      throw new Error(`Check ${name} differs from the expected configuration.`);
     if (!check) {
       const upper = kind.toUpperCase();
       assertUnsaved(`HEALTHCHECKS_${upper}_ID`, `HEALTHCHECKS_${upper}_URL`);
@@ -338,7 +341,7 @@ async function registerProduct(
       });
     }
     if (!check?.ping_url || !check.uuid)
-      throw new Error(`ID ou ping URL ausente: ${name}.`);
+      throw new Error(`Missing ID or ping URL: ${name}.`);
     await save(`HEALTHCHECKS_${kind.toUpperCase()}_ID`, check.uuid);
     await save(`HEALTHCHECKS_${kind.toUpperCase()}_URL`, check.ping_url);
   }
@@ -362,7 +365,7 @@ async function registerProduct(
         headers,
       });
       if (result.success === false || !Array.isArray(result.result))
-        throw new Error("Resposta de listagem Cloudflare inválida.");
+        throw new Error("Invalid Cloudflare list response.");
       items.push(...result.result);
       if (page >= (result.result_info?.total_pages ?? 1)) return items;
     }
@@ -377,7 +380,7 @@ async function registerProduct(
         const address = addresses.find((ip) =>
           type === "AAAA" ? ip.includes(":") : !ip.includes(":"),
         );
-        if (!address) throw new Error(`Endereço ${type} da Stack Ops ausente.`);
+        if (!address) throw new Error(`Ops Stack ${type} address missing.`);
         const path = `/zones/${zone}/dns_records`;
         const records = await cloudflareList<{
           id: string;
@@ -391,7 +394,9 @@ async function registerProduct(
           | { id: string; content: string; proxied: boolean }
           | undefined;
         if (record && (record.content !== address || record.proxied))
-          throw new Error(`DNS ${app.domain} ${type} diverge da Stack Ops.`);
+          throw new Error(
+            `DNS ${app.domain} ${type} differs from the Ops Stack.`,
+          );
         if (!record) {
           assertUnsaved(`DNS_${appName.toUpperCase()}_${type}_ID`);
           const created = await api(request, cf, path, {
@@ -404,10 +409,10 @@ async function registerProduct(
             headers: dnsHeaders,
           });
           if (created.success === false)
-            throw new Error("Falha ao criar registro DNS.");
+            throw new Error("Failed to create DNS record.");
           record = created.result;
         }
-        if (!record?.id) throw new Error(`ID DNS ausente para ${app.domain}.`);
+        if (!record?.id) throw new Error(`DNS ID missing for ${app.domain}.`);
         await save(`DNS_${appName.toUpperCase()}_${type}_ID`, record.id);
       }
     }
@@ -417,20 +422,20 @@ async function registerProduct(
   );
   const namespace = one(
     namespaces.filter((n: { title: string }) => n.title === "dangus-uptime"),
-    "KV uptime",
+    "uptime KV",
   ) as { id: string } | undefined;
-  if (!namespace) throw new Error("Namespace KV dangus-uptime ausente.");
+  if (!namespace) throw new Error("KV namespace dangus-uptime missing.");
   const path = `/accounts/${account}/storage/kv/namespaces/${namespace.id}/values/targets`;
   const response = await request(`${cf}${path}`, { headers: kvHeaders });
   if (!response.ok && response.status !== 404)
-    throw new Error(`Falha ao ler destinos KV: HTTP ${response.status}.`);
+    throw new Error(`Failed to read KV targets: HTTP ${response.status}.`);
   const previous: string[] =
     response.status === 404 ? defaultTargets : await response.json();
   if (
     !Array.isArray(previous) ||
     !previous.every((url) => typeof url === "string")
   )
-    throw new Error("Lista de destinos KV inválida.");
+    throw new Error("Invalid KV target list.");
   const targets = [...previous];
   for (const url of [
     config.apps.api && `https://${config.apps.api.domain}/ready`,
@@ -444,8 +449,8 @@ async function registerProduct(
       body: JSON.stringify(targets),
     });
     if (!result.ok)
-      throw new Error(`Falha ao gravar destinos KV: HTTP ${result.status}.`);
+      throw new Error(`Failed to write KV targets: HTTP ${result.status}.`);
     if (!(await result.json()).success)
-      throw new Error("Falha ao gravar destinos KV.");
+      throw new Error("Failed to write KV targets.");
   }
 }

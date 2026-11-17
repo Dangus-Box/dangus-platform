@@ -35,7 +35,7 @@ async function product(
   }
   if (drizzle !== null)
     await writeFile(join(root, "drizzle.config.ts"), drizzle);
-  // bun falso: registra o `bun add` sem acessar o npm.
+  // fake bun: records `bun add` without accessing npm.
   const bin = join(root, "bin");
   await mkdir(bin);
   await writeFile(
@@ -65,15 +65,15 @@ async function product(
   return { root, run, read, list };
 }
 
-test("detecta Apps e banco, gera arquivos e preserva edições com --yes", async () => {
+test("detects Apps and database, generates files and preserves edits with --yes", async () => {
   const { root, run, read } = await product(["api", "web", "mobile"]);
   const first = await run(["--yes"]);
   expect(first.code).toBe(0);
   expect(first.output).toContain(
-    "Apps: api, web, mobile; Banco do Produto: sqlite",
+    "Apps: api, web, mobile; Product database: sqlite",
   );
-  expect(first.output).toContain("observacao.markReady()");
-  expect(first.output).toContain("execute `dangus register`");
+  expect(first.output).toContain("observation.markReady()");
+  expect(first.output).toContain("run `dangus register`");
   expect(first.output).toContain(
     `await configureFlags("${basename(root).toLowerCase()}")`,
   );
@@ -89,61 +89,61 @@ test("detecta Apps e banco, gera arquivos e preserva edições com --yes", async
   expect(await read(".github/workflows/restore.yml")).toBe(
     await readFile(join(import.meta.dir, "../templates/restore.yml"), "utf8"),
   );
-  await writeFile(join(root, ".github/workflows/restore.yml"), "editado\n");
-  await writeFile(join(root, "apps/api/Dockerfile"), "editado\n");
+  await writeFile(join(root, ".github/workflows/restore.yml"), "edited\n");
+  await writeFile(join(root, "apps/api/Dockerfile"), "edited\n");
   const second = await run(["--yes"]);
   expect(second.code).toBe(0);
-  expect(second.output).toContain("apps/api/Dockerfile: preservado.");
-  expect(await read(".github/workflows/restore.yml")).toBe("editado\n");
-  expect(second.output).toContain("dangus.config.ts: já está atualizado.");
-  expect(await read("apps/api/Dockerfile")).toBe("editado\n");
+  expect(second.output).toContain("apps/api/Dockerfile: preserved.");
+  expect(await read(".github/workflows/restore.yml")).toBe("edited\n");
+  expect(second.output).toContain("dangus.config.ts: already up to date.");
+  expect(await read("apps/api/Dockerfile")).toBe("edited\n");
   expect(await read(".gitignore")).toBe(".dangus/\n");
 });
 
-test("sem confirmação interativa, nada é gerado nem instalado", async () => {
+test("without interactive confirmation, nothing is generated or installed", async () => {
   const { run, list } = await product(["api"]);
   const before = await list();
   const result = await run([], "n\n");
   expect(result.code).toBe(0);
-  expect(result.output).toContain("Confirmar Adoção? [s/N] Adoção cancelada.");
+  expect(result.output).toContain("Confirm Adoption? [s/N] Adoption canceled.");
   expect(await list()).toEqual(before);
 });
 
-test("segunda execução interativa pergunta antes de sobrescrever cada arquivo editado", async () => {
+test("second interactive run asks before overwriting each edited file", async () => {
   const { root, run, read } = await product(["api"]);
   expect((await run([], "s\n")).code).toBe(0);
   const dockerfile = await read("apps/api/Dockerfile");
-  await writeFile(join(root, "dangus.config.ts"), "editado\n");
-  await writeFile(join(root, "apps/api/Dockerfile"), "editado\n");
-  // Respostas por pipe chegam de uma vez: confirma, sobrescreve a Config, preserva o Dockerfile.
+  await writeFile(join(root, "dangus.config.ts"), "edited\n");
+  await writeFile(join(root, "apps/api/Dockerfile"), "edited\n");
+  // Piped answers arrive together: confirm, overwrite Config, preserve Dockerfile.
   const second = await run([], "s\ns\nn\n");
   expect(second.code).toBe(0);
-  expect(second.output).toContain("Sobrescrever dangus.config.ts? [s/N]");
-  expect(second.output).toContain("Sobrescrever apps/api/Dockerfile? [s/N]");
-  expect(await read("dangus.config.ts")).not.toBe("editado\n");
-  expect(await read("apps/api/Dockerfile")).toBe("editado\n");
-  // Sem resposta (fim da entrada) também preserva.
+  expect(second.output).toContain("Overwrite dangus.config.ts? [s/N]");
+  expect(second.output).toContain("Overwrite apps/api/Dockerfile? [s/N]");
+  expect(await read("dangus.config.ts")).not.toBe("edited\n");
+  expect(await read("apps/api/Dockerfile")).toBe("edited\n");
+  // No answer (end of input) also preserves the file.
   const third = await run([], "s\n");
   expect(third.code).toBe(0);
-  expect(await read("apps/api/Dockerfile")).toBe("editado\n");
-  expect(dockerfile).not.toBe("editado\n");
+  expect(await read("apps/api/Dockerfile")).toBe("edited\n");
+  expect(dockerfile).not.toBe("edited\n");
 });
 
-test("não edita o código das Apps", async () => {
+test("does not edit App code", async () => {
   const { run, read } = await product(["api", "web", "mobile"]);
   expect((await run(["--yes"])).code).toBe(0);
   for (const app of ["api", "web", "mobile"])
     expect(await read(`apps/${app}/index.ts`)).toBe(`// ${app}\n`);
 });
 
-test("Postgres só com web gera apenas o que a App usa", async () => {
+test("Postgres with web only generates what the App uses", async () => {
   const { run, read, list } = await product(
     ["web"],
     "export default defineConfig({ dialect: 'postgresql' });\n",
   );
   const result = await run(["--yes"]);
   expect(result.code).toBe(0);
-  expect(result.output).toContain("Apps: web; Banco do Produto: postgres");
+  expect(result.output).toContain("Apps: web; Product database: postgres");
   expect(await read("dangus.config.ts")).toContain('database: "postgres"');
   expect(await list()).not.toContain("apps/api/Dockerfile");
   expect(await read("bun-args")).not.toContain("@dangus-box/server");
@@ -151,7 +151,7 @@ test("Postgres só com web gera apenas o que a App usa", async () => {
   expect(result.output).not.toContain("API (apps/api/index.ts)");
 });
 
-test("só mobile não gera Dockerfiles nem .dockerignore", async () => {
+test("mobile only generates no Dockerfiles or .dockerignore", async () => {
   const { run, list } = await product(["mobile"]);
   expect((await run(["--yes"])).code).toBe(0);
   const files = await list();
@@ -159,7 +159,7 @@ test("só mobile não gera Dockerfiles nem .dockerignore", async () => {
   expect(files.filter((path) => path.includes("ocker"))).toEqual([]);
 });
 
-test("contexto de build da raiz exclui segredos, dependências e dados locais", async () => {
+test("root build context excludes secrets, dependencies and local data", async () => {
   const { run, read } = await product(["api"]);
   expect((await run(["--yes"])).code).toBe(0);
   const ignore = (await read(".dockerignore")).split("\n");
@@ -174,33 +174,33 @@ test("contexto de build da raiz exclui segredos, dependências e dados locais", 
     expect(ignore).toContain(pattern);
 });
 
-for (const [caso, drizzle, apps, mensagem] of [
-  ["sem Apps", 'export default { dialect: "sqlite" };\n', [], "Nenhuma App"],
-  ["sem drizzle.config.ts", null, ["api"], "drizzle.config.ts não"],
+for (const [scenario, drizzle, apps, message] of [
+  ["without Apps", 'export default { dialect: "sqlite" };\n', [], "No App"],
+  ["without drizzle.config.ts", null, ["api"], "drizzle.config.ts not"],
   [
     "dialect mysql",
     'export default { dialect: "mysql" };\n',
     ["api"],
-    "dialect sqlite ou postgresql",
+    "sqlite or postgresql dialect",
   ],
   [
-    "dois dialects",
+    "two dialects",
     'const a = { dialect: "sqlite" }; const b = { dialect: "postgresql" };\n',
     ["api"],
-    "dialect sqlite ou postgresql",
+    "sqlite or postgresql dialect",
   ],
 ] as const)
-  test(`falha sem gerar arquivos: ${caso}`, async () => {
+  test(`fails without generating files: ${scenario}`, async () => {
     const { run, list } = await product([...apps], drizzle);
     const before = await list();
     const result = await run(["--yes"]);
     expect(result.code).toBe(1);
-    expect(result.error).toContain(mensagem);
+    expect(result.error).toContain(message);
     expect(result.error).not.toContain("ENOENT");
     expect(await list()).toEqual(before);
   });
 
-test("instala as versões publicadas junto com o CLI", async () => {
+test("installs published versions alongside the CLI", async () => {
   const pkg = async (name: string) =>
     JSON.parse(await readFile(join(packages, name, "package.json"), "utf8"));
   const cliVersion = (await pkg("cli")).version;
@@ -213,7 +213,7 @@ test("instala as versões publicadas junto com o CLI", async () => {
   );
 });
 
-test("Config gerada é válida e já está no formato do Biome", async () => {
+test("generated Config is valid and already formatted by Biome", async () => {
   const { root, run, read } = await product(["api", "web", "mobile"]);
   expect((await run(["--yes"])).code).toBe(0);
   await mkdir(join(root, "node_modules/@dangus-box"), { recursive: true });

@@ -4,14 +4,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Analytics } from "../src/index";
 import { proxyAnalytics } from "../src/server";
 
-test("analytics ausente não gera script ou acesso à rede", async () => {
+test("missing analytics generates no script or network access", async () => {
   expect(renderToStaticMarkup(createElement(Analytics, {}))).toBe("");
   expect(
     (await proxyAnalytics(new Request("http://produto/t.js")))?.status,
   ).toBe(404);
 });
 
-test("script e coleta usam o domínio do Produto e preservam cabeçalhos", async () => {
+test("script and collection use the Product domain and preserve headers", async () => {
   const requests: {
     path: string;
     userAgent: string | null;
@@ -66,7 +66,7 @@ test("script e coleta usam o domínio do Produto e preservam cabeçalhos", async
   }
 });
 
-test("proxy não vaza cookies e cabeçalhos do Produto ao Umami", async () => {
+test("proxy does not leak Product cookies or headers to Umami", async () => {
   let received: Headers | undefined;
   const upstream = Bun.serve({
     port: 0,
@@ -80,8 +80,8 @@ test("proxy não vaza cookies e cabeçalhos do Produto ao Umami", async () => {
       new Request("http://produto/api/e", {
         method: "POST",
         headers: {
-          cookie: "session=secreta",
-          authorization: "Bearer secreto",
+          cookie: "session=secret",
+          authorization: "Bearer secret",
           "x-client-ip": "198.51.100.9",
           "accept-encoding": "gzip",
           "user-agent": "browser",
@@ -105,7 +105,7 @@ test("proxy não vaza cookies e cabeçalhos do Produto ao Umami", async () => {
   }
 });
 
-test("proxy encaminha apenas /t.js e /api/e ao Umami", async () => {
+test("proxy forwards only /t.js and /api/e to Umami", async () => {
   const paths: string[] = [];
   const upstream = Bun.serve({
     port: 0,

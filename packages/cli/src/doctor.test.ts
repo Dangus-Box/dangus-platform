@@ -46,7 +46,7 @@ async function fixture() {
   return dir;
 }
 
-test("verificações passam e falham com instruções específicas", async () => {
+test("checks pass and fail with specific instructions", async () => {
   const dir = await fixture();
   try {
     expect((await doctor(dir, "HEAD", connected)).map((r) => r.status)).toEqual(
@@ -64,7 +64,7 @@ test("verificações passam e falham com instruções específicas", async () =>
       "fail",
       "fail",
     ]);
-    expect(results.map((r) => r.message).join(" ")).toContain("remova DROP");
+    expect(results.map((r) => r.message).join(" ")).toContain("remove DROP");
     expect(results[0]?.message).toContain("apps/api/index.ts");
     expect(results[1]?.message).toContain("bun.lock");
     expect(results[2]?.message).toContain("tailscale status");
@@ -73,7 +73,7 @@ test("verificações passam e falham com instruções específicas", async () =>
   }
 });
 
-test("lint ignora comentários e literais e reconhece operações sem distinguir maiúsculas", () => {
+test("lint ignores comments and literals and recognizes operations case-insensitively", () => {
   expect(
     lintSql(
       "-- DROP table x\nSELECT 'RENAME'; /* CREATE INDEX x */ CREATE INDEX CONCURRENTLY x ON t(c);",
@@ -91,7 +91,7 @@ test("lint ignora comentários e literais e reconhece operações sem distinguir
   ]);
 });
 
-test("migrations existentes na ref são ignoradas, avisos não falham e ref ausente falha", async () => {
+test("existing migrations in the ref are ignored, warnings pass and a missing ref fails", async () => {
   const dir = await fixture();
   try {
     await writeFile(join(dir, "drizzle/old.sql"), "DROP TABLE t;");
@@ -117,7 +117,7 @@ test("migrations existentes na ref são ignoradas, avisos não falham e ref ause
       "pass",
       "warn",
     ]);
-    expect((await doctor(dir, "ref-ausente", connected)).at(-1)?.status).toBe(
+    expect((await doctor(dir, "missing-ref", connected)).at(-1)?.status).toBe(
       "fail",
     );
   } finally {
@@ -125,7 +125,7 @@ test("migrations existentes na ref são ignoradas, avisos não falham e ref ause
   }
 });
 
-test("doctor retorna código de CI para aviso e falha", async () => {
+test("doctor returns CI status for warnings and failures", async () => {
   const dir = await fixture();
   try {
     const tailscale = join(dir, "tailscale");
@@ -162,7 +162,7 @@ test("doctor retorna código de CI para aviso e falha", async () => {
   }
 });
 
-test("lint cobre DDL do Drizzle, blocos DO e informa a linha", () => {
+test("lint covers Drizzle DDL and DO blocks and reports the line", () => {
   const statuses = (sql: string) => lintSql(sql).map((r) => r.status);
   for (const sql of [
     "create index concurrently x on t(c);",
@@ -186,11 +186,12 @@ test("lint cobre DDL do Drizzle, blocos DO e informa a linha", () => {
   ).toEqual([3, 6]);
 });
 
-test("CLI precisa de versão exata no bun.lock", async () => {
+test("CLI requires an exact version in bun.lock", async () => {
   const dir = await fixture();
   const cli = async () =>
     (await doctor(dir, "HEAD", connected)).find(
-      (r) => r.message.startsWith("CLI") || r.message.includes("CLI fixada"),
+      (r) =>
+        r.message.startsWith("CLI") || r.message.includes("CLI version pinned"),
     );
   try {
     expect((await cli())?.status).toBe("pass");

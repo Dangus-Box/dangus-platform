@@ -2,7 +2,7 @@ export function sshCommand(host: string): string[] {
   if (
     !/^(?:[a-zA-Z0-9_][a-zA-Z0-9_.-]*@)?[a-zA-Z0-9][a-zA-Z0-9.:-]*$/.test(host)
   ) {
-    throw new Error("Host inválido.");
+    throw new Error("Invalid Host.");
   }
   return ["ssh", "-T", "--", host, "sudo", "bash", "-s"];
 }
@@ -11,9 +11,7 @@ export async function bootstrap(host: string): Promise<number> {
   const command = sshCommand(host);
   const id = process.env.DANGUS_TAILSCALE_BWS_SECRET_ID;
   if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
-    throw new Error(
-      "Informe DANGUS_TAILSCALE_BWS_SECRET_ID com o ID do secret no BWS.",
-    );
+    throw new Error("Set DANGUS_TAILSCALE_BWS_SECRET_ID to the BWS secret ID.");
   }
   const bws = Bun.spawn(["bws", "secret", "get", id], {
     stdout: "pipe",
@@ -21,7 +19,7 @@ export async function bootstrap(host: string): Promise<number> {
   });
   const output = await new Response(bws.stdout).text();
   if ((await bws.exited) !== 0)
-    throw new Error("Não foi possível obter o secret do BWS.");
+    throw new Error("Could not get the secret from BWS.");
   const secret: unknown = JSON.parse(output);
   if (
     !secret ||
@@ -30,7 +28,7 @@ export async function bootstrap(host: string): Promise<number> {
     typeof secret.value !== "string" ||
     !/^tskey-auth-[a-zA-Z0-9-]+$/.test(secret.value)
   )
-    throw new Error("Chave Tailscale inválida no BWS.");
+    throw new Error("Invalid Tailscale key in BWS.");
   const script = await Bun.file(
     new URL("./bootstrap.sh", import.meta.url),
   ).text();

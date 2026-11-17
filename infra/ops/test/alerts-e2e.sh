@@ -10,7 +10,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -keyout "$tmp/key.pem" -out "$tmp/cert
 chmod 644 "$tmp/key.pem" "$tmp/cert.pem"
 cat > "$tmp/fake.js" <<'JS'
 Bun.serve({port: 8080, fetch() {
-  // Raiz do Host a 90%; outro mountpoint cheio não pode entrar no alerta.
+  // Host root at 90%; another full mountpoint must not trigger the alert.
   return new Response('node_filesystem_size_bytes{mountpoint="/"} 100\nnode_filesystem_avail_bytes{mountpoint="/"} 10\nnode_filesystem_size_bytes{mountpoint="/boot"} 100\nnode_filesystem_avail_bytes{mountpoint="/boot"} 1\n');
 }});
 Bun.serve({port: 443, tls: {key: Bun.file('/tmp/key.pem'), cert: Bun.file('/tmp/cert.pem')}, async fetch(request) {
@@ -42,10 +42,10 @@ for _ in {1..90}; do
   if docker exec "$id-fake" test -s /tmp/received; then
     received=$(docker exec "$id-fake" cat /tmp/received)
     grep -q '^123 ' <<<"$received"
-    grep -q 'Disco do Host acima de 85%' <<<"$received"
+    grep -q 'Host disk usage above 85%' <<<"$received"
     grep -q 'mountpoint = /$' <<<"$received"
-    if grep -q '/boot' <<<"$received"; then echo "Alerta incluiu outro mountpoint: $received" >&2; exit 1; fi
-    echo 'Grafana avaliou disco e enviou mensagem Telegram ao servidor local.'
+    if grep -q '/boot' <<<"$received"; then echo "Alert included another mountpoint: $received" >&2; exit 1; fi
+    echo 'Grafana evaluated disk usage and sent a Telegram message to the local server.'
     exit 0
   fi
   sleep 2

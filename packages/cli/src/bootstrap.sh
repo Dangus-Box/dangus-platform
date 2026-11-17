@@ -4,8 +4,8 @@ export DEBIAN_FRONTEND=noninteractive LC_ALL=C
 changed=0
 mark() { changed=1; }
 pending=/var/lib/dangus/pending
-# Grava o arquivo se mudou. Com uma unit, registra que ela precisa ser recarregada;
-# o registro sobrevive a uma falha antes do recarregamento e é aplicado na próxima execução.
+# Write the file if it changed. For a unit, record that it needs reloading;
+# the record survives a failure before reload and is applied on the next run.
 write_file() {
   local path="$1" unit="${2:-}" temp
   temp=$(mktemp)
@@ -28,22 +28,22 @@ service_on() {
   if ! systemctl is-enabled --quiet "$1"; then systemctl enable "$1"; mark; fi
   if ! systemctl is-active --quiet "$1"; then systemctl start "$1"; mark; fi
 }
-[[ $EUID == 0 ]] || { echo 'Execute como root.' >&2; exit 1; }
+[[ $EUID == 0 ]] || { echo 'Run as root.' >&2; exit 1; }
 . /etc/os-release
-[[ $ID == ubuntu && $VERSION_ID == 24.04 ]] || { echo 'Requer Ubuntu 24.04.' >&2; exit 1; }
+[[ $ID == ubuntu && $VERSION_ID == 24.04 ]] || { echo 'Requires Ubuntu 24.04.' >&2; exit 1; }
 skip_join=${DANGUS_TEST_SKIP_TAILSCALE_JOIN:-0}
 if [[ $skip_join == 1 ]]; then
-  # Sem a tailnet, fechar o SSH público trancaria o Host: só o container de teste pode pular.
-  systemd-detect-virt --quiet --container || { echo 'DANGUS_TEST_SKIP_TAILSCALE_JOIN só é aceito em container de teste.' >&2; exit 1; }
-  echo 'Aviso: entrada na tailnet ignorada (teste).' >&2
+  # Without the tailnet, closing public SSH would lock out the Host: only the test container may skip it.
+  systemd-detect-virt --quiet --container || { echo 'DANGUS_TEST_SKIP_TAILSCALE_JOIN is allowed only in a test container.' >&2; exit 1; }
+  echo 'Warning: tailnet join skipped (test).' >&2
 fi
 packages=(openssh-server fail2ban unattended-upgrades ufw curl ca-certificates)
 missing=()
 for package in "${packages[@]}"; do
   dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null | grep -qx installed || missing+=("$package")
 done
-# Um Docker já instalado (por exemplo, docker-ce do repositório oficial) é mantido:
-# instalar docker.io por cima removeria o docker-ce e o containerd.io.
+# An existing Docker installation (for example, docker-ce from the official repository) is kept:
+# installing docker.io over it would remove docker-ce and containerd.io.
 if ! command -v docker >/dev/null || ! command -v dockerd >/dev/null; then missing+=(docker.io); fi
 if ((${#missing[@]})); then
   apt-get update
@@ -53,7 +53,7 @@ fi
 if ! command -v tailscale >/dev/null; then
   keyring=$(mktemp)
   curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg -o "$keyring"
-  # Chave de assinatura 2596A99EAAB33821893C0A79458CA832957F5868 da Tailscale.
+  # Tailscale signing key 2596A99EAAB33821893C0A79458CA832957F5868.
   sha256sum -c --quiet <<< "3e03dacf222698c60b8e2f990b809ca1b3e104de127767864284e6c228f1fb39  $keyring"
   install -m 644 "$keyring" /usr/share/keyrings/tailscale-archive-keyring.gpg
   rm -f "$keyring"
@@ -66,11 +66,11 @@ service_on tailscaled.service
 tailscale_running() { [[ $(tailscale status --json) == *'"BackendState": "Running"'* ]]; }
 if [[ $skip_join != 1 ]]; then
   if ! tailscale_running; then
-    [[ -n ${DANGUS_TAILSCALE_AUTH_KEY:-} ]] || { echo 'Chave Tailscale ausente.' >&2; exit 1; }
+    [[ -n ${DANGUS_TAILSCALE_AUTH_KEY:-} ]] || { echo 'Tailscale key missing.' >&2; exit 1; }
     tailscale up --auth-key=file:/dev/stdin <<< "$DANGUS_TAILSCALE_AUTH_KEY"
     mark
   fi
-  tailscale_running || { echo 'Tailscale não está conectado.' >&2; exit 1; }
+  tailscale_running || { echo 'Tailscale is not connected.' >&2; exit 1; }
 fi
 unset DANGUS_TAILSCALE_AUTH_KEY
 mkdir -p /run/sshd
@@ -84,7 +84,7 @@ CONFIG
 /usr/sbin/sshd -t
 ssh_effective=$(/usr/sbin/sshd -T)
 for setting in "passwordauthentication no" "kbdinteractiveauthentication no" "pubkeyauthentication yes" "authenticationmethods publickey"; do
-  grep -qx "$setting" <<< "$ssh_effective" || { echo "Configuração SSH conflitante: $setting" >&2; exit 1; }
+  grep -qx "$setting" <<< "$ssh_effective" || { echo "Conflicting SSH configuration: $setting" >&2; exit 1; }
 done
 apply_pending reload ssh.service
 write_file /etc/apt/apt.conf.d/20auto-upgrades <<'CONFIG' || true
@@ -104,7 +104,7 @@ rules=$'ufw allow 80/tcp\nufw allow 443/tcp\nufw allow in on tailscale0'
 added=$(ufw show added)
 if [[ $added != "Added user rules (see 'ufw status' for running firewall):"$'\n'"$rules" ]]; then
   discarded=$(tail -n +2 <<< "$added" | grep -vxF -e '(None)' -f <(printf '%s\n' "$rules") || true)
-  if [[ -n $discarded ]]; then printf 'Regras do ufw descartadas pelo reset:\n%s\n' "$discarded" >&2; fi
+  if [[ -n $discarded ]]; then printf 'ufw rules discarded by reset:\n%s\n' "$discarded" >&2; fi
   ufw --force reset
   ufw allow 80/tcp
   ufw allow 443/tcp
@@ -113,8 +113,8 @@ if [[ $added != "Added user rules (see 'ufw status' for running firewall):"$'\n'
 fi
 if ! grep -q '^DEFAULT_INPUT_POLICY="DROP"' /etc/default/ufw; then ufw default deny incoming; mark; fi
 if ! ufw status | grep -q '^Status: active'; then ufw --force enable; mark; fi
-# Docker publica portas antes das regras normais do UFW. Proteja o encaminhamento
-# para bridges também, inclusive quando o firewall do provedor ainda não foi aplicado.
+# Docker publishes ports before normal UFW rules. Protect forwarding
+# to bridges too, even when the provider firewall has not yet been applied.
 if write_file /usr/local/sbin/dangus-docker-firewall dangus-docker-firewall.service <<'CONFIG'
 #!/bin/bash
 set -eu
@@ -136,7 +136,7 @@ CONFIG
 then chmod 755 /usr/local/sbin/dangus-docker-firewall; fi
 if write_file /etc/systemd/system/dangus-docker-firewall.service dangus-docker-firewall.service <<'CONFIG'
 [Unit]
-Description=Protege portas publicadas pelo Docker
+Description=Protect ports published by Docker
 Requires=docker.service
 After=docker.service
 PartOf=docker.service
@@ -260,10 +260,10 @@ for _ in {1..60}; do
   curl -fsS http://127.0.0.1:12345/-/ready >/dev/null 2>&1 && break
   sleep 1
 done
-curl -fsS http://127.0.0.1:12345/-/ready >/dev/null || { echo 'Alloy não iniciou.' >&2; exit 1; }
+curl -fsS http://127.0.0.1:12345/-/ready >/dev/null || { echo 'Alloy did not start.' >&2; exit 1; }
 if write_file /etc/systemd/system/dangus-docker-prune.service <<'CONFIG'
 [Unit]
-Description=Remove imagens Docker antigas não utilizadas
+Description=Remove old unused Docker images
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/docker image prune -af --filter until=168h
@@ -271,7 +271,7 @@ CONFIG
 then systemctl daemon-reload; fi
 if write_file /etc/systemd/system/dangus-docker-prune.timer <<'CONFIG'
 [Unit]
-Description=Limpeza periódica de imagens Docker
+Description=Periodic Docker image cleanup
 [Timer]
 OnCalendar=daily
 Persistent=true
@@ -280,4 +280,4 @@ WantedBy=timers.target
 CONFIG
 then systemctl daemon-reload; fi
 service_on dangus-docker-prune.timer
-if ((changed)); then echo 'Provisionamento concluído: houve alterações.'; else echo 'Provisionamento concluído: nenhuma alteração.'; fi
+if ((changed)); then echo 'Provisioning complete: changes applied.'; else echo 'Provisioning complete: no changes.'; fi

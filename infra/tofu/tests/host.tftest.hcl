@@ -12,24 +12,24 @@ mock_provider "cloudflare" {
 }
 
 variables {
-  cloudflare_account_id = "conta-teste"
-  state_passphrase      = "frase-de-teste-sem-segredo"
+  cloudflare_account_id = "test-account"
+  state_passphrase      = "test-passphrase-not-secret"
   data_center_id        = 42
   template_id           = 1002
-  telegram_bot_token    = "token-teste"
-  telegram_chat_id      = "chat-teste"
+  telegram_bot_token    = "test-token"
+  telegram_chat_id      = "test-chat"
 }
 
-run "host_no_brasil" {
+run "host_in_brazil" {
   command = plan
 
   assert {
     condition     = hostinger_vps.host.plan == "hostingercom-vps-kvm4-usd-1m" && hostinger_vps.host.data_center_id == 42
-    error_message = "O Host deve usar KVM 4 e o datacenter selecionado."
+    error_message = "The Host must use KVM 4 and the selected datacenter."
   }
 }
 
-run "rejeita_datacenter_fora_do_brasil" {
+run "rejects_datacenter_outside_brazil" {
   command = plan
 
   variables {
@@ -39,7 +39,7 @@ run "rejeita_datacenter_fora_do_brasil" {
   expect_failures = [hostinger_vps.host]
 }
 
-run "aceita_codigo_de_pais_da_api" {
+run "accepts_api_country_code" {
   command = plan
 
   override_data {
@@ -50,7 +50,7 @@ run "aceita_codigo_de_pais_da_api" {
   }
 }
 
-run "rejeita_datacenter_existente_fora_do_brasil" {
+run "rejects_existing_datacenter_outside_brazil" {
   command = plan
 
   override_data {

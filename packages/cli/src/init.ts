@@ -28,19 +28,17 @@ export async function init(root: string, yes: boolean) {
   for (const app of apps)
     if (await exists(join(root, "apps", app))) found.push(app);
   if (!found.length)
-    throw new Error(
-      "Nenhuma App encontrada em apps/api, apps/web ou apps/mobile.",
-    );
+    throw new Error("No App found in apps/api, apps/web or apps/mobile.");
   const drizzlePath = join(root, "drizzle.config.ts");
   if (!(await exists(drizzlePath)))
-    throw new Error("drizzle.config.ts não encontrado na raiz do Produto.");
+    throw new Error("drizzle.config.ts not found at the Product root.");
   const drizzle = await readFile(drizzlePath, "utf8");
   const matches = [
     ...drizzle.matchAll(/\bdialect\s*:\s*["'](sqlite|postgresql)["']/g),
   ];
   if (matches.length !== 1)
     throw new Error(
-      "Não foi possível detectar o dialect sqlite ou postgresql em drizzle.config.ts.",
+      "Could not detect the sqlite or postgresql dialect in drizzle.config.ts.",
     );
   const database = matches[0][1] === "postgresql" ? "postgres" : "sqlite";
   const name =
@@ -48,7 +46,7 @@ export async function init(root: string, yes: boolean) {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") || "produto";
-  // O iterador guarda as linhas já lidas: respostas por pipe não se perdem.
+  // The iterator retains lines already read so piped answers are not lost.
   const rl = yes ? undefined : createInterface({ input: process.stdin });
   const answers = rl?.[Symbol.asyncIterator]();
   const confirm = async (question: string) => {
@@ -58,12 +56,12 @@ export async function init(root: string, yes: boolean) {
     return !answer.done && /^(s|sim)$/i.test(answer.value.trim());
   };
   try {
-    console.log(`Apps: ${found.join(", ")}; Banco do Produto: ${database}.`);
-    if (!yes && !(await confirm("Confirmar Adoção?"))) {
-      console.log("Adoção cancelada.");
+    console.log(`Apps: ${found.join(", ")}; Product database: ${database}.`);
+    if (!yes && !(await confirm("Confirm Adoption?"))) {
+      console.log("Adoption canceled.");
       return;
     }
-    // Mesmo formato do Biome e do Prettier: o arquivo formatado continua idêntico ao gerado.
+    // Use the Biome and Prettier format so the formatted file matches the generated file.
     const secretList = (app: App) => {
       const line = `      secrets: [${secrets[app].map((secret) => `"${secret}"`).join(", ")}],`;
       if (line.length <= 80) return line;
@@ -98,7 +96,7 @@ export async function init(root: string, yes: boolean) {
     for (const app of ["api", "web"] as const)
       if (found.includes(app))
         files.push([`apps/${app}/Dockerfile`, docker(app)]);
-    // O contexto do build é a raiz do Produto: segredos e dados locais ficam fora das imagens.
+    // The build context is the Product root: secrets and local data stay out of images.
     if (found.includes("api") || found.includes("web"))
       files.push([
         ".dockerignore",
@@ -108,17 +106,17 @@ export async function init(root: string, yes: boolean) {
       const target = join(root, path);
       if (await exists(target)) {
         if ((await readFile(target, "utf8")) === content) {
-          console.log(`${path}: já está atualizado.`);
+          console.log(`${path}: already up to date.`);
           continue;
         }
-        if (!(await confirm(`Sobrescrever ${path}?`))) {
-          console.log(`${path}: preservado.`);
+        if (!(await confirm(`Overwrite ${path}?`))) {
+          console.log(`${path}: preserved.`);
           continue;
         }
       }
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, content);
-      console.log(`${path}: gerado.`);
+      console.log(`${path}: generated.`);
     }
     const ignorePath = join(root, ".gitignore");
     const ignore = (await exists(ignorePath))
@@ -129,7 +127,7 @@ export async function init(root: string, yes: boolean) {
         ignorePath,
         `${ignore}${ignore && !ignore.endsWith("\n") ? "\n" : ""}.dangus/\n`,
       );
-      console.log(".gitignore: .dangus/ incluído.");
+      console.log(".gitignore: .dangus/ added.");
     }
     const deps = [
       `@dangus-box/cli@${version}`,
@@ -146,37 +144,37 @@ export async function init(root: string, yes: boolean) {
       stderr: "inherit",
     });
     if ((await child.exited) !== 0)
-      throw new Error("Falha ao instalar as dependências do SDK.");
+      throw new Error("Failed to install SDK dependencies.");
     console.log(
-      "Revise os domínios em dangus.config.ts e aplique as integrações:",
+      "Review domains in dangus.config.ts and apply the integrations:",
     );
     if (found.includes("api"))
       console.log(`API (apps/api/index.ts):
 import { observability, ${database === "sqlite" ? "migrateSqlite" : "migratePostgres"}, configureFlags, trackEvent } from "@dangus-box/server";
 import { OpenFeature } from "@openfeature/server-sdk";
-const observacao = observability();
+const observation = observability();
 ${database === "sqlite" ? 'migrateSqlite(sqlite, "./drizzle");' : 'await migratePostgres(databaseUrl, "./drizzle");'}
 await configureFlags("${name}");
-// Adicione .use(observacao.plugin) ao Elysia e chame observacao.markReady() após o boot.
-// Avalie Flags com OpenFeature.getClient() e envie eventos com trackEvent(...).`);
+// Add .use(observation.plugin) to Elysia and call observation.markReady() after boot.
+// Evaluate Flags with OpenFeature.getClient() and send events with trackEvent(...).`);
     if (found.includes("web"))
-      console.log(`Web (raiz React):
+      console.log(`Web (React root):
 import { Analytics, Flags } from "@dangus-box/web";
-// Passe UMAMI_WEBSITE_ID e FLAGS_FRONTEND_TOKEN pelo loader do servidor:
+// Pass UMAMI_WEBSITE_ID and FLAGS_FRONTEND_TOKEN through the server loader:
 <Analytics websiteId={websiteId} />
 <Flags token={token} appName="${name}"><Outlet /></Flags>
-// No servidor, antes das demais rotas:
+// On the server, before other routes:
 import { proxyAnalytics } from "@dangus-box/web/server";
 const proxy = await proxyAnalytics(request, { websiteId: process.env.UMAMI_WEBSITE_ID });
 if (proxy) return proxy;`);
     if (found.includes("mobile"))
       console.log(`Mobile:
-import { configurarFlags, enviarEvento, OpenFeature, OpenFeatureProvider } from "@dangus-box/native";
-await configurarFlags("${name}", undefined, process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN);
+import { configureFlags, trackEvent, OpenFeature, OpenFeatureProvider } from "@dangus-box/native";
+await configureFlags("${name}", undefined, process.env.EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN);
 <OpenFeatureProvider client={OpenFeature.getClient()}>{/* App */}</OpenFeatureProvider>
-await enviarEvento("evento", undefined, undefined, process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID);`);
+await trackEvent("event", undefined, undefined, process.env.EXPO_PUBLIC_UMAMI_WEBSITE_ID);`);
     console.log(
-      "Para concluir a Adoção, conecte o Tailscale e execute `dangus register` para o Registro na Stack Ops.",
+      "To complete Adoption, connect Tailscale and run `dangus register` for Registration in the Ops Stack.",
     );
   } finally {
     rl?.close();
