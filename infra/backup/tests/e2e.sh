@@ -8,6 +8,8 @@ cleanup() { docker rm -f "$name-minio" "$name-pg" "$name-pg16" "$name-health" "$
 trap cleanup EXIT
 chmod 777 "$tmp"
 docker build -t "$name" infra/backup/image >/dev/null
+# R2 e Healthchecks são HTTPS: sem o bundle de CAs o curl falha (código 77).
+docker run --rm --entrypoint test "$name" -s /etc/ssl/certs/ca-certificates.crt || { echo 'FALHA: imagem sem ca-certificates.' >&2; exit 1; }
 docker network create "$name" >/dev/null
 docker run -d --name "$name-minio" --network "$name" --network-alias minio -e MINIO_ROOT_USER=testaccess -e MINIO_ROOT_PASSWORD=testsecret "$minio" server /data >/dev/null
 docker run -d --name "$name-pg" --network "$name" --network-alias pg -e POSTGRES_PASSWORD=testpass -e POSTGRES_DB=produto postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929 >/dev/null
