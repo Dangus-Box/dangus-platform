@@ -523,7 +523,7 @@ comment="Credentials created by \`scripts/setup-external-accounts.sh\`.
 **BWS, project \`ops\`:**
 $(for key in "${BWS_KEYS[@]}"; do printf -- '- `%s%s`\n' "$BWS_PREFIX" "$key"; done)
 
-**GitHub:** organization secret \`BWS_ACCESS_TOKEN\` (machine account \`ci\`, read access to \`prod\` e \`ops\`).
+**GitHub:** organization secret \`BWS_ACCESS_TOKEN\` (machine account \`ci\`, read access to \`prod\` and \`ops\`).
 
 **BWS machine accounts:** \`ci\` (read), \`host\` (read; token in \`${BWS_PREFIX}BWS_HOST_TOKEN\`), \`operator\` (read and write, short-lived tokens for people)."
 say "Comment to publish on issue #$ISSUE_NUMBER (names only, no values):"
