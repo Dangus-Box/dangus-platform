@@ -54,9 +54,7 @@ test("ls queries labels over SSH, sorts and deduplicates", async () => {
 
 test("ls fails when SSH fails or the Host is invalid", async () => {
   const runner: Runner = async () => ({ code: 1, stdout: "" });
-  await expect(listProducts(".", runner, {})).rejects.toThrow(
-    "Failed to list",
-  );
+  await expect(listProducts(".", runner, {})).rejects.toThrow("Failed to list");
   await expect(
     listProducts(".", runner, { DANGUS_HOST: "-oProxyCommand=x" }),
   ).rejects.toThrow("Invalid Tailscale Host");
