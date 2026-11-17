@@ -4,8 +4,9 @@ const URLS = [
 ];
 
 export async function check(env, request = fetch) {
+  const targets = (await env.UPTIME_KV.get("targets", "json")) ?? URLS;
   const results = await Promise.allSettled(
-    URLS.map(async (url) => {
+    targets.map(async (url) => {
       const state = (await env.UPTIME_KV.get(url, "json")) ?? {
         down: false,
         failures: 0,

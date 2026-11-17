@@ -10,7 +10,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { loadConfig } from "./config";
 
 const cli = join(import.meta.dir, "index.ts");
@@ -72,6 +72,11 @@ test("detecta Apps e banco, gera arquivos e preserva edições com --yes", async
     "Apps: api, web, mobile; Banco do Produto: sqlite",
   );
   expect(first.output).toContain("observacao.markReady()");
+  expect(first.output).toContain("execute `dangus register`");
+  expect(first.output).toContain(
+    `await configureFlags("${basename(root).toLowerCase()}")`,
+  );
+  expect(first.output).toContain(`appName="${basename(root).toLowerCase()}"`);
   expect(await read("dangus.config.ts")).toContain(
     '"EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN"',
   );

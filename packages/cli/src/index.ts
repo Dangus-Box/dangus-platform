@@ -14,9 +14,20 @@ import { dev } from "./dev";
 import { doctor } from "./doctor";
 import { init } from "./init";
 import { listProducts } from "./ls";
+import { register } from "./register";
 import { parseRestoreArgs, restore } from "./restore";
 
-if (process.argv[2] === "--version" && process.argv.length === 3) {
+if (process.argv[2] === "register" && process.argv.length === 3) {
+  try {
+    await register(process.cwd());
+    console.log("Registro na Stack Ops concluído.");
+  } catch (error) {
+    console.error(
+      error instanceof Error ? error.message : "Falha no Registro.",
+    );
+    process.exitCode = 1;
+  }
+} else if (process.argv[2] === "--version" && process.argv.length === 3) {
   console.log(version);
 } else if (process.argv[2] === "doctor") {
   const args = process.argv.slice(3);
@@ -136,7 +147,7 @@ if (process.argv[2] === "--version" && process.argv.length === 3) {
   }
 } else {
   console.error(
-    "Uso: dangus init [--yes] | dev | ls | doctor [--base <ref>] | render | deploy [--skip-build] | db backup | db restore | host bootstrap <host>",
+    "Uso: dangus init [--yes] | register | dev | ls | doctor [--base <ref>] | render | deploy [--skip-build] | db backup | db restore | host bootstrap <host>",
   );
   process.exitCode = 1;
 }

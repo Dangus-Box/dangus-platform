@@ -14,18 +14,20 @@ export function Analytics({ websiteId }: { websiteId?: string }) {
 
 export function Flags({
   token,
+  appName = "web",
   url = "https://flags.dangus-box.com/api/frontend",
   children,
 }: {
   token?: string;
+  appName?: string;
   url?: string;
   children: ReactNode;
 }) {
   useEffect(() => {
     if (token)
       void OpenFeature.setProvider(
-        new UnleashWebProvider({ url, clientKey: token, appName: "web" }),
+        new UnleashWebProvider({ url, clientKey: token, appName }),
       );
-  }, [token, url]);
+  }, [token, url, appName]);
   return createElement(OpenFeatureProvider, null, children);
 }

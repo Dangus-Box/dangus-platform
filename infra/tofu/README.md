@@ -102,3 +102,5 @@ Verificações locais: `tofu validate`, `tofu test` (providers simulados) e `../
 ## Uptime externo
 
 O Worker consulta o Umami e o Unleash Edge a cada minuto. Duas falhas consecutivas geram alerta no Telegram; a recuperação gera outra mensagem. O estado fica em Workers KV. Os secrets `platform__TELEGRAM_BOT_TOKEN` e `platform__TELEGRAM_CHAT_ID` vêm do projeto `ops` do BWS e também ficam no state criptografado. A entrega real requer verificação após o apply; execute `bun test infra/uptime` para testar a lógica localmente.
+
+A chave `targets` do namespace KV contém uma lista JSON de URLs monitoradas; quando ausente, o Worker usa os destinos da Stack Ops incorporados ao código. Ao definir a lista, inclua também os destinos existentes que devem continuar monitorados.

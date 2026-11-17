@@ -10,10 +10,12 @@ import { useEffect, useState } from "react";
 import { Button, Text, View } from "react-native";
 
 function VersaoMinima() {
-  useFlag("versao-minima", "");
+  useFlag("exemplo-sqlite.versao-minima", "");
   return (
     <Text>
-      {precisaAtualizar("1.0.0") ? "Precisa atualizar" : "App atualizada"}
+      {precisaAtualizar("1.0.0", "exemplo-sqlite.versao-minima")
+        ? "Precisa atualizar"
+        : "App atualizada"}
     </Text>
   );
 }

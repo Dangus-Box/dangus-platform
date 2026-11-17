@@ -40,14 +40,14 @@ No boot da App, configure o provider e avalie Flags exclusivamente pela API do O
 import { configureFlags, trackEvent } from "@dangus-box/server";
 import { OpenFeature } from "@openfeature/server-sdk";
 
-await configureFlags("minha-api");
+await configureFlags("nome-do-produto");
 const flags = OpenFeature.getClient();
 const ativa = await flags.getBooleanValue("minha-flag", false);
 await trackEvent({ name: "pedido", hostname: "produto.com", url: "/pedidos" });
 // No encerramento da App: await OpenFeature.close();
 ```
 
-`UNLEASH_TOKEN` ativa o provider com um token backend. `UNLEASH_URL` é opcional e usa `http://dangus-ops-unleash:4242/api` por padrão. Sem token, o OpenFeature retorna os valores padrão sem acessar a rede. Aguarde `configureFlags` antes de avaliar: ele espera a primeira sincronização por até 3 segundos e nunca falha. Com o Unleash fora do ar ou lento, as Flags retornam os valores padrão até a sincronização.
+`UNLEASH_TOKEN` ativa o provider com um token backend. Passe a `configureFlags` o nome da Config do Produto como `appName`, igual ao usado nas constraints das Flags. `UNLEASH_URL` é opcional e usa `http://dangus-ops-unleash:4242/api` por padrão. Sem token, o OpenFeature retorna os valores padrão sem acessar a rede. Aguarde `configureFlags` antes de avaliar: ele espera a primeira sincronização por até 3 segundos e nunca falha. Com o Unleash fora do ar ou lento, as Flags retornam os valores padrão até a sincronização.
 
 `UMAMI_WEBSITE_ID` ativa o envio de eventos; `UMAMI_URL` é opcional e usa `http://dangus-ops-umami:3000` por padrão. Sem ID, `trackEvent` não faz nada. Informe o hostname e caminho associados ao evento; `data` pode conter propriedades adicionais. O envio tem timeout de 3 segundos e falhas HTTP ou de rede só geram um aviso no log, sem rejeitar a Promise; por isso `trackEvent` pode ser chamado sem `await` para não atrasar a resposta.
 

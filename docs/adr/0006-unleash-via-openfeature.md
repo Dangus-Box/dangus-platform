@@ -12,3 +12,4 @@ As Flags são servidas por um Unleash OSS self-hosted na Stack Ops, mas os Produ
 
 - O Unleash server fica só na rede interna do Host e no Tailscale (ADR-0009), e é por lá que o painel admin é acessado. O SDK de servidor fala com ele pela rede Docker.
 - Web e mobile falam com um Unleash Edge, público em `flags.dangus-box.com`. O Edge é o caminho recomendado pela própria Unleash para tráfego de frontend, e expor o Unleash server diretamente exporia o painel admin junto.
+- O Unleash OSS tem apenas o projeto `default`; Produtos compartilham esse projeto e o Ambiente `production`. Cada Produto recebe tokens próprios, revogáveis individualmente, mas o isolamento entre Produtos é uma convenção de nomes e constraints, não é imposto pelos tokens nem constitui uma fronteira de segurança.

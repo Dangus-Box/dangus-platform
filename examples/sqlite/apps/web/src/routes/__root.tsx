@@ -25,7 +25,7 @@ function Root() {
         <Analytics websiteId={websiteId} />
       </head>
       <body>
-        <Flags token={token}>
+        <Flags token={token} appName="exemplo-sqlite">
           <Outlet />
         </Flags>
         <Scripts />
