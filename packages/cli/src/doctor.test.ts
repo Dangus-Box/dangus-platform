@@ -190,7 +190,8 @@ test("CLI requires an exact version in bun.lock", async () => {
   const dir = await fixture();
   const cli = async () =>
     (await doctor(dir, "HEAD", connected)).find(
-      (r) => r.message.startsWith("CLI") || r.message.includes("CLI fixada"),
+      (r) =>
+        r.message.startsWith("CLI") || r.message.includes("CLI version pinned"),
     );
   try {
     expect((await cli())?.status).toBe("pass");
