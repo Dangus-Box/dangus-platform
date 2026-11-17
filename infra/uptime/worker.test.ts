@@ -51,7 +51,7 @@ function setup() {
   };
 }
 
-test("duas falhas consecutivas alertam uma vez e recuperação alerta uma vez", async () => {
+test("two consecutive failures alert once and recovery alerts once", async () => {
   const f = setup();
   await check(f.env, f.request);
   f.setStatus(503);
@@ -59,20 +59,20 @@ test("duas falhas consecutivas alertam uma vez e recuperação alerta uma vez", 
   expect(f.messages).toHaveLength(0);
   await check(f.env, f.request);
   expect(f.messages).toHaveLength(2);
-  expect(f.messages.every((m) => m.startsWith("Indisponível:"))).toBe(true);
+  expect(f.messages.every((m) => m.startsWith("Unavailable:"))).toBe(true);
   await check(f.env, f.request);
   expect(f.messages).toHaveLength(2);
   f.setStatus(200);
   await check(f.env, f.request);
   expect(f.messages).toHaveLength(4);
-  expect(f.messages.slice(2).every((m) => m.startsWith("Recuperado:"))).toBe(
+  expect(f.messages.slice(2).every((m) => m.startsWith("Recovered:"))).toBe(
     true,
   );
   await check(f.env, f.request);
   expect(f.messages).toHaveLength(4);
 });
 
-test("consulta destinos configurados no KV", async () => {
+test("queries targets configured in KV", async () => {
   const f = setup();
   const target = "https://produto.example/ready";
   f.data.set("targets", JSON.stringify([target]));
@@ -84,7 +84,7 @@ test("consulta destinos configurados no KV", async () => {
   expect(checked).toEqual([target]);
 });
 
-test("sucesso entre falhas reinicia a contagem", async () => {
+test("success between failures resets the count", async () => {
   const f = setup();
   f.setStatus(500);
   await check(f.env, f.request);
@@ -95,14 +95,14 @@ test("sucesso entre falhas reinicia a contagem", async () => {
   expect(f.messages).toHaveLength(0);
 });
 
-test("timeout conta como falha", async () => {
+test("timeout counts as a failure", async () => {
   const f = setup();
   f.setTimeout(true);
   await check(f.env, f.request);
   expect(JSON.parse(f.data.get(urls[0]) ?? "null").failures).toBe(1);
 }, 7000);
 
-test("estado estável não grava no KV (limite de 1.000 gravações/dia no plano gratuito)", async () => {
+test("stable state does not write to KV (free plan limit of 1,000 writes per day)", async () => {
   const f = setup();
   let writes = 0;
   const put = f.env.UPTIME_KV.put;
@@ -123,7 +123,7 @@ test("estado estável não grava no KV (limite de 1.000 gravações/dia no plano
   expect(writes).toBe(afterRecovery);
 });
 
-test("falha do Telegram não perde a transição nem repete alerta depois de enviado", async () => {
+test("Telegram failure preserves the transition and does not repeat a sent alert", async () => {
   const f = setup();
   let telegramUp = false;
   const request = async (input: string, init?: RequestInit) => {
@@ -143,16 +143,16 @@ test("falha do Telegram não perde a transição nem repete alerta depois de env
   expect(f.messages).toHaveLength(2);
 });
 
-test("falha de KV em uma URL não interrompe a verificação da outra", async () => {
+test("KV failure for one URL does not interrupt checking the other", async () => {
   const f = setup();
   const get = f.env.UPTIME_KV.get;
   f.env.UPTIME_KV.get = async (key: string) => {
-    if (key === urls[0]) throw new Error("KV indisponível");
+    if (key === urls[0]) throw new Error("KV unavailable");
     await new Promise((resolve) => setTimeout(resolve, 10));
     return get(key);
   };
   f.setStatus(503);
   await expect(check(f.env, f.request)).rejects.toThrow();
   await expect(check(f.env, f.request)).rejects.toThrow();
-  expect(f.messages).toEqual([`Indisponível: ${urls[1]}`]);
+  expect(f.messages).toEqual([`Unavailable: ${urls[1]}`]);
 });

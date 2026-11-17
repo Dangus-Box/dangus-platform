@@ -9,7 +9,7 @@ mock_provider "cloudflare" {
   }
 }
 variables {
-  state_passphrase      = "frase-de-teste-sem-segredo"
+  state_passphrase      = "test-passphrase-not-secret"
   cloudflare_account_id = "conta-teste"
   data_center_id        = 42
   template_id           = 1002
@@ -20,24 +20,24 @@ run "backup" {
   command = plan
   assert {
     condition     = cloudflare_r2_bucket.backups.name == "dangus-backups" && length(cloudflare_r2_bucket_lock.backups.rules) == 3 && alltrue([for rule in cloudflare_r2_bucket_lock.backups.rules : rule.enabled && rule.condition.type == "Age" && lookup({ "daily/" = 604800, "weekly/" = 2419200, "monthly/" = 7776000 }, rule.prefix, -1) == rule.condition.max_age_seconds])
-    error_message = "Os locks devem proteger cada prefixo pelo prazo previsto."
+    error_message = "Locks must protect each prefix for the intended duration."
   }
   assert {
     condition     = toset([for rule in cloudflare_r2_bucket_lock.backups.rules : rule.prefix]) == toset(["daily/", "weekly/", "monthly/"]) && toset([for rule in cloudflare_r2_bucket_lifecycle.backups.rules : rule.conditions.prefix]) == toset(["daily/", "weekly/", "monthly/"])
-    error_message = "Locks e lifecycle devem cobrir cada prefixo exatamente uma vez."
+    error_message = "Locks and lifecycle must cover each prefix exactly once."
   }
   assert {
     condition     = length(cloudflare_r2_bucket_lifecycle.backups.rules) == 3 && alltrue([for rule in cloudflare_r2_bucket_lifecycle.backups.rules : rule.enabled && rule.delete_objects_transition.condition.type == "Age" && lookup({ "daily/" = 604800, "weekly/" = 2419200, "monthly/" = 7776000 }, rule.conditions.prefix, -1) == rule.delete_objects_transition.condition.max_age])
-    error_message = "O lifecycle deve excluir cada prefixo após o prazo previsto."
+    error_message = "Lifecycle must delete each prefix after the intended duration."
   }
   assert {
     condition     = cloudflare_account_token.backup_host.account_id == "conta-teste" && length(cloudflare_account_token.backup_host.policies) == 1 && cloudflare_account_token.backup_host.policies[0].effect == "allow" && cloudflare_account_token.backup_host.policies[0].permission_groups[0].id == "2efd5506f9c8494dacb1fa10a3e7d5b6" && length(cloudflare_account_token.backup_host.policies[0].permission_groups) == 1 && jsondecode(cloudflare_account_token.backup_host.policies[0].resources) == { "com.cloudflare.edge.r2.bucket.conta-teste_default_dangus-backups" = "*" }
-    error_message = "O token deve permitir somente objetos do bucket de Backups."
+    error_message = "The token must allow only objects in the Backup bucket."
   }
 }
 
-# O ID fixo precisa existir na conta e ter escopo de bucket R2; senão o plano para.
-run "permission_group_sem_escopo_de_bucket" {
+# The fixed ID must exist in the account and have R2 bucket scope; otherwise the plan fails.
+run "permission_group_without_bucket_scope" {
   command = plan
   override_data {
     target = data.cloudflare_account_api_token_permission_groups_list.all
@@ -46,7 +46,7 @@ run "permission_group_sem_escopo_de_bucket" {
   expect_failures = [cloudflare_account_token.backup_host]
 }
 
-run "permission_group_inexistente" {
+run "permission_group_missing" {
   command = plan
   override_data {
     target = data.cloudflare_account_api_token_permission_groups_list.all

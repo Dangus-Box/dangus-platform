@@ -30,14 +30,14 @@ export async function check(env, request = fetch) {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               chat_id: env.TELEGRAM_CHAT_ID,
-              text: `${down ? "Indisponível" : "Recuperado"}: ${url}`,
+              text: `${down ? "Unavailable" : "Recovered"}: ${url}`,
             }),
           },
         );
         if (!response.ok || !(await response.json()).ok)
           throw new Error("Falha ao enviar alerta ao Telegram");
       }
-      // O plano gratuito permite 1.000 gravações por dia no KV.
+      // The free plan allows 1,000 KV writes per day.
       if (down !== state.down || failures !== state.failures)
         await env.UPTIME_KV.put(url, JSON.stringify({ down, failures }));
     }),

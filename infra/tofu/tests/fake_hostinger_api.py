@@ -1,7 +1,7 @@
-"""Fake da API da Hostinger atrás de um proxy HTTPS CONNECT, para testar o import sem rede.
+"""Fake Hostinger API behind an HTTPS CONNECT proxy for testing import without network access.
 
-Uso: fake_hostinger_api.py <dir-com-srv.pem-e-srv.key> <arquivo-de-porta> <arquivo-de-log>
-Registra cada requisição no log; qualquer método que não seja GET responde 500.
+Usage: fake_hostinger_api.py <dir-with-srv.pem-and-srv.key> <port-file> <log-file>
+Log each request; respond with 500 for every method except GET.
 """
 import json
 import ssl
@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 CERT_DIR, PORT_FILE, LOG_FILE = sys.argv[1:4]
 
-# Host existente: o plano da assinatura (24 meses) difere do declarado na configuração.
+# Existing Host: the subscription plan (24 months) differs from the configuration.
 ROUTES = {
     "/api/vps/v1/virtual-machines/777": {
         "id": 777, "subscription_id": "sub1", "hostname": "devbox-1.example.com", "state": "running",
@@ -19,7 +19,7 @@ ROUTES = {
         "template": {"id": 1077}, "data_center": {"id": 17},
     },
     "/api/billing/v1/subscriptions/sub1": {"id": "sub1", "item_id": "hostingercom-vps-kvm4-usd-24m"},
-    # Chave criada pelo apply parcial anterior, ainda no state.
+    # Key created by the previous partial apply, still in state.
     "/api/vps/v1/public-keys": {"data": [{"id": 123, "name": "dangus-host", "key": "ssh-ed25519 AAAA teste"}]},
     "/api/vps/v1/data-centers": [
         {"id": 17, "name": "bnu", "location": "br", "city": "São Paulo", "continent": "South America"},

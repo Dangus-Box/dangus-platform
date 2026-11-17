@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Prova, com o provider real e uma API falsa local, que importar o Host existente
-# não o altera, recria nem reinstala.
+# Use the real provider and a local fake API to verify that importing the existing Host
+# does not change, recreate or reinstall it.
 set -euo pipefail
 
 TESTS=$(cd "$(dirname "$0")" && pwd)
@@ -20,25 +20,25 @@ python3 -I "$TESTS/fake_hostinger_api.py" "$WORK" "$WORK/port" "$WORK/api.log" &
 API_PID=$!
 for _ in $(seq 50); do [ -s "$WORK/port" ] && break; sleep 0.1; done
 
-# Mesma configuração, com state local no lugar do backend R2.
+# Same configuration, with local state instead of the R2 backend.
 mkdir "$WORK/tofu"
 cp "$TESTS"/../{main.tf,variables.tf,.terraform.lock.hcl} "$WORK/tofu/"
 python3 -I -c 'import re,sys; p=sys.argv[1]; s=open(p).read(); open(p,"w").write(re.sub(r"  backend \"s3\" \{.*?\n  \}\n", "", s, flags=re.S))' "$WORK/tofu/main.tf"
 cd "$WORK/tofu"
-export TF_IN_AUTOMATION=1 TF_INPUT=0 TF_VAR_state_passphrase=frase-de-teste-sem-segredo
+export TF_IN_AUTOMATION=1 TF_INPUT=0 TF_VAR_state_passphrase=test-passphrase-not-secret
 tofu init >/dev/null
 
-# Daqui em diante, toda chamada à Hostinger vai para a API falsa.
+# From here onward, all Hostinger calls go to the fake API.
 export HTTPS_PROXY="http://127.0.0.1:$(cat "$WORK/port")" NO_PROXY= no_proxy=
 export SSL_CERT_FILE="$WORK/ca.pem" HOSTINGER_API_TOKEN=falso
 export TF_VAR_data_center_id=17
-# Template diferente do instalado: sem ignore_changes, reinstalaria o sistema.
+# Template differs from the installed one: without ignore_changes, it would reinstall the system.
 export TF_VAR_template_id=9999
 
 tofu import hostinger_vps.host 777 >/dev/null
-# O apply parcial anterior deixou no state a chave SSH e ssh_key_ids no Host: o
-# update falhou após o provider já ter gravado o valor planejado. Sem
-# ignore_changes, o plano tentaria removê-lo; sem o bloco removed, destruiria a chave.
+# The previous partial apply left the SSH key and Host ssh_key_ids in state: the
+# update failed after the provider had written the planned value. Without
+# ignore_changes, the plan would remove it; without the removed block, it would destroy the key.
 tofu state pull | python3 -I -c '
 import json, sys
 s = json.load(sys.stdin); s["serial"] += 1
@@ -67,10 +67,10 @@ for c in json.load(open(sys.argv[1]))["resource_changes"]:
         print(",".join(ch["actions"]) + ":" + ",".join(changed))' "$WORK/plan.json")
 
 fail=0
-# Nenhuma alteração no Host é aceitável.
-[ "$changes" = "no-op:" ] || { echo "FALHOU: mudanças planejadas no Host: '$changes' (esperado: no-op:)"; fail=1; }
-# A chave sai só do state; a API de exclusão não é chamada.
-[ "$key_actions" = "forget" ] || { echo "FALHOU: chave SSH antiga com ações '$key_actions' (esperado: forget)"; fail=1; }
-if grep -v '^GET ' "$WORK/api.log"; then echo "FALHOU: chamadas acima não são leitura"; fail=1; fi
-[ "$fail" = 0 ] && echo "ok: import do Host existente sem recriar nem reinstalar"
+# No Host changes are acceptable.
+[ "$changes" = "no-op:" ] || { echo "FAIL: planned Host changes: '$changes' (expected: no-op:)"; fail=1; }
+# The key leaves only the state; the deletion API is not called.
+[ "$key_actions" = "forget" ] || { echo "FAIL: old SSH key has actions '$key_actions' (expected: forget)"; fail=1; }
+if grep -v '^GET ' "$WORK/api.log"; then echo "FAIL: calls above are not read-only"; fail=1; fi
+[ "$fail" = 0 ] && echo "ok: imported existing Host without recreating or reinstalling"
 exit "$fail"

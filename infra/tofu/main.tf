@@ -47,8 +47,8 @@ provider "cloudflare" {}
 
 data "hostinger_vps_data_centers" "available" {}
 
-# A chave SSH criada pelo apply parcial sai do state sem ser excluída na
-# Hostinger; o acesso SSH vem do bootstrap.
+# The SSH key created by the partial apply is removed from state without deletion from
+# Hostinger; SSH access comes from bootstrap.
 removed {
   from = hostinger_vps_ssh_key.host
   lifecycle {
@@ -56,19 +56,19 @@ removed {
   }
 }
 
-# O Host já existe e entra no state por `tofu import` (ver README).
+# The Host already exists and enters state via `tofu import` (see README).
 resource "hostinger_vps" "host" {
   plan           = "hostingercom-vps-kvm4-usd-1m"
   data_center_id = var.data_center_id
   template_id    = var.template_id
 
   lifecycle {
-    # Destruir cancela a assinatura do Host.
+    # Destroying cancels the Host subscription.
     prevent_destroy = true
-    # Mudar plano, datacenter ou senha força a recriação do Host, e mudar o
-    # template (ou o script de pós-instalação usado junto) reinstala o sistema.
-    # ssh_key_ids: o apply parcial deixou o valor no state; removê-lo chamaria
-    # uma rota inexistente da Hostinger (404). O acesso SSH vem do bootstrap.
+    # Changing the plan, datacenter or password forces Host recreation, and changing the
+    # template (or associated post-install script) reinstalls the system.
+    # ssh_key_ids: the partial apply left the value in state; removing it would call
+    # a nonexistent Hostinger route (404). SSH access comes from bootstrap.
     ignore_changes = [plan, data_center_id, password, template_id, post_install_script_id, ssh_key_ids]
 
     precondition {
@@ -76,7 +76,7 @@ resource "hostinger_vps" "host" {
         for dc in data.hostinger_vps_data_centers.available.data_centers :
         dc.id == var.data_center_id && (lower(dc.location) == "brazil" || lower(dc.location) == "brasil" || lower(dc.location) == "br")
       ])
-      error_message = "O datacenter selecionado deve estar no Brasil."
+      error_message = "The selected datacenter must be in Brazil."
     }
   }
 }
