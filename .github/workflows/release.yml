@@ -51,6 +51,11 @@ jobs:
             echo 'Run changeset version and merge the changes before publishing.' >&2
             exit 1
           else
+            prerelease=$(jq -rs '[.[] | select(.private != true and (.version | contains("-"))) | .name] | join(" ")' packages/*/package.json)
+            if [ -n "$prerelease" ]; then
+              echo "Prerelease versions publish only in pre mode, under next: $prerelease" >&2
+              exit 1
+            fi
             echo 'dist-tag=latest' >> "$GITHUB_OUTPUT"
           fi
       - name: Install BWS

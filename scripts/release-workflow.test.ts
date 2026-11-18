@@ -26,10 +26,18 @@ async function sandbox(run: (cwd: string) => Promise<void>) {
   const cwd = await mkdtemp(join(tmpdir(), "dangus-release-"));
   try {
     await mkdir(join(cwd, ".changeset"));
+    await manifest(cwd, "1.0.0");
     await run(cwd);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
+}
+
+async function manifest(cwd: string, version: string) {
+  await Bun.write(
+    join(cwd, "packages/kit/package.json"),
+    JSON.stringify({ name: "@dangus-box/kit", version }),
+  );
 }
 
 async function sh(
@@ -98,6 +106,26 @@ test("pre release accepts retained changesets already consumed by version", asyn
     });
     await Bun.write(join(cwd, ".changeset/pending.md"), "Pending");
     expect((await check(cwd)).code).not.toBe(0);
+  });
+});
+
+test("prerelease versions without pre state cannot publish to latest", async () => {
+  await sandbox(async (cwd) => {
+    await manifest(cwd, "2.0.0-rc.0");
+    await Bun.write(
+      join(cwd, "packages/private/package.json"),
+      JSON.stringify({ name: "private", private: true, version: "0.0.0-dev" }),
+    );
+    const result = await check(cwd);
+    expect(result.code).not.toBe(0);
+    expect(result.output).toBe("");
+    expect(result.stderr).toContain("@dangus-box/kit");
+    expect(result.stderr).not.toContain("private");
+    await manifest(cwd, "2.0.0");
+    expect(await check(cwd)).toMatchObject({
+      code: 0,
+      output: "dist-tag=latest\n",
+    });
   });
 });
 
