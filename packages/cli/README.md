@@ -55,7 +55,7 @@ Os campos opcionais de layout são:
 | `apps.<app>.target` | ausente | Target do build, com letras, números, `_`, `.` e `-` |
 | `apps.<app>.entry` | `<path>/index.ts` | Arquivo de integração lido pelo doctor para a API |
 | `apps.<app>.healthcheckPath` | `/ready` na API, `/` nas demais | Healthcheck do proxy e URL de uptime das Apps de servidor |
-| `migrations` | `drizzle` | Diretório de migrations SQL lido pelo doctor |
+| `migrations` | `drizzle` | Diretório de migrations do Drizzle 1.0 (`<timestamp>_<nome>/migration.sql`) lido pelo doctor |
 
 Caminhos usam `/`, são relativos à raiz do Produto e não aceitam segmentos `..`. Mesmo com `path` definido, `dockerfile` e `entry` explícitos partem da raiz. `healthcheckPath` deve começar com `/`; campos desconhecidos continuam sendo erro. Os padrões de render permanecem iguais ([ADR-0016](../../docs/adr/0016-layout-configuravel.md)).
 
@@ -98,9 +98,9 @@ Nos exemplos deste monorepo, execute `DANGUS_BUILD_CONTEXT=../.. dangus render` 
 
 ## Doctor
 
-Na raiz do Produto, execute `dangus doctor` antes do deploy, inclusive no CI. O comando verifica a integração da API no `entry` declarado (padrão `apps/api/index.ts`), a versão exata do CLI em `bun.lock` (instale com `bun add --dev --exact @dangus-box/cli`), a conexão com Tailscale e as migrations SQL no diretório `migrations` (padrão `drizzle/`). Ele retorna código 1 para falhas; avisos não impedem o deploy. Instale e conecte o Tailscale também no ambiente de CI.
+Na raiz do Produto, execute `dangus doctor` antes do deploy, inclusive no CI. O comando verifica a integração da API no `entry` declarado (padrão `apps/api/index.ts`), a versão exata do CLI em `bun.lock` (instale com `bun add --dev --exact @dangus-box/cli`), a conexão com Tailscale e as migrations no diretório `migrations` (padrão `drizzle/`), no formato do Drizzle 1.0: uma pasta por migration, `<migrations>/<timestamp>_<nome>/migration.sql`. O formato plano do Drizzle 0.x (`*.sql` direto no diretório) não é suportado e falha com mensagem indicando o arquivo. Ele retorna código 1 para falhas; avisos não impedem o deploy. Instale e conecte o Tailscale também no ambiente de CI.
 
-O lint considera novas as migrations cujos caminhos não existem na ref Git `origin/main`. Garanta que a ref esteja disponível no CI, ou informe a ref que representa o estado deployado com `dangus doctor --base <ref>`. Arquivos já existentes nessa ref não são analisados, mesmo se alterados.
+O lint considera novas as migrations cujas pastas não existem na ref Git `origin/main`. Garanta que a ref esteja disponível no CI, ou informe a ref que representa o estado deployado com `dangus doctor --base <ref>`. Pastas já existentes nessa ref não são analisadas, mesmo se alteradas; as falhas apontam `pasta/migration.sql:linha`.
 
 # Desenvolvimento local e inventário
 

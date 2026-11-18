@@ -15,6 +15,28 @@ const lockfile = (spec: string, resolved: string) =>
     workspaces: { "": { devDependencies: { "@dangus-box/cli": spec } } },
     packages: { "@dangus-box/cli": [`@dangus-box/cli@${resolved}`] },
   });
+async function migration(dir: string, path: string, sql: string) {
+  await mkdir(join(dir, path), { recursive: true });
+  await writeFile(join(dir, path, "migration.sql"), sql);
+}
+
+async function commit(dir: string) {
+  await run(["git", "add", "."], dir);
+  await run(
+    [
+      "git",
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.com",
+      "commit",
+      "-qm",
+      "migration",
+    ],
+    dir,
+  );
+}
+
 async function fixture() {
   const dir = await mkdtemp(join(tmpdir(), "dangus-doctor-"));
   await mkdir(join(dir, "apps/api"), { recursive: true });
@@ -54,7 +76,7 @@ test("checks pass and fail with specific instructions", async () => {
     );
     await writeFile(join(dir, "apps/api/index.ts"), "");
     await writeFile(join(dir, "bun.lock"), "{}");
-    await writeFile(join(dir, "drizzle/0001.sql"), "drop table users;");
+    await migration(dir, "drizzle/202611170001_new", "drop table users;");
     const results = await doctor(dir, "HEAD", async (args, cwd) =>
       args[0] === "tailscale" ? { code: 1, output: "" } : run(args, cwd),
     );
@@ -94,8 +116,8 @@ test("lint ignores comments and literals and recognizes operations case-insensit
 test("existing migrations in the ref are ignored, warnings pass and a missing ref fails", async () => {
   const dir = await fixture();
   try {
-    await writeFile(join(dir, "drizzle/old.sql"), "DROP TABLE t;");
-    await run(["git", "add", "drizzle/old.sql"], dir);
+    await migration(dir, "drizzle/202611170001_old", "DROP TABLE t;");
+    await run(["git", "add", "drizzle/202611170001_old"], dir);
     await run(
       [
         "git",
@@ -109,7 +131,11 @@ test("existing migrations in the ref are ignored, warnings pass and a missing re
       ],
       dir,
     );
-    await writeFile(join(dir, "drizzle/new.sql"), "CREATE INDEX idx ON t(c);");
+    await migration(
+      dir,
+      "drizzle/202611170002_new",
+      "CREATE INDEX idx ON t(c);",
+    );
     const results = await doctor(dir, "HEAD", connected);
     expect(results.map((r) => r.status)).toEqual([
       "pass",
@@ -131,7 +157,11 @@ test("doctor returns CI status for warnings and failures", async () => {
     const tailscale = join(dir, "tailscale");
     await writeFile(tailscale, "#!/bin/sh\nexit 0\n");
     await chmod(tailscale, 0o755);
-    await writeFile(join(dir, "drizzle/new.sql"), "CREATE INDEX idx ON t(c);");
+    await migration(
+      dir,
+      "drizzle/202611170002_new",
+      "CREATE INDEX idx ON t(c);",
+    );
     const command = [
       process.execPath,
       resolve(import.meta.dir, "index.ts"),
@@ -153,7 +183,7 @@ test("doctor returns CI status for warnings and failures", async () => {
     const warning = await execute();
     expect(warning.code).toBe(0);
     expect(warning.output).toContain("[warn]");
-    await writeFile(join(dir, "drizzle/new.sql"), "DROP TABLE t;");
+    await migration(dir, "drizzle/202611170002_new", "DROP TABLE t;");
     const failure = await execute();
     expect(failure.code).toBe(1);
     expect(failure.output).toContain("[fail]");
@@ -233,11 +263,12 @@ test("doctor uses configured API entry and migrations, including the base ref", 
       join(dir, "backend/src/main.ts"),
       await Bun.file(example).text(),
     );
-    await writeFile(
-      join(dir, "database/migrations/old.sql"),
+    await migration(
+      dir,
+      "database/migrations/202611170001_old",
       "DROP TABLE old;",
     );
-    await run(["git", "add", "database/migrations/old.sql"], dir);
+    await run(["git", "add", "database/migrations/202611170001_old"], dir);
     await run(
       [
         "git",
@@ -255,16 +286,78 @@ test("doctor uses configured API entry and migrations, including the base ref", 
     expect((await doctor(dir, "HEAD", connected)).map((r) => r.status)).toEqual(
       ["pass", "pass", "pass", "pass"],
     );
-    await writeFile(
-      join(dir, "database/migrations/new.sql"),
+    await migration(
+      dir,
+      "database/migrations/202611170002_new",
       "DROP TABLE new;",
     );
     const results = await doctor(dir, "HEAD", connected);
-    expect(results.at(-1)?.message).toContain("database/migrations/new.sql:1");
+    expect(results.at(-1)?.message).toContain(
+      "database/migrations/202611170002_new/migration.sql:1",
+    );
     expect(results.at(-1)?.status).toBe("fail");
     await writeFile(join(dir, "backend/src/main.ts"), "");
     expect((await doctor(dir, "HEAD", connected))[0]?.message).toContain(
       "backend/src/main.ts",
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("new migration folders in HEAD are linted from a Product in a Git subfolder", async () => {
+  const dir = await fixture();
+  try {
+    const product = join(dir, "products/product");
+    await mkdir(product, { recursive: true });
+    await writeFile(
+      join(product, "dangus.config.ts"),
+      `export default {
+      name: "produto", apps: { web: { domain: "web.produto.com" } }, database: "postgres", migrations: "packages/db/migrations", deployTimeoutSeconds: 120,
+    };`,
+    );
+    await writeFile(join(product, "bun.lock"), lockfile("1.2.3", "1.2.3"));
+    const migrations = "products/product/packages/db/migrations";
+    await migration(dir, `${migrations}/202611170001_base`, "DROP TABLE old;");
+    await commit(dir);
+    await run(["git", "branch", "base"], dir);
+    await migration(
+      dir,
+      `${migrations}/202611170002_new`,
+      "-- new migration\nDROP TABLE users;",
+    );
+    await commit(dir);
+    const results = await doctor(product, "base", connected);
+    expect(results.filter((r) => r.status === "fail")).toEqual([
+      {
+        status: "fail",
+        message:
+          "Migrations: packages/db/migrations/202611170002_new/migration.sql:2: remove DROP and perform the removal in a later deploy.",
+      },
+    ]);
+    expect((await doctor(product, "HEAD", connected)).at(-1)).toEqual({
+      status: "pass",
+      message: "New migrations are additive.",
+    });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("rejects the Drizzle 0.x flat layout even when it exists in the base ref", async () => {
+  const dir = await fixture();
+  try {
+    await writeFile(
+      join(dir, "drizzle/0000_old.sql"),
+      "CREATE TABLE t(id int);",
+    );
+    await commit(dir);
+    const result = (await doctor(dir, "HEAD", connected)).at(-1);
+    expect(result?.status).toBe("fail");
+    expect(result?.message).toContain("drizzle/0000_old.sql");
+    expect(result?.message).toContain("unsupported Drizzle 0.x");
+    expect(result?.message).toContain(
+      "<migrations>/<timestamp>_<name>/migration.sql",
     );
   } finally {
     await rm(dir, { recursive: true, force: true });
