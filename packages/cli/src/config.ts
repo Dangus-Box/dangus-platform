@@ -93,6 +93,16 @@ function relativePath(value: unknown, path: string): string {
   return posix.normalize(value);
 }
 
+// The doctor passes migrations to git as a pathspec: no magic or globs.
+function pathspecSafe(value: string): string {
+  if (/^[-:]|[*?[\]{}!]/.test(value))
+    return fail(
+      "migrations",
+      "must not start with - or : or contain glob characters",
+    );
+  return value;
+}
+
 // Secrets become Docker and Kamal environment variables during deploy; these
 // names control deploy or are supplied by the Platform.
 const RESERVED_SECRET =
@@ -154,8 +164,14 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
           ? "/ready"
           : "/"
         : app.healthcheckPath;
-    if (typeof healthcheckPath !== "string" || !healthcheckPath.startsWith("/"))
-      fail(`${path}.healthcheckPath`, "must start with /");
+    if (
+      typeof healthcheckPath !== "string" ||
+      !/^\/(?!\/)[^\s\x00-\x1f#\\]*$/.test(healthcheckPath)
+    )
+      fail(
+        `${path}.healthcheckPath`,
+        "must be a URL path starting with a single / and without spaces or #",
+      );
     // ADR-0009: one subdomain level, including .com.br domains.
     if (
       typeof app.domain !== "string" ||
@@ -227,9 +243,11 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
     name: config.name,
     apps,
     database: config.database,
-    migrations: relativePath(
-      config.migrations === undefined ? "drizzle" : config.migrations,
-      "migrations",
+    migrations: pathspecSafe(
+      relativePath(
+        config.migrations === undefined ? "drizzle" : config.migrations,
+        "migrations",
+      ),
     ),
     deployTimeoutSeconds,
     logger: { redact },
