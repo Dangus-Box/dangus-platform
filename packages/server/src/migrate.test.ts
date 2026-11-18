@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { drizzle as sqliteDrizzle } from "drizzle-orm/bun-sqlite";
 import { migrate as migrateOfficialSqlite } from "drizzle-orm/bun-sqlite/migrator";
+import { MIGRATIONS_TABLE_VERSIONS } from "drizzle-orm/up-migrations/utils";
 import { drizzle as legacySqlite } from "drizzle-orm-legacy/bun-sqlite";
 import { migrate as migrateLegacySqlite } from "drizzle-orm-legacy/bun-sqlite/migrator";
 import { drizzle as legacyPostgres } from "drizzle-orm-legacy/postgres-js";
@@ -482,4 +483,148 @@ test("SQLite: an SDK 1.0.0 history with a null id upgrades, and missing history 
     missing.close();
     await rm(empty, { recursive: true, force: true });
   }
+});
+
+test.skipIf(!postgresUrl)(
+  "postgres: a failed in-process run releases the advisory lock and rolls back every migration",
+  async () => {
+    await withDatabase("postgres", async (connection, query) => {
+      const dir = await mkdtemp(join(tmpdir(), "dangus-migration-"));
+      try {
+        await writeMigrations(dir, [
+          "CREATE TABLE first_ok (id integer);",
+          "CREATE TABLE partial (id integer);\n--> statement-breakpoint\nINVALID SQL;",
+        ]);
+        await expect(migratePostgres(connection, dir)).rejects.toThrow();
+        expect(
+          await query("SELECT * FROM pg_locks WHERE locktype = 'advisory'"),
+        ).toHaveLength(0);
+        expect(
+          await query(
+            "SELECT tablename FROM pg_tables WHERE tablename IN ('first_ok', 'partial')",
+          ),
+        ).toHaveLength(0);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+  },
+  30000,
+);
+
+test.skipIf(!postgresUrl)(
+  "postgres: concurrent migrators upgrade a 0.44.7 history once under the lock",
+  async () => {
+    await withDatabase("postgres", async (connection, query) => {
+      const dir = await mkdtemp(join(tmpdir(), "dangus-legacy-"));
+      const sql =
+        "CREATE TABLE legacy_data (id integer);\n--> statement-breakpoint\nINSERT INTO legacy_data VALUES (42);";
+      const client = postgres(connection, { onnotice: () => {} });
+      try {
+        await mkdir(join(dir, "meta"));
+        await writeFile(
+          join(dir, "meta/_journal.json"),
+          JSON.stringify({
+            entries: [
+              {
+                idx: 0,
+                when: 1794873600123,
+                tag: "0000_test",
+                breakpoints: true,
+              },
+            ],
+          }),
+        );
+        await writeFile(join(dir, "0000_test.sql"), sql);
+        await migrateLegacyPostgres(legacyPostgres(client), {
+          migrationsFolder: dir,
+        });
+        await rm(join(dir, "meta"), { recursive: true });
+        await rm(join(dir, "0000_test.sql"));
+        await writeMigrations(dir, [
+          sql,
+          "SELECT pg_sleep(0.3);\n--> statement-breakpoint\nINSERT INTO legacy_data VALUES (43);",
+        ]);
+        await Promise.all(
+          Array.from({ length: 6 }, () => migratePostgres(connection, dir)),
+        );
+        expect(await query("SELECT id FROM legacy_data ORDER BY id")).toEqual([
+          { id: 42 },
+          { id: 43 },
+        ]);
+        expect(
+          await query(
+            "SELECT name FROM drizzle.__drizzle_migrations ORDER BY created_at",
+          ),
+        ).toEqual([
+          { name: "20261117000000_test" },
+          { name: "20261117000001_test" },
+        ]);
+      } finally {
+        await client.end();
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+  },
+  60000,
+);
+
+test("SQLite: the SDK and the official rc.4 migrator recognize each other's history", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dangus-interop-"));
+  try {
+    await writeMigrations(dir, [
+      "CREATE TABLE interop (id integer);",
+      "INSERT INTO interop VALUES (1);",
+    ]);
+    const sdkFirst = new Database(":memory:");
+    migrateSqlite(sdkFirst, dir);
+    migrateOfficialSqlite(sqliteDrizzle({ client: sdkFirst }), {
+      migrationsFolder: dir,
+    });
+    expect(sdkFirst.query("SELECT * FROM interop").all()).toHaveLength(1);
+    sdkFirst.close();
+
+    const officialFirst = new Database(":memory:");
+    migrateOfficialSqlite(sqliteDrizzle({ client: officialFirst }), {
+      migrationsFolder: dir,
+    });
+    migrateSqlite(officialFirst, dir);
+    expect(officialFirst.query("SELECT * FROM interop").all()).toHaveLength(1);
+    expect(
+      officialFirst.query("SELECT * FROM __drizzle_migrations").all(),
+    ).toHaveLength(2);
+    officialFirst.close();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("SQLite: a legacy row whose timestamp matches no folder is matched by its real hash", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dangus-legacy-hash-"));
+  const db = new Database(":memory:");
+  try {
+    const sql = "CREATE TABLE by_hash (id integer);";
+    await writeMigrations(dir, [sql]);
+    db.run(sql);
+    db.run(
+      "CREATE TABLE __drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric)",
+    );
+    db.run(
+      "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, 1700000000000)",
+      [new Bun.CryptoHasher("sha256").update(sql).digest("hex")],
+    );
+    migrateSqlite(db, dir);
+    expect(db.query("SELECT name FROM __drizzle_migrations").all()).toEqual([
+      { name: "20261117000000_test" },
+    ]);
+  } finally {
+    db.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("SQLite: the SDK history format matches the drizzle-orm version it reimplements", () => {
+  // migrateSqlite mirrors drizzle's SQLite history table v1; a drizzle bump
+  // that changes it must update migrateSqlite too.
+  expect(MIGRATIONS_TABLE_VERSIONS.sqlite).toBe(1);
 });
