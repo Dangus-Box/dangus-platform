@@ -46,11 +46,51 @@ export default defineConfig({
 
 O `name` usa apenas letras minúsculas, números e hífens. Declare ao menos uma das Apps `api`, `web` e `mobile`; cada App declarada precisa de um domínio com um único nível de subdomínio, como `api-staging.produto.com`. O limite `memoryMb` (inteiro, em MB) tem padrão de 512 MB por App. O banco aceita `postgres` ou `sqlite`; `deployTimeoutSeconds` é o timeout de deploy em segundos (inteiro). `logger.redact` acrescenta campos para redaction e tem padrão vazio. O destino do Backup tem padrão `r2`; use `s3` para AWS S3 em `sa-east-1`.
 
+Os campos opcionais de layout são:
+
+| Campo | Padrão | Uso |
+| --- | --- | --- |
+| `apps.<app>.path` | `apps/<app>` | Base dos padrões de Dockerfile e entry |
+| `apps.<app>.dockerfile` | `<path>/Dockerfile` | Dockerfile usado pelo builder |
+| `apps.<app>.target` | ausente | Target do build, com letras, números, `_`, `.` e `-` |
+| `apps.<app>.entry` | `<path>/index.ts` | Arquivo de integração lido pelo doctor para a API |
+| `apps.<app>.healthcheckPath` | `/ready` na API, `/` nas demais | Healthcheck do proxy e URL de uptime das Apps de servidor |
+| `migrations` | `drizzle` | Diretório de migrations SQL lido pelo doctor |
+
+Caminhos usam `/`, são relativos à raiz do Produto e não aceitam segmentos `..`. Mesmo com `path` definido, `dockerfile` e `entry` explícitos partem da raiz. `healthcheckPath` deve começar com `/`; campos desconhecidos continuam sendo erro. Os padrões de render permanecem iguais ([ADR-0016](../../docs/adr/0016-layout-configuravel.md)).
+
+## Adoção manual de um Produto com layout próprio
+
+O `init` continua detectando apenas as convenções `apps/api`, `apps/web` e `apps/mobile`. Para outro layout, siga a [Adoção manual no Guia](../../docs/guide.md#adoção-manual-de-um-produto-com-layout-próprio): instale o CLI e os SDKs necessários, escreva a Config do Produto e forneça os Dockerfiles e workflows.
+
+Por exemplo, para uma API em `backend/src/main.ts`:
+
+```ts
+export default defineConfig({
+  name: "produto",
+  apps: {
+    api: {
+      domain: "api.produto.com",
+      path: "backend",
+      dockerfile: "docker/api.Dockerfile",
+      target: "production",
+      entry: "backend/src/main.ts",
+      healthcheckPath: "/health/ready",
+    },
+  },
+  migrations: "database/migrations",
+  database: "postgres",
+  deployTimeoutSeconds: 120,
+});
+```
+
+O Dockerfile continua usando a raiz do Produto como contexto e expondo a porta 3000. A App deve implementar o endpoint declarado e executar migrations do diretório correto antes de atender requisições; a Config não altera o código da App.
+
 O CLI pode carregar e validar a Config do Produto com `loadConfig(diretorio)`, que usa o diretório atual por padrão. Erros identificam o caminho do campo inválido.
 
 # Render e deploy de Apps
 
-Execute `dangus render` na raiz do Produto para imprimir o `deploy.yml` de cada App de servidor. `dangus deploy` gera esses arquivos em uma pasta temporária, usa a imagem oficial do Kamal 2.12.0 fixada e remove a pasta ao terminar; mobile não participa. O Host padrão é `devbox-1` na tailnet; `DANGUS_HOST` substitui esse nome. O proxy publica nos IPs dos registros A e AAAA do domínio de cada App, que devem apontar para o Host em modo DNS-only; como o proxy é um só por Host e o Kamal não reconfigura um proxy já em execução, o render falha se as Apps resolverem para IPs diferentes. Use `DANGUS_PROXY_BIND_IPS` para substituí-los por IPs separados por vírgula. O deploy exige Docker, `bws` autenticado por `BWS_ACCESS_TOKEN`, SSH agent (`SSH_AUTH_SOCK`) e `KAMAL_REGISTRY_USERNAME` e `KAMAL_REGISTRY_PASSWORD` para o GHCR. Cada App precisa de `apps/<app>/Dockerfile`, com contexto na raiz do Produto e porta 3000; a API deve responder em `/ready` e a web em `/`.
+Execute `dangus render` na raiz do Produto para imprimir o `deploy.yml` de cada App de servidor. `dangus deploy` gera esses arquivos em uma pasta temporária, usa a imagem oficial do Kamal 2.12.0 fixada e remove a pasta ao terminar; mobile não participa. O Host padrão é `devbox-1` na tailnet; `DANGUS_HOST` substitui esse nome. O proxy publica nos IPs dos registros A e AAAA do domínio de cada App, que devem apontar para o Host em modo DNS-only; como o proxy é um só por Host e o Kamal não reconfigura um proxy já em execução, o render falha se as Apps resolverem para IPs diferentes. Use `DANGUS_PROXY_BIND_IPS` para substituí-los por IPs separados por vírgula. O deploy exige Docker, `bws` autenticado por `BWS_ACCESS_TOKEN`, SSH agent (`SSH_AUTH_SOCK`) e `KAMAL_REGISTRY_USERNAME` e `KAMAL_REGISTRY_PASSWORD` para o GHCR. Cada App precisa do Dockerfile declarado (padrão `apps/<app>/Dockerfile`), com contexto na raiz do Produto e porta 3000; deve responder no `healthcheckPath` declarado (padrão `/ready` na API e `/` na web).
 
 Declare `secrets: ["CHAVE"]` em cada App; o CLI busca `<produto>__<CHAVE>` no BWS e passa o valor ao Kamal pelo ambiente, sem gravá-lo no `deploy.yml` ou nos argumentos. Nomes que controlam o deploy ou que a Plataforma fornece são recusados: `KAMAL_*`, `DOCKER_*`, `PATH`, `HOME`, `SSH_AUTH_SOCK`, `DATABASE_URL`, `POSTGRES_PASSWORD` e `SQLITE_PATH`. Postgres requer `<produto>__POSTGRES_PASSWORD`; o CLI fornece `DATABASE_URL` à API e mantém o Banco do Produto na rede interna. Para SQLite, a API deve usar `SQLITE_PATH` para o arquivo persistente. O adaptador `bitwarden-sm` não é usado diretamente porque a [imagem oficial do Kamal não inclui os CLIs dos gerenciadores de secrets](https://kamal-deploy.org/docs/installation/dockerized/).
 
@@ -58,7 +98,7 @@ Nos exemplos deste monorepo, execute `DANGUS_BUILD_CONTEXT=../.. dangus render` 
 
 ## Doctor
 
-Na raiz do Produto, execute `dangus doctor` antes do deploy, inclusive no CI. O comando verifica a integração da API em `apps/api/index.ts`, a versão exata do CLI em `bun.lock` (instale com `bun add --dev --exact @dangus-box/cli`), a conexão com Tailscale e as migrations SQL em `drizzle/`. Ele retorna código 1 para falhas; avisos não impedem o deploy. Instale e conecte o Tailscale também no ambiente de CI.
+Na raiz do Produto, execute `dangus doctor` antes do deploy, inclusive no CI. O comando verifica a integração da API no `entry` declarado (padrão `apps/api/index.ts`), a versão exata do CLI em `bun.lock` (instale com `bun add --dev --exact @dangus-box/cli`), a conexão com Tailscale e as migrations SQL no diretório `migrations` (padrão `drizzle/`). Ele retorna código 1 para falhas; avisos não impedem o deploy. Instale e conecte o Tailscale também no ambiente de CI.
 
 O lint considera novas as migrations cujos caminhos não existem na ref Git `origin/main`. Garanta que a ref esteja disponível no CI, ou informe a ref que representa o estado deployado com `dangus doctor --base <ref>`. Arquivos já existentes nessa ref não são analisados, mesmo se alterados.
 

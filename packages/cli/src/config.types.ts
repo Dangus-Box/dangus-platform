@@ -16,3 +16,20 @@ defineConfig({
   database: "mysql",
   deployTimeoutSeconds: 120,
 });
+
+defineConfig({
+  name: "product",
+  apps: {
+    api: {
+      domain: "api.product.com",
+      path: "backend",
+      dockerfile: "docker/api.Dockerfile",
+      target: "production",
+      entry: "backend/src/main.ts",
+      healthcheckPath: "/health",
+    },
+  },
+  migrations: "database/migrations",
+  database: "postgres",
+  deployTimeoutSeconds: 120,
+});

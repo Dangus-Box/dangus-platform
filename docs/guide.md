@@ -4,7 +4,7 @@ Siga na raiz do repositório do Produto. Este guia pressupõe a Stack Ops e o Ho
 
 ## 1. Pré-requisitos
 
-- O Produto já deve ter `apps/api` com Elysia, `apps/web` com TanStack Start e/ou `apps/mobile` com Expo, além de `drizzle.config.ts` na raiz com dialect `postgresql` ou `sqlite` e migrations em `drizzle/`. A Plataforma não cria a estrutura nem altera o código das Apps ([ADR-0012](adr/0012-adocao-sem-scaffold.md)).
+- Para a detecção automática do `init`, o Produto já deve ter `apps/api` com Elysia, `apps/web` com TanStack Start e/ou `apps/mobile` com Expo, além de `drizzle.config.ts` na raiz com dialect `postgresql` ou `sqlite` e migrations em `drizzle/`. A Plataforma não cria a estrutura nem altera o código das Apps ([ADR-0012](adr/0012-adocao-sem-scaffold.md)).
 - O repositório do Produto fica na organização `Dangus-Box` do GitHub: as imagens são publicadas em `ghcr.io/dangus-box/<produto>-<app>` com o `GITHUB_TOKEN` do workflow.
 - Instale `bun`, Docker, `jq`, `tailscale` e o CLI `bws`; para restore, também `age`, `gzip` e `curl`. Conecte-se à tailnet e confirme com `tailscale status`.
 - Para as seções 4 em diante, exporte `BWS_ACCESS_TOKEN` de uma machine account `operator` com leitura no projeto `ops` e escrita em `prod`. Use uma máquina confiável: o BWS CLI recebe valores em argumentos durante o Registro.
@@ -27,6 +27,18 @@ Revise `dangus.config.ts`:
 - Produto sem web: remova `UMAMI_WEBSITE_ID` dos `secrets` da API, pois o Registro só cria o site no Umami quando há web.
 
 Detalhes dos campos no [README do CLI](../packages/cli/README.md#config-do-produto).
+
+### Adoção manual de um Produto com layout próprio
+
+Se as Apps já estão em outro layout, faça a Adoção manualmente; o `init` mantém sua detecção por convenção ([ADR-0016](adr/0016-layout-configuravel.md)).
+
+1. Instale o CLI com versão exata como na seção 2 e os SDKs das Apps presentes: `bun add --exact @dangus-box/server` para API, `@dangus-box/web` para web e `@dangus-box/native` para mobile. Instale também as dependências de integração usadas pela App, como `@openfeature/server-sdk` no exemplo da API.
+2. Crie `dangus.config.ts` com as chaves `api`, `web` e/ou `mobile`, conforme o [exemplo de layout próprio no README](../packages/cli/README.md#adoção-manual-de-um-produto-com-layout-próprio). Declare `path`, `dockerfile`, `target`, `entry`, `healthcheckPath` e `migrations` apenas quando precisar substituir os padrões. Todos os caminhos explícitos partem da raiz do Produto; `target` é opcional.
+3. Forneça os Dockerfiles das Apps de servidor com contexto na raiz do Produto, porta 3000 e o target declarado, se houver. Copie as migrations para a imagem e mantenha seu caminho coerente com a chamada de migration no boot. Configure `.dockerignore` para excluir `.env`, `.git`, `node_modules` e bancos locais, e inclua `.dangus/` no `.gitignore`.
+4. Copie [deploy.yml](../packages/cli/templates/deploy.yml) e [restore.yml](../packages/cli/templates/restore.yml) para `.github/workflows/`. Faça as integrações da seção 3 nos arquivos reais das Apps e implemente o endpoint de saúde configurado. Na API, `entry` indica onde o doctor deve conferir a integração; na web e no mobile, a integração continua manual.
+5. Execute `bun run dangus doctor --base <ref>` e `bun run dangus render`, revise os arquivos gerados e siga as seções 4 e 5 para Registro na Stack Ops e deploy. Confira as URLs com o `healthcheckPath` escolhido.
+
+A Config orienta o render, o doctor e o Registro; ela não cria diretórios nem modifica arquivos das Apps. A integração dos SDKs continua sendo responsabilidade do Produto.
 
 ## 3. Integrar as Apps
 
@@ -116,7 +128,7 @@ O Registro cria ou reconhece o site no Umami (só com web), os tokens backend e 
 
 No GitHub do Produto, crie o secret `BWS_ACCESS_TOKEN` de uma machine account com leitura em `ops` e `prod`. A variável `DANGUS_HOST` é opcional (padrão `devbox-1`). O workflow lê do BWS `platform__TAILSCALE_OAUTH_CLIENT_ID`, `platform__TAILSCALE_OAUTH_CLIENT_SECRET`, `platform__DEPLOY_SSH_PRIVATE_KEY` e `platform__DEPLOY_SSH_KNOWN_HOSTS`, já configurados pela Plataforma ([workflow de deploy](../packages/cli/README.md#workflow-de-deploy)).
 
-Faça commit dos arquivos gerados, das integrações, de `package.json` e `bun.lock`, e envie à `main`. Acompanhe **Actions → Deploy**: o push constrói e publica as imagens e faz o deploy. Confirme por HTTPS: a API em `https://<domínio-da-api>/ready` e a web em `/`.
+Faça commit dos arquivos gerados, das integrações, de `package.json` e `bun.lock`, e envie à `main`. Acompanhe **Actions → Deploy**: o push constrói e publica as imagens e faz o deploy. Confirme por HTTPS: a API em `https://<domínio-da-api>/ready` e a web em `/`, ou nos respectivos `healthcheckPath` declarados.
 
 ## 6. Rollback
 

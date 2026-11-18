@@ -120,7 +120,7 @@ export function render(
       ssl: true,
       host: settings.domain,
       app_port: 3000,
-      healthcheck: { path: app === "api" ? "/ready" : "/" },
+      healthcheck: { path: settings.healthcheckPath },
       run: {
         bind_ips: bindIps,
         options: { label: ["product=platform", "app=proxy"] },
@@ -128,7 +128,8 @@ export function render(
     },
     builder: {
       arch: "amd64",
-      dockerfile: `apps/${app}/Dockerfile`,
+      dockerfile: settings.dockerfile,
+      ...(settings.target === undefined ? {} : { target: settings.target }),
       context: buildContext,
     },
     deploy_timeout: config.deployTimeoutSeconds,

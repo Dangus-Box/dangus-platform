@@ -1,14 +1,24 @@
-import { resolve } from "node:path";
+import { posix, resolve, win32 } from "node:path";
 
 export interface ProductConfig {
   name: string;
   apps: Partial<
     Record<
       "api" | "web" | "mobile",
-      { domain: string; memoryMb?: number; secrets?: string[] }
+      {
+        domain: string;
+        memoryMb?: number;
+        secrets?: string[];
+        path?: string;
+        dockerfile?: string;
+        target?: string;
+        entry?: string;
+        healthcheckPath?: string;
+      }
     >
   >;
   database: "postgres" | "sqlite";
+  migrations?: string;
   deployTimeoutSeconds: number;
   logger?: { redact?: string[] };
   backup?: { destination?: "r2" | "s3" };
@@ -19,10 +29,20 @@ export interface ResolvedProductConfig {
   apps: Partial<
     Record<
       "api" | "web" | "mobile",
-      { domain: string; memoryMb: number; secrets: string[] }
+      {
+        domain: string;
+        memoryMb: number;
+        secrets: string[];
+        path: string;
+        dockerfile: string;
+        target?: string;
+        entry: string;
+        healthcheckPath: string;
+      }
     >
   >;
   database: "postgres" | "sqlite";
+  migrations: string;
   deployTimeoutSeconds: number;
   logger: { redact: string[] };
   backup: { destination: "r2" | "s3" };
@@ -59,6 +79,30 @@ function positiveInteger(value: unknown, path: string): number {
   return value;
 }
 
+function relativePath(value: unknown, path: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    posix.isAbsolute(value) ||
+    win32.isAbsolute(value) ||
+    value.includes("\\") ||
+    value.includes("\0") ||
+    value.split("/").includes("..")
+  )
+    return fail(path, "must be a relative path without .. segments");
+  return posix.normalize(value);
+}
+
+// The doctor passes migrations to git as a pathspec: no magic or globs.
+function pathspecSafe(value: string): string {
+  if (/^[-:]|[*?[\]{}!]/.test(value))
+    return fail(
+      "migrations",
+      "must not start with - or : or contain glob characters",
+    );
+  return value;
+}
+
 // Secrets become Docker and Kamal environment variables during deploy; these
 // names control deploy or are supplied by the Platform.
 const RESERVED_SECRET =
@@ -69,6 +113,7 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
     "name",
     "apps",
     "database",
+    "migrations",
     "deployTimeoutSeconds",
     "logger",
     "backup",
@@ -86,7 +131,47 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
   for (const key of ["api", "web", "mobile"] as const) {
     if (inputApps[key] === undefined) continue;
     const path = `apps.${key}`;
-    const app = object(inputApps[key], path, ["domain", "memoryMb", "secrets"]);
+    const app = object(inputApps[key], path, [
+      "domain",
+      "memoryMb",
+      "secrets",
+      "path",
+      "dockerfile",
+      "target",
+      "entry",
+      "healthcheckPath",
+    ]);
+    const appPath = relativePath(
+      app.path === undefined ? `apps/${key}` : app.path,
+      `${path}.path`,
+    );
+    const dockerfile = relativePath(
+      app.dockerfile === undefined ? `${appPath}/Dockerfile` : app.dockerfile,
+      `${path}.dockerfile`,
+    );
+    const entry = relativePath(
+      app.entry === undefined ? `${appPath}/index.ts` : app.entry,
+      `${path}.entry`,
+    );
+    if (
+      app.target !== undefined &&
+      (typeof app.target !== "string" || !/^[A-Za-z0-9_.-]+$/.test(app.target))
+    )
+      fail(`${path}.target`, "must contain only letters, numbers, _, . and -");
+    const healthcheckPath =
+      app.healthcheckPath === undefined
+        ? key === "api"
+          ? "/ready"
+          : "/"
+        : app.healthcheckPath;
+    if (
+      typeof healthcheckPath !== "string" ||
+      !/^\/(?!\/)[A-Za-z0-9\-._~!$&'()*+,;=:@%/]*$/.test(healthcheckPath)
+    )
+      fail(
+        `${path}.healthcheckPath`,
+        "must be a URL path starting with a single / and without spaces or #",
+      );
     // ADR-0009: one subdomain level, including .com.br domains.
     if (
       typeof app.domain !== "string" ||
@@ -117,6 +202,11 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
     }
     apps[key] = {
       domain: app.domain,
+      path: appPath,
+      dockerfile,
+      ...(app.target === undefined ? {} : { target: app.target }),
+      entry,
+      healthcheckPath,
       secrets,
       memoryMb: positiveInteger(
         app.memoryMb === undefined ? 512 : app.memoryMb,
@@ -153,6 +243,12 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
     name: config.name,
     apps,
     database: config.database,
+    migrations: pathspecSafe(
+      relativePath(
+        config.migrations === undefined ? "drizzle" : config.migrations,
+        "migrations",
+      ),
+    ),
     deployTimeoutSeconds,
     logger: { redact },
     backup: { destination },
