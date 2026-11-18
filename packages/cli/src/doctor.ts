@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { loadConfig } from "./config";
 
 type Result = { status: "pass" | "warn" | "fail"; message: string };
@@ -125,6 +125,8 @@ export async function doctor(
       "git",
       "ls-tree",
       "-r",
+      "-d",
+      "--full-tree",
       "--name-only",
       "-z",
       base,
@@ -140,15 +142,29 @@ export async function doctor(
     return results;
   }
   const old = new Set(existing.output.split("\0"));
-  const files = new Bun.Glob("**/*.sql");
-  let found = false;
+  const files = new Bun.Glob("*/migration.sql");
   const migrationsDirectory = resolve(directory, config.migrations);
+  let found = false;
+  if (existsSync(migrationsDirectory)) {
+    for await (const file of new Bun.Glob("*.sql").scan({
+      cwd: migrationsDirectory,
+      onlyFiles: true,
+    })) {
+      found = true;
+      results.push(
+        result(
+          "fail",
+          `Migrations: ${join(config.migrations, file)} uses the unsupported Drizzle 0.x flat SQL layout; upgrade to Drizzle 1.0 with <migrations>/<timestamp>_<name>/migration.sql.`,
+        ),
+      );
+    }
+  }
   const migrations = existsSync(migrationsDirectory)
     ? files.scan({ cwd: migrationsDirectory, onlyFiles: true })
     : [];
   for await (const relative of migrations) {
     const file = join(config.migrations, relative);
-    if (old.has(`${git.output.trim()}${file}`)) continue;
+    if (old.has(`${git.output.trim()}${dirname(file)}`)) continue;
     for (const issue of lintSql(
       await Bun.file(resolve(directory, file)).text(),
     )) {
