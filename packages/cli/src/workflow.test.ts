@@ -194,7 +194,33 @@ for (const file of [
     expect(doctor).toBeGreaterThan(tailscale);
     expect(doctor).toBeLessThan(deploy);
     expect(job.steps[doctor].if).toBe("inputs.sha == ''");
-    expect(job.steps[doctor].run).toBe("bun run dangus doctor --base HEAD^");
+    if (file.endsWith("deploy-example.yml")) {
+      // The example uses the workspace CLI: tolerate only the lockfile pin failure.
+      const repo = await mkdtemp(join(tmpdir(), "dangus-doctor-gate-"));
+      try {
+        await Bun.write(
+          join(repo, "bun"),
+          '#!/bin/bash\n[[ "$*" == "run dangus doctor --base HEAD^" ]] || exit 2\nprintf "%b" "$DOCTOR_OUTPUT"\n[[ "$DOCTOR_OUTPUT" != *"[fail]"* ]] || exit 1\n',
+        );
+        await Bun.$`chmod +x ${join(repo, "bun")}`;
+        const gate = (output: string) =>
+          sh(
+            job.steps[doctor].run ?? "",
+            { DOCTOR_OUTPUT: output, PATH: `${repo}:${process.env.PATH}` },
+            repo,
+          );
+        const pin = "[fail] CLI: pin a published version.\n";
+        expect(await gate(`[pass] ok\n${pin}[pass] ok\n`)).toBe(0);
+        expect(await gate("[pass] ok\n[warn] w\n")).toBe(0);
+        expect(await gate(`${pin}[fail] Migrations: bad\n`)).not.toBe(0);
+        expect(await gate("[fail] Tailscale: down\n")).not.toBe(0);
+        expect(await gate("")).not.toBe(0);
+      } finally {
+        await rm(repo, { recursive: true, force: true });
+      }
+    } else {
+      expect(job.steps[doctor].run).toBe("bun run dangus doctor --base HEAD^");
+    }
     const repo = await mkdtemp(join(tmpdir(), "dangus-doctor-base-"));
     try {
       expect(

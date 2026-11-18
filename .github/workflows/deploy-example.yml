@@ -108,7 +108,13 @@ jobs:
       - name: Check Product before deploy
         if: inputs.sha == ''
         working-directory: examples/sqlite
-        run: bun run dangus doctor --base HEAD^
+        # The example uses the monorepo CLI (workspace), so only the lockfile pin check does not apply.
+        run: |
+          set -uo pipefail
+          out="$(bun run dangus doctor --base HEAD^)" || true
+          echo "$out"
+          grep -Eq '^\[(pass|warn|fail)\] ' <<< "$out"
+          ! grep '^\[fail\] ' <<< "$out" | grep -qv '^\[fail\] CLI: '
       - name: Authenticate with GHCR
         env:
           KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
