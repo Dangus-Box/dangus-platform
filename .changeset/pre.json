@@ -1,0 +1,11 @@
+{
+  "mode": "pre",
+  "tag": "rc",
+  "initialVersions": {
+    "@dangus-box/cli": "1.0.0",
+    "@dangus-box/native": "1.0.0",
+    "@dangus-box/server": "1.0.0",
+    "@dangus-box/web": "1.0.0"
+  },
+  "changesets": ["kit-2-cli", "kit-2-native", "kit-2-server", "kit-2-web"]
+}

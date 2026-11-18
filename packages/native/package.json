@@ -1,6 +1,6 @@
 {
   "name": "@dangus-box/native",
-  "version": "1.0.0",
+  "version": "2.0.0-rc.0",
   "type": "module",
   "dependencies": {
     "@openfeature/react-sdk": "1.4.1",

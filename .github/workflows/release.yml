@@ -31,10 +31,27 @@ jobs:
       - run: bun test
       - run: bun run check:packages
       - name: Check versioning
+        id: versioning
         run: |
-          if find .changeset -maxdepth 1 -name '*.md' ! -name 'README.md' | grep -q .; then
+          set -euo pipefail
+          if [ -f .changeset/pre.json ]; then
+            jq -e '.mode == "pre"' .changeset/pre.json > /dev/null
+            for changeset in .changeset/*.md; do
+              [ -f "$changeset" ] || continue
+              [ "${changeset##*/}" = README.md ] && continue
+              id=${changeset##*/}
+              id=${id%.md}
+              if ! jq -e --arg id "$id" '.changesets | index($id) != null' .changeset/pre.json > /dev/null; then
+                echo 'Run changeset version and merge the changes before publishing.' >&2
+                exit 1
+              fi
+            done
+            echo 'dist-tag=next' >> "$GITHUB_OUTPUT"
+          elif find .changeset -maxdepth 1 -name '*.md' ! -name 'README.md' | grep -q .; then
             echo 'Run changeset version and merge the changes before publishing.' >&2
             exit 1
+          else
+            echo 'dist-tag=latest' >> "$GITHUB_OUTPUT"
           fi
       - name: Install BWS
         run: |
@@ -44,6 +61,7 @@ jobs:
           echo /tmp/bws-bin >> "$GITHUB_PATH"
       - name: Fetch npm token from BWS and publish
         env:
+          NPM_DIST_TAG: ${{ steps.versioning.outputs.dist-tag }}
           BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
           BWS_SERVER_URL: ${{ vars.BWS_SERVER_URL }}
         run: |
@@ -54,4 +72,14 @@ jobs:
           echo "::add-mask::$token"
           unset BWS_ACCESS_TOKEN
           export NODE_AUTH_TOKEN="$token"
-          bunx changeset publish
+          if [ "$NPM_DIST_TAG" = next ]; then
+            # Changesets rejects --tag in pre mode. Exit only in this disposable checkout;
+            # package versions stay prereleases and the explicit tag protects latest.
+            bunx changeset pre exit
+            bunx changeset publish --tag next
+          elif [ "$NPM_DIST_TAG" = latest ]; then
+            bunx changeset publish
+          else
+            echo 'Unexpected npm dist-tag.' >&2
+            exit 1
+          fi
