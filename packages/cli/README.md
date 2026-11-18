@@ -72,6 +72,34 @@ Execute `dangus ls` para consultar, por SSH no Host `DANGUS_HOST` (padrão `devb
 
 O arquivo `templates/deploy.yml` é a base para um repositório de Produto independente. A cópia em `.github/workflows/deploy-example.yml` usa o Produto de exemplo Postgres e o lockfile deste monorepo. O `dangus init` copia esse arquivo para o Produto. O Produto deve fixar `@dangus-box/cli` e guardar seu lockfile: o workflow instala o CLI do commit escolhido. Push na `main` faz o Kamal construir e publicar as imagens no GHCR. Em `Actions → Deploy → Run workflow`, informe o SHA completo de um commit anterior da `main` para restaurar a Config do Produto e o CLI daquele commit. O CLI verifica todas as imagens `ghcr.io/dangus-box/<produto>-<app>:<sha>` antes de iniciar o deploy; caso alguma falte, falha sem reconstruir. O rollback exige um commit cujo CLI já suporte a `deploy --skip-build`; o comando falha em versões anteriores em vez de reconstruir.
 
+O deploy normal executa `dangus doctor --base HEAD^` após conectar o Tailscale e antes de publicar imagens, com os dois commits disponíveis no checkout. Assim, as migrations novas são comparadas ao commit anterior da `main`, mesmo depois do push. Falhas impedem o deploy; o rollback pula o doctor.
+
+Para aguardar o CI e os testes E2E do Produto, chame o workflow gerado como um job do workflow de validação:
+
+```yaml
+on:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    # Job de CI do Produto.
+    # ...
+  e2e:
+    # Job de testes E2E do Produto.
+    # ...
+  deploy:
+    needs: [ci, e2e]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/deploy.yml
+    secrets:
+      BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
+```
+
+Nesse caso, remova o gatilho `push` de `deploy.yml` para evitar um deploy independente das validações; mantenha `workflow_call` e `workflow_dispatch`. Sem `with.sha`, a chamada usa o commit do workflow chamador e faz o build normal. O input opcional `with.sha` recebe o SHA completo de um commit da `main` para rollback, com a mesma validação e `--skip-build` da execução manual.
+
 Configure apenas o secret `BWS_ACCESS_TOKEN` no GitHub, com acesso aos projetos `ops` e `prod`. No BWS, configure `platform__TAILSCALE_OAUTH_CLIENT_ID` e `platform__TAILSCALE_OAUTH_CLIENT_SECRET` no projeto `ops`, com permissão para a tag `tag:ci`; configure também `platform__DEPLOY_SSH_PRIVATE_KEY` e `platform__DEPLOY_SSH_KNOWN_HOSTS` com a chave privada autorizada no Host e a identidade SSH do Host verificada fora do workflow. A variável opcional `DANGUS_HOST` no GitHub seleciona o nome do Host na tailnet; sem ela, o CLI usa `devbox-1`. Configure o GHCR para que `GITHUB_TOKEN` possa publicar e ler as imagens do Produto. Secrets das Apps continuam no BWS conforme descrito acima.
 
 Antes de usar com um Host real, verifique no GitHub: permissões do `GITHUB_TOKEN` e acesso aos pacotes GHCR; acesso do token BWS aos projetos necessários; OAuth, tag e regras da tailnet para o nó efêmero; chave SSH autorizada e identidade do Host; domínio e configuração do Produto. Execute um push na `main` e confirme imagens por SHA no GHCR, conexão efêmera, deploy e healthchecks das Apps. Depois publique outro commit e execute o workflow manual com o SHA anterior: confirme nos logs que não houve build ou push, que as imagens anteriores foram usadas e que a versão e configuração anteriores estão em execução. Confira que execuções concorrentes não se sobrepõem e que nenhum valor de secret aparece nos logs. Esses passos exigem GitHub, GHCR, BWS, tailnet e Host reais; os testes locais não os exercitam. Para emergência, `kamal rollback` continua disponível, mas não restaura a configuração gerada pelo CLI anterior (ADR-0013).
