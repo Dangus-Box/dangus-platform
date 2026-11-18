@@ -31,4 +31,8 @@ test("weekly workflow runs Restore Verification with the BWS token", async () =>
   expect(workflow).toContain("0 6 * * 0");
   expect(workflow).toContain("bun run dangus db restore --verify");
   expect(workflow).toContain("secrets.BWS_ACCESS_TOKEN");
+  const dockerfile = await Bun.file("infra/backup/image/Dockerfile").text();
+  const image = dockerfile.split("\n")[0].replace("FROM ", "");
+  expect(image).toMatch(/^postgres:18\.1@sha256:[0-9a-f]{64}$/);
+  expect(workflow).toContain(`docker pull ${image}`);
 });

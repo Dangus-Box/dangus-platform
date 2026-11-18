@@ -61,7 +61,7 @@ test("ls fails when SSH fails or the Host is invalid", async () => {
 });
 
 type ComposeDoc = {
-  services: { postgres: { volumes?: string[] } };
+  services: { postgres: { image: string; volumes?: string[] } };
   volumes?: Record<string, unknown>;
 };
 
@@ -84,9 +84,10 @@ async function composeOf(directory: string) {
 
 test("dev persists Postgres data in a named volume across runs", async () => {
   const { doc } = await composeOf("examples/postgres");
-  expect(doc.services.postgres.volumes).toEqual([
-    "data:/var/lib/postgresql/data",
-  ]);
+  expect(doc.services.postgres.image).toMatch(
+    /^postgres:18\.1@sha256:[0-9a-f]{64}$/,
+  );
+  expect(doc.services.postgres.volumes).toEqual(["data:/var/lib/postgresql"]);
   expect(Object.keys(doc.volumes ?? {})).toEqual(["data"]);
 });
 

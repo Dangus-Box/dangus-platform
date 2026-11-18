@@ -66,4 +66,28 @@ jq -e 'has("ops__R2_BACKUP_ACCESS_KEY_ID") | not' "$FAKE_STORE" >/dev/null
 printf '{}\n' > "$FAKE_STORE"
 out=$("$tmp/infra/backup/copy-r2-credentials.sh" 2>&1; "$tmp/infra/backup/generate-age-key.sh" 2>&1)
 [[ $out != *test-secret* && $out != *AGE-SECRET-KEY* ]]
-echo 'Scripts: creation, repetition, conflicts and overwrite protection passed.'
+# The Backup image publishes the VERSION tag only when it does not exist yet.
+mkdir -p "$tmp/infra/backup/image"
+cat > "$tmp/bin/docker" <<'DOCKER'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
+if [[ $1 == manifest ]]; then
+  case "$FAKE_REGISTRY" in
+    exists) printf '{}\n' ;;
+    missing) echo 'manifest unknown' >&2; exit 1 ;;
+    *) echo 'unauthorized: authentication required' >&2; exit 1 ;;
+  esac
+fi
+DOCKER
+chmod +x "$tmp/bin/docker"
+export FAKE_DOCKER_LOG="$tmp/docker.log"
+publish() { : > "$FAKE_DOCKER_LOG"; printf '%s\n' "$1" > "$tmp/infra/backup/image/VERSION"; FAKE_REGISTRY=$2 "$tmp/infra/backup/publish-image.sh" 2>/dev/null; }
+publish 1.1.0 missing
+[[ $(sed -n 3p "$FAKE_DOCKER_LOG") == 'push ghcr.io/dangus-box/backup:1.1.0' ]]
+for registry in exists unauthorized; do
+  if publish 1.1.0 "$registry"; then exit 1; fi
+  if grep -qE '^(build|push) ' "$FAKE_DOCKER_LOG"; then exit 1; fi
+done
+if publish 'latest' missing; then exit 1; fi
+if grep -qE '^(build|push) ' "$FAKE_DOCKER_LOG"; then exit 1; fi
+echo 'Scripts: creation, repetition, conflicts and overwrite protection passed, including Backup image tags.'

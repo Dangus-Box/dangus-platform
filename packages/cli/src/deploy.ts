@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { ResolvedProductConfig } from "./config";
 
-const BACKUP_IMAGE = "ghcr.io/dangus-box/backup:1.0.0";
+const BACKUP_IMAGE = "ghcr.io/dangus-box/backup:1.1.0";
 // Backup accessory secrets and their BWS keys.
 const backupSecretKeys = (product: string): Record<string, string> => ({
   R2_ACCESS_KEY_ID: "ops__R2_BACKUP_ACCESS_KEY_ID",
@@ -168,14 +168,14 @@ export function render(
     doc.accessories = {
       db: {
         image:
-          "postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929",
+          "postgres:18.1@sha256:1090bc3a8ccfb0b55f78a494d76f8d603434f7e4553543d6e807bc7bd6bbd17f",
         host,
         labels: { product: config.name, app: "postgres" },
         env: {
           clear: { POSTGRES_USER: "produto", POSTGRES_DB: "produto" },
           secret: ["POSTGRES_PASSWORD"],
         },
-        volumes: [`${config.name}-postgres:/var/lib/postgresql/data`],
+        volumes: [`${config.name}-postgres:/var/lib/postgresql`],
       },
     };
   if (app === "api") {

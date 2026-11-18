@@ -350,7 +350,8 @@ test("Postgres stays on the internal network with labels and a pinned image", as
   expect(db.port).toBeUndefined();
   expect(db.options).toBeUndefined();
   expect(db.labels).toEqual({ product: "produto", app: "postgres" });
-  expect(db.image).toMatch(/^postgres:17\.6@sha256:[0-9a-f]{64}$/);
+  expect(db.volumes).toEqual(["produto-postgres:/var/lib/postgresql"]);
+  expect(db.image).toMatch(/^postgres:18\.1@sha256:[0-9a-f]{64}$/);
 });
 
 test("render prints readable YAML with one field per line", () => {
