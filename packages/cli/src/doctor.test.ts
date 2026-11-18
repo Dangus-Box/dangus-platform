@@ -214,3 +214,59 @@ test("CLI requires an exact version in bun.lock", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("doctor uses configured API entry and migrations, including the base ref", async () => {
+  const dir = await fixture();
+  try {
+    await mkdir(join(dir, "backend/src"), { recursive: true });
+    await mkdir(join(dir, "database/migrations"), { recursive: true });
+    await writeFile(
+      join(dir, "dangus.config.ts"),
+      `export default {
+      name: "produto", apps: { api: { domain: "api.produto.com",
+        path: "backend", entry: "backend/src/main.ts" } },
+      migrations: "./database/migrations", database: "postgres", deployTimeoutSeconds: 120,
+    }`,
+    );
+    await writeFile(join(dir, "apps/api/index.ts"), "");
+    await writeFile(
+      join(dir, "backend/src/main.ts"),
+      await Bun.file(example).text(),
+    );
+    await writeFile(
+      join(dir, "database/migrations/old.sql"),
+      "DROP TABLE old;",
+    );
+    await run(["git", "add", "database/migrations/old.sql"], dir);
+    await run(
+      [
+        "git",
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-qm",
+        "base",
+      ],
+      dir,
+    );
+    await writeFile(join(dir, "drizzle/ignored.sql"), "DROP TABLE ignored;");
+    expect((await doctor(dir, "HEAD", connected)).map((r) => r.status)).toEqual(
+      ["pass", "pass", "pass", "pass"],
+    );
+    await writeFile(
+      join(dir, "database/migrations/new.sql"),
+      "DROP TABLE new;",
+    );
+    const results = await doctor(dir, "HEAD", connected);
+    expect(results.at(-1)?.message).toContain("database/migrations/new.sql:1");
+    expect(results.at(-1)?.status).toBe("fail");
+    await writeFile(join(dir, "backend/src/main.ts"), "");
+    expect((await doctor(dir, "HEAD", connected))[0]?.message).toContain(
+      "backend/src/main.ts",
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

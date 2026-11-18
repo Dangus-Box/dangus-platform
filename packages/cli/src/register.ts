@@ -438,8 +438,10 @@ async function registerProduct(
     throw new Error("Invalid KV target list.");
   const targets = [...previous];
   for (const url of [
-    config.apps.api && `https://${config.apps.api.domain}/ready`,
-    config.apps.web && `https://${config.apps.web.domain}/`,
+    config.apps.api &&
+      `https://${config.apps.api.domain}${config.apps.api.healthcheckPath}`,
+    config.apps.web &&
+      `https://${config.apps.web.domain}${config.apps.web.healthcheckPath}`,
   ])
     if (url && !targets.includes(url)) targets.push(url);
   if (targets.length !== previous.length) {

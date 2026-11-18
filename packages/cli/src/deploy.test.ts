@@ -770,3 +770,30 @@ test("db backup runs the script on the existing accessory", async () => {
     "/usr/local/bin/backup.sh",
   ]);
 });
+
+test("custom Postgres layout render matches its golden file", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: {
+      api: {
+        domain: "api.produto.com",
+        path: "backend",
+        dockerfile: "docker/api.Dockerfile",
+        target: "production",
+        entry: "backend/src/main.ts",
+        healthcheckPath: "/health/ready",
+      },
+    },
+    migrations: "database/migrations",
+    database: "postgres",
+    deployTimeoutSeconds: 120,
+  });
+  expect(
+    render(config, "api", "devbox-1", ".", ["192.0.2.1", "2001:db8::1"]),
+  ).toBe(
+    await readFile(
+      join(root, "packages/cli/test/golden/postgres-layout.yml"),
+      "utf8",
+    ),
+  );
+});

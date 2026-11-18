@@ -1,0 +1,78 @@
+service: produto-api
+secrets_path: /dangus/.kamal/secrets
+image: dangus-box/produto-api
+servers:
+  web:
+    hosts:
+      - devbox-1
+    options:
+      memory: 512m
+registry:
+  server: ghcr.io
+  username: "<%= ENV.fetch('KAMAL_REGISTRY_USERNAME') %>"
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+proxy:
+  ssl: true
+  host: api.produto.com
+  app_port: 3000
+  healthcheck:
+    path: /health/ready
+  run:
+    bind_ips:
+      - 192.0.2.1
+      - 2001:db8::1
+    options:
+      label:
+        - product=platform
+        - app=proxy
+builder:
+  arch: amd64
+  dockerfile: docker/api.Dockerfile
+  target: production
+  context: "."
+deploy_timeout: 120
+labels:
+  product: produto
+  app: api
+  prometheus.io.scrape: "true"
+  prometheus.io.port: "3000"
+env:
+  secret:
+    - DATABASE_URL
+accessories:
+  db:
+    image: postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929
+    host: devbox-1
+    labels:
+      product: produto
+      app: postgres
+    env:
+      clear:
+        POSTGRES_USER: produto
+        POSTGRES_DB: produto
+      secret:
+        - POSTGRES_PASSWORD
+    volumes:
+      - produto-postgres:/var/lib/postgresql/data
+  backup:
+    image: ghcr.io/dangus-box/backup:1.0.0
+    host: devbox-1
+    labels:
+      product: produto
+      app: backup
+    env:
+      clear:
+        BACKUP_PRODUCT: produto
+        BACKUP_DATABASE: produto
+        BACKUP_TYPE: postgres
+        PGHOST: produto-api-db
+        PGUSER: produto
+        PGDATABASE: produto
+      secret:
+        - R2_ACCESS_KEY_ID
+        - R2_SECRET_ACCESS_KEY
+        - R2_ENDPOINT
+        - HEALTHCHECKS_URL
+        - AGE_PUBLIC_KEY
+        - PGPASSWORD:POSTGRES_PASSWORD
