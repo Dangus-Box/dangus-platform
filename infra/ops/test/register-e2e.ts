@@ -86,7 +86,13 @@ const request = (async (input: string | URL | Request, init?: RequestInit) => {
     return Response.json({
       result:
         url.searchParams.get("name")?.split(".").length === 2
-          ? [{ id: "zone", name: url.searchParams.get("name") }]
+          ? [
+              {
+                id: "zone",
+                name: url.searchParams.get("name"),
+                status: "active",
+              },
+            ]
           : [],
     });
   if (path.endsWith("/dns_records")) {

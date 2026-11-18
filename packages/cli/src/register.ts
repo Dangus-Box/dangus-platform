@@ -390,11 +390,11 @@ async function registerProduct(
     if (!app) continue;
     const domain = app.domain.toLowerCase();
     const labels = domain.split(".");
-    let zone: { id: string; name: string } | undefined;
+    let zone: { id: string; name: string; status?: string } | undefined;
     for (let offset = 0; offset < labels.length - 1; offset++) {
       const name = labels.slice(offset).join(".");
       zone = one(
-        await cloudflareList<{ id: string; name: string }>(
+        await cloudflareList<{ id: string; name: string; status?: string }>(
           `/zones?name=${encodeURIComponent(name)}&account.id=${encodeURIComponent(account)}&per_page=100`,
           dnsHeaders,
         ),
@@ -405,6 +405,12 @@ async function registerProduct(
     if (!zone)
       throw new Error(
         `No Cloudflare zone found for ${domain} in account ${account}. Add and activate the Product zone in this account and grant the DNS token Zone:Zone:Read and Zone:DNS:Edit on all account zones.`,
+      );
+    // A pending zone is not authoritative yet: records would not resolve and
+    // HTTP-01 would fail. Never fall back to a parent zone either.
+    if (zone.status !== "active")
+      throw new Error(
+        `Cloudflare zone ${zone.name} is ${zone.status ?? "of unknown status"}; activate it (point the registrar nameservers to Cloudflare) before Registration. No DNS was written.`,
       );
     if (labels.length - zone.name.split(".").length > 1)
       throw new Error(

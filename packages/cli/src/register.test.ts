@@ -64,8 +64,12 @@ else process.exit(1);
   const tokens: Row[] = [];
   const checks: Row[] = [];
   const records: Row[] = [];
-  const zones = [{ id: "zone", name: "example.com" }];
+  const zones: { id: string; name: string; status?: string }[] = [
+    { id: "zone", name: "example.com" },
+  ];
   const zoneQueries: string[] = [];
+  const zoneFailure: { status?: number; body?: unknown } = {};
+  let zonePages = 1;
   const dnsPaths: string[] = [];
   let targets: string[] | undefined;
   const server = Bun.serve({
@@ -168,10 +172,19 @@ else process.exit(1);
         zoneQueries.push(url.searchParams.get("name") ?? "");
         if (url.searchParams.get("account.id") !== "account")
           return new Response(null, { status: 403 });
+        if (zoneFailure.status)
+          return new Response(null, { status: zoneFailure.status });
+        if (zoneFailure.body) return Response.json(zoneFailure.body);
+        // With several pages, the match is only on the last one.
+        const page = Number(url.searchParams.get("page") ?? 1);
         return Response.json({
-          result: zones.filter(
-            (zone) => zone.name === url.searchParams.get("name"),
-          ),
+          result:
+            page === zonePages
+              ? zones
+                  .filter((zone) => zone.name === url.searchParams.get("name"))
+                  .map((zone) => ({ status: "active", ...zone }))
+              : [],
+          result_info: { page, total_pages: zonePages },
         });
       }
       if (/^\/cf\/zones\/[^/]+\/dns_records$/.test(path)) {
@@ -235,6 +248,10 @@ else process.exit(1);
     records,
     zones,
     zoneQueries,
+    zoneFailure,
+    paginateZones(pages: number) {
+      zonePages = pages;
+    },
     dnsPaths,
     get targets() {
       return targets;
@@ -555,3 +572,132 @@ for (const conflict of [
       f.server.stop(true);
     }
   });
+
+test("zone discovery follows /zones pagination", async () => {
+  const f = await fixture();
+  try {
+    f.paginateZones(3);
+    await register(f.dir, f.deps);
+    expect(f.records).toHaveLength(6);
+    expect(f.dnsPaths.every((p) => p === "/cf/zones/zone/dns_records")).toBe(
+      true,
+    );
+  } finally {
+    f.server.stop(true);
+  }
+});
+
+for (const failure of [
+  { status: 403 },
+  { status: 500 },
+  { body: { success: false, errors: [{ code: 9109 }] } },
+])
+  test(`zone API failure ${JSON.stringify(failure)} stops before DNS writes`, async () => {
+    const f = await fixture();
+    try {
+      Object.assign(f.zoneFailure, failure);
+      await expect(register(f.dir, f.deps)).rejects.toThrow();
+      expect(f.dnsPaths).toEqual([]);
+      expect(f.records).toEqual([]);
+    } finally {
+      f.server.stop(true);
+    }
+  });
+
+for (const status of ["pending", "initializing", "moved"])
+  test(`${status} zone is not written and asks for activation`, async () => {
+    const f = await fixture();
+    try {
+      f.zones[0].status = status;
+      await expect(register(f.dir, f.deps)).rejects.toThrow(
+        `Cloudflare zone example.com is ${status}`,
+      );
+      expect(f.dnsPaths).toEqual([]);
+      expect(f.records).toEqual([]);
+    } finally {
+      f.server.stop(true);
+    }
+  });
+
+test("pending sub-zone does not fall back to its active parent", async () => {
+  const f = await fixture();
+  try {
+    f.zones.push({
+      id: "app-zone",
+      name: "api.example.com",
+      status: "pending",
+    });
+    await expect(register(f.dir, f.deps)).rejects.toThrow(
+      "Cloudflare zone api.example.com is pending",
+    );
+    expect(f.records).toEqual([]);
+  } finally {
+    f.server.stop(true);
+  }
+});
+
+test("parent zone and sub-zone in the account each get their own records", async () => {
+  const f = await fixture();
+  try {
+    f.zones.push({ id: "app-zone", name: "api.example.com" });
+    await register(f.dir, f.deps);
+    const byPath = (path: string) =>
+      f.dnsPaths.filter((p) => p === path).length;
+    // api: one GET + A + AAAA in the sub-zone; web and mobile in the parent.
+    expect(byPath("/cf/zones/app-zone/dns_records")).toBe(3);
+    expect(byPath("/cf/zones/zone/dns_records")).toBe(6);
+    expect(f.zoneQueries.slice(0, 2)).toEqual([
+      "api.example.com",
+      "web.example.com",
+    ]);
+  } finally {
+    f.server.stop(true);
+  }
+});
+
+test("apex and com.br domains rerun without writes when records match", async () => {
+  const f = await fixture();
+  try {
+    f.zones.push({ id: "br-zone", name: "example.com.br" });
+    await writeFile(
+      join(f.dir, "dangus.config.ts"),
+      `export default {name:'produto',apps:{api:{domain:'Example.com'},web:{domain:'web.example.com.br'}},database:'sqlite',deployTimeoutSeconds:120}`,
+    );
+    await register(f.dir, f.deps);
+    expect(f.records.map((r) => [r.name, r.type])).toEqual([
+      ["example.com", "A"],
+      ["example.com", "AAAA"],
+      ["web.example.com.br", "A"],
+      ["web.example.com.br", "AAAA"],
+    ]);
+    const writes = f.writes;
+    const bwsWrites = (await f.bws()).writes;
+    await register(f.dir, f.deps);
+    expect(f.writes).toBe(writes);
+    expect((await f.bws()).writes).toBe(bwsWrites);
+  } finally {
+    f.server.stop(true);
+  }
+});
+
+test("apex keeps unrelated MX/TXT records and adds only A/AAAA", async () => {
+  const f = await fixture();
+  try {
+    await writeFile(
+      join(f.dir, "dangus.config.ts"),
+      `export default {name:'produto',apps:{api:{domain:'example.com'}},database:'sqlite',deployTimeoutSeconds:120}`,
+    );
+    for (const type of ["MX", "TXT"])
+      f.records.push({
+        name: "example.com",
+        type,
+        content: "mail",
+        id: `dns-${type}`,
+        proxied: false,
+      } as (typeof f.records)[number]);
+    await register(f.dir, f.deps);
+    expect(f.records.map((r) => r.type)).toEqual(["MX", "TXT", "A", "AAAA"]);
+  } finally {
+    f.server.stop(true);
+  }
+});
