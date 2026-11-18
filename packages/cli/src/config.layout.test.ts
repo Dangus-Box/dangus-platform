@@ -28,9 +28,12 @@ test.each([
   expect(() => validateConfig(build(app))).toThrow();
 });
 
-test.each([":(top)x", "a*", "-x", "../x", "/abs"])(
-  "rejects unsafe migrations %s",
-  (migrations) => {
-    expect(() => validateConfig(build({}, { migrations }))).toThrow();
-  },
-);
+test.each([
+  ":(top)x",
+  "a*",
+  "-x",
+  "../x",
+  "/abs",
+])("rejects unsafe migrations %s", (migrations) => {
+  expect(() => validateConfig(build({}, { migrations }))).toThrow();
+});

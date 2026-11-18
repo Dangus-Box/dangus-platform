@@ -166,7 +166,7 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
         : app.healthcheckPath;
     if (
       typeof healthcheckPath !== "string" ||
-      !/^\/(?!\/)[^\s\x00-\x1f#\\]*$/.test(healthcheckPath)
+      !/^\/(?!\/)[A-Za-z0-9\-._~!$&'()*+,;=:@%/]*$/.test(healthcheckPath)
     )
       fail(
         `${path}.healthcheckPath`,
