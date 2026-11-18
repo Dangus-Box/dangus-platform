@@ -41,14 +41,14 @@ export async function dev(
         services: {
           postgres: {
             image:
-              "postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929",
+              "postgres:18.1@sha256:1090bc3a8ccfb0b55f78a494d76f8d603434f7e4553543d6e807bc7bd6bbd17f",
             environment: {
               POSTGRES_USER: "produto",
               POSTGRES_PASSWORD: "produto",
               POSTGRES_DB: "produto",
             },
             ports: [`127.0.0.1:${port}:5432`],
-            volumes: ["data:/var/lib/postgresql/data"],
+            volumes: ["data:/var/lib/postgresql"],
             healthcheck: {
               test: ["CMD-SHELL", "pg_isready -U produto -d produto"],
               interval: "1s",

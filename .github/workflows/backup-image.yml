@@ -1,7 +1,7 @@
 name: Backup Image
 on:
   push:
-    branches: [main, chore/v1.0.0]
+    branches: [main]
     paths: [infra/backup/image/**]
 permissions:
   contents: read
@@ -19,5 +19,8 @@ jobs:
           ACTOR: ${{ github.actor }}
         run: |
           echo "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
-          docker build -t ghcr.io/dangus-box/backup:1.0.0 infra/backup/image
-          docker push ghcr.io/dangus-box/backup:1.0.0
+          version=$(cat infra/backup/image/VERSION)
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          image="ghcr.io/dangus-box/backup:$version"
+          docker build -t "$image" infra/backup/image
+          docker push "$image"

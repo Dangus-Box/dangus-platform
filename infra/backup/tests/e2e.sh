@@ -4,7 +4,7 @@ cd "$(dirname "$0")/../../.."
 name="backup-test-$$"
 minio=ghcr.io/l33tlamer/minio-backup@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
 tmp=$(mktemp -d)
-cleanup() { docker rm -f "$name-minio" "$name-pg" "$name-pg16" "$name-health" "$name-writer" >/dev/null 2>&1 || true; docker network rm "$name" >/dev/null 2>&1 || true; docker run --rm -v "$tmp:/data" --entrypoint chmod "$name" -R 777 /data >/dev/null 2>&1 || true; rm -rf "$tmp"; }
+cleanup() { docker rm -fv "$name-minio" "$name-pg" "$name-pg16" "$name-health" "$name-writer" >/dev/null 2>&1 || true; docker volume rm "$name-pgdata" >/dev/null 2>&1 || true; docker network rm "$name" >/dev/null 2>&1 || true; docker run --rm -v "$tmp:/data" --entrypoint chmod "$name" -R 777 /data >/dev/null 2>&1 || true; rm -rf "$tmp"; }
 trap cleanup EXIT
 chmod 777 "$tmp"
 docker build -t "$name" infra/backup/image >/dev/null
@@ -12,8 +12,8 @@ docker build -t "$name" infra/backup/image >/dev/null
 docker run --rm --entrypoint test "$name" -s /etc/ssl/certs/ca-certificates.crt || { echo 'FAIL: image lacks ca-certificates.' >&2; exit 1; }
 docker network create "$name" >/dev/null
 docker run -d --name "$name-minio" --network "$name" --network-alias minio -e MINIO_ROOT_USER=testaccess -e MINIO_ROOT_PASSWORD=testsecret "$minio" server /data >/dev/null
-docker run -d --name "$name-pg" --network "$name" --network-alias pg -e POSTGRES_PASSWORD=testpass -e POSTGRES_DB=produto postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929 >/dev/null
-# Ops Stack major version: pg_dump 17 must read a version 16 server.
+docker run -d --name "$name-pg" --network "$name" --network-alias pg -e POSTGRES_PASSWORD=testpass -e POSTGRES_DB=produto -v "$name-pgdata:/var/lib/postgresql" postgres:18.1@sha256:1090bc3a8ccfb0b55f78a494d76f8d603434f7e4553543d6e807bc7bd6bbd17f >/dev/null
+# Ops Stack major version: pg_dump 18 must read a version 16 server.
 docker run -d --name "$name-pg16" --network "$name" --network-alias pg16 -e POSTGRES_PASSWORD=testpass -e POSTGRES_DB=umami postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297 >/dev/null
 cat > "$tmp/health.py" <<'PY'
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -30,6 +30,16 @@ for _ in $(seq 1 90); do
   sleep 1
 done
 docker exec "$name-pg" psql -U postgres -d produto -c "CREATE TABLE items (value text); INSERT INTO items VALUES ('backup postgres');" >/dev/null
+# PG18 stores data under a major-specific directory in the parent volume.
+[[ $(docker exec "$name-pg" psql -U postgres -d produto -tAc 'SHOW data_directory') == /var/lib/postgresql/18/docker ]]
+[[ $(docker inspect "$name-pg" --format '{{range .Mounts}}{{.Destination}}{{end}}') == /var/lib/postgresql ]]
+docker rm -fv "$name-pg" >/dev/null
+docker run -d --name "$name-pg" --network "$name" --network-alias pg -e POSTGRES_PASSWORD=testpass -e POSTGRES_DB=produto -v "$name-pgdata:/var/lib/postgresql" postgres:18.1@sha256:1090bc3a8ccfb0b55f78a494d76f8d603434f7e4553543d6e807bc7bd6bbd17f >/dev/null
+for _ in $(seq 1 60); do
+  if docker exec "$name-pg" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then break; fi
+  sleep 1
+done
+[[ $(docker exec "$name-pg" psql -U postgres -d produto -tAc 'SELECT value FROM items') == 'backup postgres' ]]
 docker exec "$name-pg16" psql -U postgres -d umami -c "CREATE TABLE items (value text); INSERT INTO items VALUES ('backup postgres 16');" >/dev/null
 docker run --rm --entrypoint age-keygen "$name" > "$tmp/identity" 2>/dev/null
 pub=$(sed -n 's/^# public key: //p' "$tmp/identity")
@@ -55,7 +65,7 @@ sleep 1
 backup -e BACKUP_DATABASE=produto -e BACKUP_TYPE=postgres -e PGHOST=pg -e PGUSER=postgres -e PGDATABASE=produto -e PGPASSWORD=testpass
 backup -e BACKUP_DATABASE=umami -e BACKUP_TYPE=postgres -e PGHOST=pg16 -e PGUSER=postgres -e PGDATABASE=umami -e PGPASSWORD=testpass
 backup -e BACKUP_DATABASE=sqlite -e BACKUP_TYPE=sqlite -e SQLITE_PATH=/data/input.sqlite
-docker rm -f "$name-writer" >/dev/null
+docker rm -fv "$name-writer" >/dev/null
 [[ $(pings /check-uuid/start) == 3 && $(pings /check-uuid) == 3 && $(pings /check-uuid/fail) == 0 ]]
 
 docker run --rm --network "$name" -v "$tmp:/data" --entrypoint sh "$minio" -c 'mc alias set local http://minio:9000 testaccess testsecret >/dev/null; mc cp --recursive local/dangus-backups/daily/example /data/download >/dev/null'
@@ -68,7 +78,7 @@ docker exec "$name-pg" createdb -U postgres restored
 docker exec -i "$name-pg" psql -v ON_ERROR_STOP=1 -U postgres -d restored < "$tmp/produto.out" >/dev/null
 [[ $(docker exec "$name-pg" psql -U postgres -d restored -tAc 'SELECT value FROM items') == 'backup postgres' ]]
 docker exec "$name-pg16" createdb -U postgres restored
-# The pg_dump 17 dump includes `SET transaction_timeout`, which version 16 rejects; this is the only accepted error.
+# The pg_dump 18 dump includes `SET transaction_timeout`, which version 16 rejects; this is the only accepted error.
 errors=$(docker exec -i "$name-pg16" psql -U postgres -d restored < "$tmp/umami.out" 2>&1 >/dev/null)
 [[ $errors == 'ERROR:  unrecognized configuration parameter "transaction_timeout"' ]]
 [[ $(docker exec "$name-pg16" psql -U postgres -d restored -tAc 'SELECT value FROM items') == 'backup postgres 16' ]]
@@ -106,4 +116,4 @@ grep -q '/curl .*--aws-sigv4' "$tmp/argv" && grep -q '/pg_dump ' "$tmp/argv"
 for secret in testsecret testpass check-uuid; do
   if grep -q "$secret" "$tmp/argv"; then echo "Secret $secret in argv: $(grep "$secret" "$tmp/argv" | head -1)" >&2; exit 1; fi
 done
-printf '%s\n' 'Postgres 17 and 16 and actively written SQLite restored; weekly and monthly copies, failures, cleanup and argv verified.'
+printf '%s\n' 'Postgres 18 and 16 and actively written SQLite restored; weekly and monthly copies, failures, cleanup and argv verified.'

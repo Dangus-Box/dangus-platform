@@ -4,7 +4,7 @@ cd "$(dirname "$0")/../../.."
 root=$PWD
 name="restore-test-$$"
 tmp=$(mktemp -d)
-cleanup() { docker rm -f "$name-minio" "$name-pg" "$name-health" >/dev/null 2>&1 || true; docker network rm "$name" >/dev/null 2>&1 || true; [[ -z ${health_pid:-} ]] || kill "$health_pid" 2>/dev/null || true; rm -rf "$tmp"; }
+cleanup() { docker rm -fv "$name-minio" "$name-pg" "$name-health" >/dev/null 2>&1 || true; docker network rm "$name" >/dev/null 2>&1 || true; [[ -z ${health_pid:-} ]] || kill "$health_pid" 2>/dev/null || true; rm -rf "$tmp"; }
 trap cleanup EXIT
 minio=ghcr.io/l33tlamer/minio-backup@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
 image="$name-image"
@@ -16,7 +16,7 @@ docker cp "$name-copy:/usr/bin/age" "$tmp/bin/age"
 docker rm "$name-copy" >/dev/null
 docker network create "$name" >/dev/null
 docker run -d --name "$name-minio" --network "$name" --network-alias minio -p 127.0.0.1::9000 -e MINIO_ROOT_USER=testaccess -e MINIO_ROOT_PASSWORD=testsecret "$minio" server /data >/dev/null
-docker run -d --name "$name-pg" --network "$name" --network-alias pg -e POSTGRES_PASSWORD=testpass -e POSTGRES_DB=produto postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929 >/dev/null
+docker run -d --name "$name-pg" --network "$name" --network-alias pg -e POSTGRES_PASSWORD=testpass -e POSTGRES_DB=produto postgres:18.1@sha256:1090bc3a8ccfb0b55f78a494d76f8d603434f7e4553543d6e807bc7bd6bbd17f >/dev/null
 port=$(docker port "$name-minio" 9000/tcp | sed 's/.*://')
 cat > "$tmp/health.py" <<'PYHEALTH'
 import http.server
@@ -52,7 +52,7 @@ chmod +x "$tmp/bin/bws"
 cat > "$tmp/bin/psql" <<PSQL
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$tmp/psql-argv"
-exec docker run --rm -i --network "$name" -e PGPASSWORD postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929 psql "\$@"
+exec docker run --rm -i --network "$name" -e PGPASSWORD postgres:18.1@sha256:1090bc3a8ccfb0b55f78a494d76f8d603434f7e4553543d6e807bc7bd6bbd17f psql "\$@"
 PSQL
 chmod +x "$tmp/bin/psql"
 export PATH="$tmp/bin:$PATH" TMPDIR="$tmp/restore-tmp"
