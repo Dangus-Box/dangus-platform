@@ -30,6 +30,8 @@ builder:
   arch: amd64
   dockerfile: apps/api/Dockerfile
   context: "."
+  args:
+    APP_VERSION: "<%= ENV.fetch('KAMAL_VERSION') %>"
 deploy_timeout: 120
 labels:
   product: exemplo-sqlite
@@ -38,6 +40,7 @@ labels:
   prometheus.io.port: "3000"
 env:
   clear:
+    APP_VERSION: "<%= ENV.fetch('KAMAL_VERSION') %>"
     SQLITE_PATH: /app/data/produto.sqlite
   secret:
     - UNLEASH_TOKEN

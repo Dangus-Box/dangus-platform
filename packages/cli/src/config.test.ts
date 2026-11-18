@@ -19,6 +19,8 @@ test("applies default resources, redaction and Backup", () => {
         domain: "api.produto.com",
         memoryMb: 512,
         secrets: [],
+        build: { secrets: [], args: {} },
+        env: {},
         path: "apps/api",
         dockerfile: "apps/api/Dockerfile",
         entry: "apps/api/index.ts",
@@ -205,4 +207,102 @@ test("rejects invalid layout fields with their Config path", () => {
       apps: { backend: { domain: "api.produto.com" } },
     }),
   ).toThrow("apps.backend");
+});
+
+test("validates build and clear environment variables without revealing values", () => {
+  const app = { domain: "api.produto.com" };
+  const check = (fields: object) =>
+    validateConfig({ ...valid, apps: { api: { ...app, ...fields } } });
+  expect(
+    check({
+      build: {
+        secrets: ["SSH_KEY"],
+        args: { PUBLIC_URL: "https://example.com" },
+      },
+      env: { NODE_ENV: "production" },
+    }).apps.api,
+  ).toMatchObject({
+    build: {
+      secrets: ["SSH_KEY"],
+      args: { PUBLIC_URL: "https://example.com" },
+    },
+    env: { NODE_ENV: "production" },
+  });
+  for (const name of ["lower", "_KEY", "1KEY", "HAS-DASH", "APP_VERSION"]) {
+    for (const fields of [
+      { secrets: [name] },
+      { build: { secrets: [name] } },
+      { build: { args: { [name]: "private-value" } } },
+      { env: { [name]: "private-value" } },
+    ])
+      expect(() => check(fields)).toThrow();
+  }
+  for (const fields of [
+    { build: { secrets: ["KEY", "KEY"] } },
+    { env: { TOKEN: "private-value" }, secrets: ["TOKEN"] },
+    { env: { TOKEN: "private-value" }, build: { secrets: ["TOKEN"] } },
+    { build: { secrets: ["TOKEN"], args: { TOKEN: "private-value" } } },
+    { build: { args: { TOKEN: "private-value" } }, secrets: ["TOKEN"] },
+    { env: { NODE_ENV: "private-value\nsecond-line" } },
+    { env: { NODE_ENV: "private-value\rsecond-line" } },
+    { env: { NODE_ENV: 42 } },
+    { env: null },
+    { build: null },
+    { build: { secrets: null } },
+    { build: { args: null } },
+    { build: { extra: true } },
+  ]) {
+    try {
+      check(fields);
+      throw new Error("Expected invalid Config");
+    } catch (error) {
+      expect(String(error)).toContain("Product Config:");
+      expect(String(error)).not.toContain("private-value");
+    }
+  }
+});
+
+test("rejects ERB tags in public values because Kamal evaluates deploy.yml as ERB", () => {
+  const check = (fields: object) =>
+    validateConfig({
+      ...valid,
+      apps: { api: { domain: "api.produto.com", ...fields } },
+    });
+  for (const fields of [
+    { env: { LEAK: "<%= ENV['SSH_KEY'] %>" } },
+    { build: { args: { LEAK: "x <%= ENV['SSH_KEY'] %> y" } } },
+  ])
+    expect(() => check(fields)).toThrow("must not contain ERB tags");
+  expect(check({ env: { PCT: "100% done %>" } }).apps.api?.env).toEqual({
+    PCT: "100% done %>",
+  });
+});
+
+test("rejects variables and secrets that collide with Platform-supplied names", () => {
+  const check = (fields: object) =>
+    validateConfig({
+      ...valid,
+      apps: { api: { domain: "api.produto.com", ...fields } },
+    });
+  for (const name of [
+    "DATABASE_URL",
+    "POSTGRES_PASSWORD",
+    "SQLITE_PATH",
+    "APP_VERSION",
+  ])
+    expect(() => check({ env: { [name]: "value" } })).toThrow(
+      `apps.api.env.${name}`,
+    );
+  for (const name of [
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+    "R2_ENDPOINT",
+    "HEALTHCHECKS_URL",
+    "AGE_PUBLIC_KEY",
+  ]) {
+    expect(() => check({ secrets: [name] })).toThrow("apps.api.secrets");
+    expect(() => check({ build: { secrets: [name] } })).toThrow(
+      "apps.api.build.secrets",
+    );
+  }
 });

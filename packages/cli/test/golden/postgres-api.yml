@@ -30,6 +30,8 @@ builder:
   arch: amd64
   dockerfile: apps/api/Dockerfile
   context: "."
+  args:
+    APP_VERSION: "<%= ENV.fetch('KAMAL_VERSION') %>"
 deploy_timeout: 120
 labels:
   product: exemplo-postgres
@@ -37,6 +39,8 @@ labels:
   prometheus.io.scrape: "true"
   prometheus.io.port: "3000"
 env:
+  clear:
+    APP_VERSION: "<%= ENV.fetch('KAMAL_VERSION') %>"
   secret:
     - DATABASE_URL
 accessories:

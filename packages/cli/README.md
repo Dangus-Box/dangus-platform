@@ -143,3 +143,23 @@ Nesse caso, remova o gatilho `push` de `deploy.yml` para evitar um deploy indepe
 Configure apenas o secret `BWS_ACCESS_TOKEN` no GitHub, com acesso aos projetos `ops` e `prod`. No BWS, configure `platform__TAILSCALE_OAUTH_CLIENT_ID` e `platform__TAILSCALE_OAUTH_CLIENT_SECRET` no projeto `ops`, com permissão para a tag `tag:ci`; configure também `platform__DEPLOY_SSH_PRIVATE_KEY` e `platform__DEPLOY_SSH_KNOWN_HOSTS` com a chave privada autorizada no Host e a identidade SSH do Host verificada fora do workflow. A variável opcional `DANGUS_HOST` no GitHub seleciona o nome do Host na tailnet; sem ela, o CLI usa `devbox-1`. Configure o GHCR para que `GITHUB_TOKEN` possa publicar e ler as imagens do Produto. Secrets das Apps continuam no BWS conforme descrito acima.
 
 Antes de usar com um Host real, verifique no GitHub: permissões do `GITHUB_TOKEN` e acesso aos pacotes GHCR; acesso do token BWS aos projetos necessários; OAuth, tag e regras da tailnet para o nó efêmero; chave SSH autorizada e identidade do Host; domínio e configuração do Produto. Execute um push na `main` e confirme imagens por SHA no GHCR, conexão efêmera, deploy e healthchecks das Apps. Depois publique outro commit e execute o workflow manual com o SHA anterior: confirme nos logs que não houve build ou push, que as imagens anteriores foram usadas e que a versão e configuração anteriores estão em execução. Confira que execuções concorrentes não se sobrepõem e que nenhum valor de secret aparece nos logs. Esses passos exigem GitHub, GHCR, BWS, tailnet e Host reais; os testes locais não os exercitam. Para emergência, `kamal rollback` continua disponível, mas não restaura a configuração gerada pelo CLI anterior (ADR-0013).
+
+Cada App também pode declarar argumentos públicos de build, secrets de build e variáveis em claro:
+
+```ts
+web: {
+  domain: "web.produto.com",
+  build: {
+    args: { PUBLIC_URL: "https://web.produto.com" },
+    secrets: ["SSH_KEY"],
+  },
+  env: { NODE_ENV: "production" },
+  secrets: ["SESSION_KEY"],
+},
+```
+
+`build.args` vira `builder.args` no Kamal; `env` vira `env.clear`. Esses valores são públicos: não coloque credenciais neles. Os nomes seguem `^[A-Z][A-Z0-9_]*$`, e os valores de `env` devem ser strings sem quebras de linha. Valores de `env` e `build.args` não podem conter `<%`: o Kamal avalia o `deploy.yml` como ERB, o que permitiria interpolar secrets em valores públicos. `DATABASE_URL`, `POSTGRES_PASSWORD` e `SQLITE_PATH` são fornecidos pela Plataforma e não podem ser declarados em `env`. A mesma chave não pode aparecer em variáveis em claro e secrets da App, nem em argumentos públicos e secrets. `APP_VERSION` é reservado: a Plataforma injeta o SHA completo do commit do Produto como argumento de build e variável em claro da App, inclusive no rollback com `--skip-build`. O Dockerfile precisa declarar `ARG APP_VERSION` para consumi-lo durante o build.
+
+`build.secrets` vira `builder.secrets`. O CLI busca `<produto>__SSH_KEY` no BWS apenas quando há build, mantém a referência `SSH_KEY=$SSH_KEY` em `.kamal/secrets` e passa `-e SSH_KEY` ao container Kamal; o valor segue pelo ambiente, preservando quebras de linha de uma chave SSH. Consuma no Dockerfile com BuildKit, por exemplo `RUN --mount=type=secret,id=SSH_KEY ...`; não copie o secret para a imagem. As restrições de nomes reservados dos secrets de execução também se aplicam aos secrets de build, incluindo os nomes das credenciais de Backup (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, `HEALTHCHECKS_URL`, `AGE_PUBLIC_KEY`), que a Plataforma busca no BWS fora do namespace do Produto. Se um nome estiver nas duas listas, ele é buscado uma única vez; no `--skip-build`, só continua sendo necessário se também for secret de execução. `dangus render` mostra os nomes dos secrets e o SHA, sem consultar o BWS nem exibir valores de secrets.
+
+Para verificar a leitura de secrets multilinha pela imagem fixada do Kamal, execute `DANGUS_TEST_KAMAL=1 bun test packages/cli/src/deploy.test.ts` com Docker disponível.

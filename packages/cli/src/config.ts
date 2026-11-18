@@ -9,6 +9,8 @@ export interface ProductConfig {
         domain: string;
         memoryMb?: number;
         secrets?: string[];
+        build?: { secrets?: string[]; args?: Record<string, string> };
+        env?: Record<string, string>;
         path?: string;
         dockerfile?: string;
         target?: string;
@@ -33,6 +35,8 @@ export interface ResolvedProductConfig {
         domain: string;
         memoryMb: number;
         secrets: string[];
+        build: { secrets: string[]; args: Record<string, string> };
+        env: Record<string, string>;
         path: string;
         dockerfile: string;
         target?: string;
@@ -104,9 +108,60 @@ function pathspecSafe(value: string): string {
 }
 
 // Secrets become Docker and Kamal environment variables during deploy; these
-// names control deploy or are supplied by the Platform.
+// names control deploy or are supplied by the Platform. Backup names would make
+// deploy fetch Platform credentials from BWS for the Product.
 const RESERVED_SECRET =
-  /^(?:KAMAL_.*|DOCKER_.*|PATH|HOME|SSH_AUTH_SOCK|DATABASE_URL|POSTGRES_PASSWORD|SQLITE_PATH)$/;
+  /^(?:KAMAL_.*|DOCKER_.*|PATH|HOME|SSH_AUTH_SOCK|DATABASE_URL|POSTGRES_PASSWORD|SQLITE_PATH|APP_VERSION|R2_ACCESS_KEY_ID|R2_SECRET_ACCESS_KEY|R2_ENDPOINT|HEALTHCHECKS_URL|AGE_PUBLIC_KEY)$/;
+// Clear variables the Platform sets in the App container.
+const RESERVED_ENV =
+  /^(?:DATABASE_URL|POSTGRES_PASSWORD|SQLITE_PATH|APP_VERSION)$/;
+
+function secretNames(value: unknown, path: string): string[] {
+  if (
+    !Array.isArray(value) ||
+    !value.every(
+      (name) =>
+        typeof name === "string" &&
+        /^[A-Z][A-Z0-9_]*$/.test(name) &&
+        !RESERVED_SECRET.test(name),
+    ) ||
+    new Set(value).size !== value.length
+  )
+    fail(
+      path,
+      "must contain unique uppercase names, excluding names reserved for deploy",
+    );
+  return value;
+}
+
+function variables(
+  value: unknown,
+  path: string,
+  singleLine: boolean,
+  reserved: RegExp,
+): Record<string, string> {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    fail(path, "must be an object");
+  for (const [name, entry] of Object.entries(value)) {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(name) || reserved.test(name))
+      fail(`${path}.${name}`, "invalid or reserved variable name");
+    // Kamal renders deploy.yml through ERB, which could interpolate secrets.
+    if (typeof entry === "string" && entry.includes("<%"))
+      fail(`${path}.${name}`, "must not contain ERB tags (<%)");
+    if (
+      typeof entry !== "string" ||
+      entry.includes("\0") ||
+      (singleLine && /[\r\n]/.test(entry))
+    )
+      fail(
+        `${path}.${name}`,
+        singleLine
+          ? "must be a single-line string"
+          : "must be a string without null bytes",
+      );
+  }
+  return value as Record<string, string>;
+}
 
 export function validateConfig(value: unknown): ResolvedProductConfig {
   const config = object(value, "", [
@@ -135,6 +190,8 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
       "domain",
       "memoryMb",
       "secrets",
+      "build",
+      "env",
       "path",
       "dockerfile",
       "target",
@@ -184,21 +241,35 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
         "must be a domain with one subdomain level (e.g. api.product.com)",
       );
     }
-    const secrets = app.secrets === undefined ? [] : app.secrets;
-    if (
-      !Array.isArray(secrets) ||
-      !secrets.every(
-        (secret) =>
-          typeof secret === "string" &&
-          /^[A-Z][A-Z0-9_]*$/.test(secret) &&
-          !RESERVED_SECRET.test(secret),
-      ) ||
-      new Set(secrets).size !== secrets.length
-    ) {
-      fail(
-        `${path}.secrets`,
-        "must contain unique uppercase names, excluding names reserved for deploy",
-      );
+    const secrets = secretNames(
+      app.secrets === undefined ? [] : app.secrets,
+      `${path}.secrets`,
+    );
+    const build =
+      app.build === undefined
+        ? {}
+        : object(app.build, `${path}.build`, ["secrets", "args"]);
+    const buildSecrets = secretNames(
+      build.secrets === undefined ? [] : build.secrets,
+      `${path}.build.secrets`,
+    );
+    const args = variables(
+      build.args === undefined ? {} : build.args,
+      `${path}.build.args`,
+      false,
+      /^APP_VERSION$/,
+    );
+    const env = variables(
+      app.env === undefined ? {} : app.env,
+      `${path}.env`,
+      true,
+      RESERVED_ENV,
+    );
+    for (const name of [...secrets, ...buildSecrets]) {
+      if (Object.hasOwn(env, name))
+        fail(`${path}.env.${name}`, "also declared as a secret");
+      if (Object.hasOwn(args, name))
+        fail(`${path}.build.args.${name}`, "also declared as a secret");
     }
     apps[key] = {
       domain: app.domain,
@@ -208,6 +279,8 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
       entry,
       healthcheckPath,
       secrets,
+      build: { secrets: buildSecrets, args },
+      env,
       memoryMb: positiveInteger(
         app.memoryMb === undefined ? 512 : app.memoryMb,
         `${path}.memoryMb`,

@@ -74,15 +74,20 @@ export function proxyBindIps(value: string | undefined): string[] | undefined {
 }
 
 // Variables the Kamal container receives from the environment for the App.
-function kamalSecrets(config: ResolvedProductConfig, app: App): string[] {
+function kamalSecrets(
+  config: ResolvedProductConfig,
+  app: App,
+  build = true,
+): string[] {
   const names = [
     "KAMAL_REGISTRY_PASSWORD",
     ...(config.apps[app]?.secrets ?? []),
+    ...(build ? (config.apps[app]?.build.secrets ?? []) : []),
   ];
   if (app === "api" && config.database === "postgres")
     names.push("POSTGRES_PASSWORD", "DATABASE_URL");
   if (app === "api") names.push(...backupSecrets);
-  return names;
+  return [...new Set(names)];
 }
 
 export function render(
@@ -91,6 +96,7 @@ export function render(
   host = DEFAULT_HOST,
   buildContext = ".",
   bindIps: string[] = [],
+  version = "<%= ENV.fetch('KAMAL_VERSION') %>",
 ): string {
   const settings = config.apps[app];
   if (!settings) throw new Error(`App ${app} is not declared.`);
@@ -131,6 +137,10 @@ export function render(
       dockerfile: settings.dockerfile,
       ...(settings.target === undefined ? {} : { target: settings.target }),
       context: buildContext,
+      args: { ...settings.build.args, APP_VERSION: version },
+      ...(settings.build.secrets.length
+        ? { secrets: settings.build.secrets }
+        : {}),
     },
     deploy_timeout: config.deployTimeoutSeconds,
     labels: {
@@ -140,14 +150,19 @@ export function render(
         ? { "prometheus.io.scrape": "true", "prometheus.io.port": "3000" }
         : {}),
     },
-    env: { secret: secrets },
+    env: {
+      clear: {
+        ...settings.env,
+        APP_VERSION: version,
+        ...(config.database === "sqlite" && app === "api"
+          ? { SQLITE_PATH: "/app/data/produto.sqlite" }
+          : {}),
+      },
+      secret: secrets,
+    },
   };
   if (config.database === "sqlite" && app === "api") {
     doc.volumes = [`${config.name}-sqlite:/app/data`];
-    doc.env = {
-      clear: { SQLITE_PATH: "/app/data/produto.sqlite" },
-      secret: secrets,
-    };
   }
   if (config.database === "postgres" && app === "api")
     doc.accessories = {
@@ -230,6 +245,8 @@ export async function withRendered<T>(
   buildContext = ".",
   bindIps?: string[],
   resolver: Resolver = resolveDomain,
+  version?: string,
+  build = true,
 ): Promise<T> {
   const apps = (["api", "web"] as const).filter((app) => config.apps[app]);
   if (!apps.length) throw new Error("No server App declared.");
@@ -241,11 +258,11 @@ export async function withRendered<T>(
       await mkdir(join(path, ".kamal"), { recursive: true });
       await writeFile(
         join(path, "deploy.yml"),
-        render(config, app, host, buildContext, addresses),
+        render(config, app, host, buildContext, addresses, version),
       );
       await writeFile(
         join(path, ".kamal", "secrets"),
-        `${kamalSecrets(config, app)
+        `${kamalSecrets(config, app, build)
           .map((name) => `${name}=$${name}`)
           .join("\n")}\n`,
         { mode: 0o600 },
@@ -265,14 +282,17 @@ export async function deploy(
   skipBuild = false,
   resolver: Resolver = resolveDomain,
 ): Promise<void> {
+  const version = await productVersion(runner, env, directory);
   await withRendered(
     config,
     env.DANGUS_HOST || DEFAULT_HOST,
     async (dir, apps) => {
       if (!env.SSH_AUTH_SOCK) throw new Error("SSH_AUTH_SOCK is required.");
-      const version = await productVersion(runner, env, directory);
       const names = new Set(
-        apps.flatMap((app) => config.apps[app]?.secrets ?? []),
+        apps.flatMap((app) => [
+          ...(config.apps[app]?.secrets ?? []),
+          ...(skipBuild ? [] : (config.apps[app]?.build.secrets ?? [])),
+        ]),
       );
       if (config.database === "postgres" && config.apps.api)
         names.add("POSTGRES_PASSWORD");
@@ -349,7 +369,10 @@ export async function deploy(
           "SSH_AUTH_SOCK=/ssh-agent",
           "-e",
           "KAMAL_REGISTRY_USERNAME",
-          ...kamalSecrets(config, app).flatMap((name) => ["-e", name]),
+          ...kamalSecrets(config, app, !skipBuild).flatMap((name) => [
+            "-e",
+            name,
+          ]),
           KAMAL_IMAGE,
           "setup",
           "--config-file",
@@ -369,13 +392,15 @@ export async function deploy(
     env.DANGUS_BUILD_CONTEXT || ".",
     proxyBindIps(env.DANGUS_PROXY_BIND_IPS),
     resolver,
+    version,
+    !skipBuild,
   );
 }
 
-async function productVersion(
-  runner: Runner,
-  env: Record<string, string | undefined>,
-  directory: string,
+export async function productVersion(
+  runner: Runner = run,
+  env: Record<string, string | undefined> = process.env,
+  directory: string = process.cwd(),
 ): Promise<string> {
   const git = await runner(
     ["git", "rev-parse", "--verify", "HEAD"],
@@ -396,11 +421,11 @@ export async function backupNow(
 ): Promise<void> {
   if (!config.apps.api) throw new Error("Backup requires an API App.");
   if (!env.SSH_AUTH_SOCK) throw new Error("SSH_AUTH_SOCK is required.");
+  const version = await productVersion(runner, env, directory);
   await withRendered(
     config,
     env.DANGUS_HOST || DEFAULT_HOST,
     async (dir) => {
-      const version = await productVersion(runner, env, directory);
       const result = await runner(
         [
           "docker",
@@ -437,5 +462,8 @@ export async function backupNow(
     },
     env.DANGUS_BUILD_CONTEXT || ".",
     proxyBindIps(env.DANGUS_PROXY_BIND_IPS),
+    undefined,
+    version,
+    false,
   );
 }

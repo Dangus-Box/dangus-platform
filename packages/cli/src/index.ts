@@ -7,6 +7,7 @@ import {
   backupNow,
   DEFAULT_HOST,
   deploy,
+  productVersion,
   proxyBindIps,
   withRendered,
 } from "./deploy";
@@ -77,6 +78,8 @@ if (process.argv[2] === "register" && process.argv.length === 3) {
         },
         process.env.DANGUS_BUILD_CONTEXT || ".",
         proxyBindIps(process.env.DANGUS_PROXY_BIND_IPS),
+        undefined,
+        await productVersion(),
       );
   } catch (error) {
     console.error(error instanceof Error ? error.message : "Deploy failed.");
