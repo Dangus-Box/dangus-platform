@@ -111,3 +111,27 @@ test("loads and validates the Product dangus.config.ts", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("accepts zone apex and one level for conventional and com.br domains", () => {
+  for (const domain of [
+    "product.com",
+    "api.product.com",
+    "product.com.br",
+    "api.product.com.br",
+  ])
+    expect(
+      validateConfig({ ...valid, apps: { api: { domain } } }).apps.api?.domain,
+    ).toBe(domain);
+  for (const domain of [
+    "localhost",
+    "com",
+    "api.deep.product.com.br",
+    "-product.com",
+    "product-.com",
+    "https://product.com",
+    "product.com/path",
+  ])
+    expect(() =>
+      validateConfig({ ...valid, apps: { api: { domain } } }),
+    ).toThrow("apps.api.domain");
+});

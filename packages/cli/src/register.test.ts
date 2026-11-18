@@ -22,7 +22,6 @@ async function fixture() {
     ops__UMAMI_ADMIN_PASSWORD: "umami",
     ops__UNLEASH_ADMIN_PASSWORD: "unleash",
     platform__HEALTHCHECKS_API_KEY: "health",
-    platform__CLOUDFLARE_ZONE_ID: "zone",
     platform__CLOUDFLARE_ACCOUNT_ID: "account",
     platform__CLOUDFLARE_DNS_TOKEN: "dns",
     platform__CLOUDFLARE_R2_TOKEN: "kv",
@@ -65,6 +64,9 @@ else process.exit(1);
   const tokens: Row[] = [];
   const checks: Row[] = [];
   const records: Row[] = [];
+  const zones = [{ id: "zone", name: "example.com" }];
+  const zoneQueries: string[] = [];
+  const dnsPaths: string[] = [];
   let targets: string[] | undefined;
   const server = Bun.serve({
     port: 0,
@@ -118,7 +120,7 @@ else process.exit(1);
       if (
         path.startsWith("/cf/") &&
         req.headers.get("authorization") !==
-          (path.includes("/zones/") ? "Bearer dns" : "Bearer kv")
+          (path.startsWith("/cf/zones") ? "Bearer dns" : "Bearer kv")
       )
         return new Response(null, { status: 401 });
       if (method !== "GET") writes++;
@@ -162,13 +164,22 @@ else process.exit(1);
         checks.push(check);
         return Response.json(check);
       }
-      if (path === "/cf/zones/zone/dns_records") {
+      if (path === "/cf/zones") {
+        zoneQueries.push(url.searchParams.get("name") ?? "");
+        if (url.searchParams.get("account.id") !== "account")
+          return new Response(null, { status: 403 });
+        return Response.json({
+          result: zones.filter(
+            (zone) => zone.name === url.searchParams.get("name"),
+          ),
+        });
+      }
+      if (/^\/cf\/zones\/[^/]+\/dns_records$/.test(path)) {
+        dnsPaths.push(path);
         if (method === "GET")
           return Response.json({
             result: records.filter(
-              (r) =>
-                r.type === url.searchParams.get("type") &&
-                r.name === url.searchParams.get("name"),
+              (r) => r.name === url.searchParams.get("name"),
             ),
           });
         const record = { ...(await body()), id: `dns-${records.length}` };
@@ -222,6 +233,9 @@ else process.exit(1);
     tokens,
     checks,
     records,
+    zones,
+    zoneQueries,
+    dnsPaths,
     get targets() {
       return targets;
     },
@@ -448,3 +462,96 @@ test("manual BWS secret without matching registration prevents duplicate creatio
     }
   }
 });
+
+for (const domain of [
+  "example.com",
+  "api.example.com",
+  "example.com.br",
+  "api.example.com.br",
+])
+  test(`discovers the Product zone for ${domain} without a zone ID secret`, async () => {
+    const f = await fixture();
+    try {
+      const zoneName = domain.endsWith(".br")
+        ? "example.com.br"
+        : "example.com";
+      f.zones.splice(0, f.zones.length, { id: "product-zone", name: zoneName });
+      await writeFile(
+        join(f.dir, "dangus.config.ts"),
+        `export default {name:'produto',apps:{api:{domain:'${domain}'}},database:'sqlite',deployTimeoutSeconds:120}`,
+      );
+      await register(f.dir, f.deps);
+      expect(f.zoneQueries.at(-1)).toBe(zoneName);
+      expect(
+        f.dnsPaths.every(
+          (path) => path === "/cf/zones/product-zone/dns_records",
+        ),
+      ).toBe(true);
+      expect(f.records.map((r) => r.name)).toEqual([domain, domain]);
+    } finally {
+      f.server.stop(true);
+    }
+  });
+
+test("uses the longest existing suffix rather than a parent zone", async () => {
+  const f = await fixture();
+  try {
+    f.zones.push({ id: "app-zone", name: "api.example.com" });
+    await register(f.dir, f.deps);
+    expect(f.dnsPaths[0]).toBe("/cf/zones/app-zone/dns_records");
+    expect(f.zoneQueries[0]).toBe("api.example.com");
+  } finally {
+    f.server.stop(true);
+  }
+});
+
+test("missing zone gives actionable guidance without DNS writes", async () => {
+  const f = await fixture();
+  try {
+    f.zones.splice(0);
+    await expect(register(f.dir, f.deps)).rejects.toThrow(
+      "Add and activate the Product zone in this account",
+    );
+    expect(f.records).toEqual([]);
+    expect(f.dnsPaths).toEqual([]);
+  } finally {
+    f.server.stop(true);
+  }
+});
+
+for (const conflict of [
+  "CNAME",
+  "proxied",
+  "different IPv4",
+  "different IPv6",
+  "duplicate",
+])
+  test(`preflights all Apps and preserves DNS on ${conflict}`, async () => {
+    const f = await fixture();
+    try {
+      await register(f.dir, f.deps);
+      // Leave the first App missing so a later conflict would expose partial writes.
+      f.records.splice(0, 2);
+      const record = f.records[conflict === "different IPv6" ? 1 : 0];
+      if (conflict === "CNAME") record.type = "CNAME";
+      if (conflict === "proxied") record.proxied = true;
+      if (conflict.startsWith("different"))
+        record.content = "conflicting-address";
+      if (conflict === "duplicate") f.records.push({ ...record });
+      // The missing records' BWS secrets would otherwise block the preflight early.
+      // Keep the real fixture vault but remove only the first App DNS IDs.
+      const statePath = join(f.dir, "bws.json");
+      const state = await f.bws();
+      state.prod = state.prod.filter(
+        (s: { key: string }) => !s.key.startsWith("produto__DNS_API_"),
+      );
+      await writeFile(statePath, JSON.stringify(state));
+      const before = structuredClone(f.records);
+      await expect(register(f.dir, f.deps)).rejects.toThrow(
+        "DNS web.example.com",
+      );
+      expect(f.records).toEqual(before);
+    } finally {
+      f.server.stop(true);
+    }
+  });

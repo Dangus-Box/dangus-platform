@@ -345,7 +345,6 @@ async function registerProduct(
     await save(`HEALTHCHECKS_${kind.toUpperCase()}_ID`, check.uuid);
     await save(`HEALTHCHECKS_${kind.toUpperCase()}_URL`, check.ping_url);
   }
-  const zone = vault.required("platform__CLOUDFLARE_ZONE_ID");
   const account = vault.required("platform__CLOUDFLARE_ACCOUNT_ID");
   const dnsHeaders = {
     authorization: `Bearer ${vault.required("platform__CLOUDFLARE_DNS_TOKEN")}`,
@@ -374,48 +373,92 @@ async function registerProduct(
     deps.dns ??
     (async (host) => [...(await resolve4(host)), ...(await resolve6(host))])
   )("analytics.dangus-box.com");
-  for (const [appName, app] of Object.entries(config.apps))
-    if (app) {
-      for (const type of ["A", "AAAA"] as const) {
-        const address = addresses.find((ip) =>
-          type === "AAAA" ? ip.includes(":") : !ip.includes(":"),
-        );
-        if (!address) throw new Error(`Ops Stack ${type} address missing.`);
-        const path = `/zones/${zone}/dns_records`;
-        const records = await cloudflareList<{
-          id: string;
-          content: string;
-          proxied: boolean;
-        }>(
-          `${path}?type=${type}&name=${encodeURIComponent(app.domain)}&per_page=100`,
+  type DnsRecord = {
+    id: string;
+    type: string;
+    content: string;
+    proxied: boolean;
+  };
+  const plans: {
+    appName: string;
+    domain: string;
+    path: string;
+    records: DnsRecord[];
+  }[] = [];
+  // Preflight every App before writing any DNS record.
+  for (const [appName, app] of Object.entries(config.apps)) {
+    if (!app) continue;
+    const domain = app.domain.toLowerCase();
+    const labels = domain.split(".");
+    let zone: { id: string; name: string } | undefined;
+    for (let offset = 0; offset < labels.length - 1; offset++) {
+      const name = labels.slice(offset).join(".");
+      zone = one(
+        await cloudflareList<{ id: string; name: string }>(
+          `/zones?name=${encodeURIComponent(name)}&account.id=${encodeURIComponent(account)}&per_page=100`,
           dnsHeaders,
-        );
-        let record = one(records, `DNS ${app.domain} ${type}`) as
-          | { id: string; content: string; proxied: boolean }
-          | undefined;
-        if (record && (record.content !== address || record.proxied))
-          throw new Error(
-            `DNS ${app.domain} ${type} differs from the Ops Stack.`,
-          );
-        if (!record) {
-          assertUnsaved(`DNS_${appName.toUpperCase()}_${type}_ID`);
-          const created = await api(request, cf, path, {
-            ...json({
-              type,
-              name: app.domain,
-              content: address,
-              proxied: false,
-            }),
-            headers: dnsHeaders,
-          });
-          if (created.success === false)
-            throw new Error("Failed to create DNS record.");
-          record = created.result;
-        }
-        if (!record?.id) throw new Error(`DNS ID missing for ${app.domain}.`);
-        await save(`DNS_${appName.toUpperCase()}_${type}_ID`, record.id);
-      }
+        ),
+        `Cloudflare zone ${name}`,
+      );
+      if (zone) break;
     }
+    if (!zone)
+      throw new Error(
+        `No Cloudflare zone found for ${domain} in account ${account}. Add and activate the Product zone in this account and grant the DNS token Zone:Zone:Read and Zone:DNS:Edit on all account zones.`,
+      );
+    if (labels.length - zone.name.split(".").length > 1)
+      throw new Error(
+        `DNS ${domain} must be the zone apex or one subdomain level below ${zone.name}.`,
+      );
+    const path = `/zones/${zone.id}/dns_records`;
+    const records = await cloudflareList<DnsRecord>(
+      `${path}?name=${encodeURIComponent(domain)}&per_page=100`,
+      dnsHeaders,
+    );
+    if (records.some((record) => record.type === "CNAME"))
+      throw new Error(
+        `DNS ${domain} has a conflicting CNAME; review it manually. Nothing will be overwritten.`,
+      );
+    for (const type of ["A", "AAAA"] as const) {
+      const address = addresses.find((ip) =>
+        type === "AAAA" ? ip.includes(":") : !ip.includes(":"),
+      );
+      if (!address) throw new Error(`Ops Stack ${type} address missing.`);
+      const record = one(
+        records.filter((record) => record.type === type),
+        `DNS ${domain} ${type}`,
+      );
+      if (record && (record.content !== address || record.proxied))
+        throw new Error(
+          `DNS ${domain} ${type} differs from the Ops Stack or is proxied; review it manually. Nothing will be overwritten.`,
+        );
+      if (!record) assertUnsaved(`DNS_${appName.toUpperCase()}_${type}_ID`);
+    }
+    plans.push({ appName, domain, path, records });
+  }
+  for (const { appName, domain, path, records } of plans) {
+    for (const type of ["A", "AAAA"] as const) {
+      let record = records.find((record) => record.type === type);
+      if (!record) {
+        const created = await api(request, cf, path, {
+          ...json({
+            type,
+            name: domain,
+            content: addresses.find((ip) =>
+              type === "AAAA" ? ip.includes(":") : !ip.includes(":"),
+            ),
+            proxied: false,
+          }),
+          headers: dnsHeaders,
+        });
+        if (created.success === false)
+          throw new Error("Failed to create DNS record.");
+        record = created.result;
+      }
+      if (!record?.id) throw new Error(`DNS ID missing for ${domain}.`);
+      await save(`DNS_${appName.toUpperCase()}_${type}_ID`, record.id);
+    }
+  }
   const namespaces = await cloudflareList<{ id: string; title: string }>(
     `/accounts/${account}/storage/kv/namespaces?per_page=100`,
     kvHeaders,

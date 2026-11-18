@@ -72,6 +72,10 @@ test("detects Apps and database, generates files and preserves edits with --yes"
   expect(first.output).toContain(
     "Apps: api, web, mobile; Product database: sqlite",
   );
+  expect(first.output).toContain("Review the generated App domains");
+  expect(await read("dangus.config.ts")).toContain(
+    `domain: "api.${basename(root).toLowerCase()}.com"`,
+  );
   expect(first.output).toContain("observation.markReady()");
   expect(first.output).toContain("run `dangus register`");
   expect(first.output).toContain(

@@ -52,3 +52,9 @@ await trackEvent({ name: "pedido", hostname: "produto.com", url: "/pedidos" });
 `UMAMI_WEBSITE_ID` ativa o envio de eventos; `UMAMI_URL` é opcional e usa `http://dangus-ops-umami:3000` por padrão. Sem ID, `trackEvent` não faz nada. Informe o hostname e caminho associados ao evento; `data` pode conter propriedades adicionais. O envio tem timeout de 3 segundos e falhas HTTP ou de rede só geram um aviso no log, sem rejeitar a Promise; por isso `trackEvent` pode ser chamado sem `await` para não atrasar a resposta.
 
 Declare os valores necessários em `secrets` da App na Config do Produto e guarde-os no BWS como `<produto>__<CHAVE>`. URLs alternativas também podem ser declaradas como secrets quando necessárias.
+
+## IP do cliente atrás do kamal-proxy
+
+Em DNS-only, use `X-Forwarded-For` do kamal-proxy com `ssl: true` e sem habilitar `forward_headers`, desde que a App só receba tráfego por esse proxy. Não confie em `CF-Connecting-IP`: sem origem restrita, qualquer cliente pode enviá-lo diretamente ao Host.
+
+No v0.9.2, essa configuração **sobrescreve** XFF com o IP do par da conexão. Em 17/11/2026, uma requisição HTTPS ao exemplo implantado com XFF forjado chegou à API com apenas o IP do par (acesso local com NAT), sem o valor enviado. Com `forward_headers: true`, o proxy **acrescenta** o IP e preserva o valor forjado; sem TLS, esse encaminhamento é o padrão. Evidência, fontes e limites de confiança na [ADR-0015](../../docs/adr/0015-dominio-proprio-dns-only.md).
