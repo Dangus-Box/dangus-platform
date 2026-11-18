@@ -252,6 +252,8 @@ export async function restore(
           "POSTGRES_HOST_AUTH_METHOD=trust",
           "postgres:18.1@sha256:1090bc3a8ccfb0b55f78a494d76f8d603434f7e4553543d6e807bc7bd6bbd17f",
         ]);
+        // Probe over TCP: the image's init server listens only on the socket and
+        // stops before the final start, so a socket probe can pass too early.
         let ready = false;
         for (let i = 0; i < 60; i++) {
           try {
@@ -260,6 +262,8 @@ export async function restore(
               "exec",
               container,
               "pg_isready",
+              "-h",
+              "127.0.0.1",
               "-U",
               "postgres",
             ]);
