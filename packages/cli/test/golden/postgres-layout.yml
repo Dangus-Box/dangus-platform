@@ -31,6 +31,11 @@ builder:
   dockerfile: docker/api.Dockerfile
   target: production
   context: "."
+  args:
+    PUBLIC_URL: https://example.com
+    APP_VERSION: "<%= ENV.fetch('KAMAL_VERSION') %>"
+  secrets:
+    - SSH_KEY
 deploy_timeout: 120
 labels:
   product: produto
@@ -38,6 +43,9 @@ labels:
   prometheus.io.scrape: "true"
   prometheus.io.port: "3000"
 env:
+  clear:
+    NODE_ENV: production
+    APP_VERSION: "<%= ENV.fetch('KAMAL_VERSION') %>"
   secret:
     - DATABASE_URL
 accessories:

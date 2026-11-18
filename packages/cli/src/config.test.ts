@@ -19,6 +19,8 @@ test("applies default resources, redaction and Backup", () => {
         domain: "api.produto.com",
         memoryMb: 512,
         secrets: [],
+        build: { secrets: [], args: {} },
+        env: {},
         path: "apps/api",
         dockerfile: "apps/api/Dockerfile",
         entry: "apps/api/index.ts",
@@ -205,4 +207,57 @@ test("rejects invalid layout fields with their Config path", () => {
       apps: { backend: { domain: "api.produto.com" } },
     }),
   ).toThrow("apps.backend");
+});
+
+test("validates build and clear environment variables without revealing values", () => {
+  const app = { domain: "api.produto.com" };
+  const check = (fields: object) =>
+    validateConfig({ ...valid, apps: { api: { ...app, ...fields } } });
+  expect(
+    check({
+      build: {
+        secrets: ["SSH_KEY"],
+        args: { PUBLIC_URL: "https://example.com" },
+      },
+      env: { NODE_ENV: "production" },
+    }).apps.api,
+  ).toMatchObject({
+    build: {
+      secrets: ["SSH_KEY"],
+      args: { PUBLIC_URL: "https://example.com" },
+    },
+    env: { NODE_ENV: "production" },
+  });
+  for (const name of ["lower", "_KEY", "1KEY", "HAS-DASH", "APP_VERSION"]) {
+    for (const fields of [
+      { secrets: [name] },
+      { build: { secrets: [name] } },
+      { build: { args: { [name]: "private-value" } } },
+      { env: { [name]: "private-value" } },
+    ])
+      expect(() => check(fields)).toThrow();
+  }
+  for (const fields of [
+    { build: { secrets: ["KEY", "KEY"] } },
+    { env: { TOKEN: "private-value" }, secrets: ["TOKEN"] },
+    { env: { TOKEN: "private-value" }, build: { secrets: ["TOKEN"] } },
+    { build: { secrets: ["TOKEN"], args: { TOKEN: "private-value" } } },
+    { build: { args: { TOKEN: "private-value" } }, secrets: ["TOKEN"] },
+    { env: { NODE_ENV: "private-value\nsecond-line" } },
+    { env: { NODE_ENV: "private-value\rsecond-line" } },
+    { env: { NODE_ENV: 42 } },
+    { env: null },
+    { build: null },
+    { build: { secrets: null } },
+    { build: { args: null } },
+    { build: { extra: true } },
+  ]) {
+    try {
+      check(fields);
+      throw new Error("Expected invalid Config");
+    } catch (error) {
+      expect(String(error)).toContain("Product Config:");
+      expect(String(error)).not.toContain("private-value");
+    }
+  }
 });
