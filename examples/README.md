@@ -26,3 +26,13 @@ A Config do Produto SQLite declara `UNLEASH_TOKEN` e `UMAMI_WEBSITE_ID` como sec
 A App web SQLite usa `@dangus-box/web`: `UMAMI_WEBSITE_ID` ativa o script no domínio do Produto e `FLAGS_FRONTEND_TOKEN` ativa as Flags no Edge. Declare essas chaves no BWS como `exemplo-sqlite__UMAMI_WEBSITE_ID` e `exemplo-sqlite__FLAGS_FRONTEND_TOKEN`; a Config do Produto as entrega à App. O token frontend é público e chega ao navegador. Sem essas variáveis, o analytics fica desativado e as Flags usam os valores padrão. `UMAMI_URL` pode substituir o endereço interno padrão `http://dangus-ops-umami:3000` quando declarado também em `secrets`.
 
 No exemplo SQLite, a App mobile usa `@dangus-box/native`. Para ativar analytics e Flags, declare no BWS `exemplo-sqlite__EXPO_PUBLIC_UMAMI_WEBSITE_ID` e `exemplo-sqlite__EXPO_PUBLIC_FLAGS_FRONTEND_TOKEN`, ou exporte as variáveis `EXPO_PUBLIC_*` antes de iniciar o Expo localmente. O botão envia o evento `exemplo-mobile`; a Flag `exemplo-sqlite.min-version` controla a mensagem de atualização. Consulte `packages/native/README.md` para o formato do payload e a configuração do OpenFeature.
+
+## Drizzle 1.0 e continuidade
+
+Instale `drizzle-orm@1.0.0-rc.4` e `drizzle-kit@1.0.0-rc.4` no Produto. O SDK usa `drizzle-orm` como peerDependency `^1.0.0-rc.4`. Antes de atualizar um Produto existente, execute `bunx drizzle-kit up`: o formato passa de SQL com `meta/_journal.json` para `<timestamp>_<nome>/{migration.sql,snapshot.json}`. Preserve o SQL e todas as migrations aplicadas.
+
+A rc.4 reconhece o histórico escrito pelo Drizzle 0.44.7 e acrescenta `name` e `applied_at`, sem reaplicar o SQL. Os testes usam a versão 0.44.7 real em SQLite e Postgres, verificam o upgrade, a próxima migration e dois boots idempotentes. Em 17/11/2026, uma cópia consistente (via `VACUUM INTO`) do Banco do Produto `exemplo-sqlite` do Host também passou por dois boots: dados preservados e uma única entrada de histórico, inclusive com `id` nulo do SDK 1.0.0. O volume original não foi alterado e não precisa ser resetado.
+
+No SQLite, a rc.4 oficial abre sua própria transação e não aceita um `BEGIN IMMEDIATE` externo. Por isso o SDK executa as migrations e o upgrade do histórico na mesma transação de escrita, identificando o histórico antigo por timestamp ou hash e migrations novas pelo nome. Uma migration aplicada ausente localmente faz o boot falhar e reverte a transação. No Postgres, o migrator oficial roda sob o advisory lock. Mantenha as migrations Aditivas (ADR-0007).
+
+Ao atualizar uma dependência local `file:` dos exemplos, use `bun remove @dangus-box/server` e `bun add @dangus-box/server@file:../../packages/server`: somente `bun install` não atualiza essa cópia no lockfile.

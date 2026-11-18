@@ -52,3 +52,13 @@ await trackEvent({ name: "pedido", hostname: "produto.com", url: "/pedidos" });
 `UMAMI_WEBSITE_ID` ativa o envio de eventos; `UMAMI_URL` é opcional e usa `http://dangus-ops-umami:3000` por padrão. Sem ID, `trackEvent` não faz nada. Informe o hostname e caminho associados ao evento; `data` pode conter propriedades adicionais. O envio tem timeout de 3 segundos e falhas HTTP ou de rede só geram um aviso no log, sem rejeitar a Promise; por isso `trackEvent` pode ser chamado sem `await` para não atrasar a resposta.
 
 Declare os valores necessários em `secrets` da App na Config do Produto e guarde-os no BWS como `<produto>__<CHAVE>`. URLs alternativas também podem ser declaradas como secrets quando necessárias.
+
+## Drizzle 1.0 e continuidade
+
+Instale `drizzle-orm@1.0.0-rc.4` e `drizzle-kit@1.0.0-rc.4` no Produto. O SDK usa `drizzle-orm` como peerDependency `^1.0.0-rc.4`. Antes de atualizar um Produto existente, execute `bunx drizzle-kit up`: o formato passa de SQL com `meta/_journal.json` para `<timestamp>_<nome>/{migration.sql,snapshot.json}`. Preserve o SQL e todas as migrations aplicadas.
+
+A rc.4 reconhece o histórico escrito pelo Drizzle 0.44.7 e acrescenta `name` e `applied_at`, sem reaplicar o SQL. Os testes usam a versão 0.44.7 real em SQLite e Postgres, verificam o upgrade, a próxima migration e dois boots idempotentes. Em 17/11/2026, uma cópia consistente (via `VACUUM INTO`) do Banco do Produto `exemplo-sqlite` do Host também passou por dois boots: dados preservados e uma única entrada de histórico, inclusive com `id` nulo do SDK 1.0.0. O volume original não foi alterado e não precisa ser resetado.
+
+No SQLite, a rc.4 oficial abre sua própria transação e não aceita um `BEGIN IMMEDIATE` externo. Por isso o SDK executa as migrations e o upgrade do histórico na mesma transação de escrita, identificando o histórico antigo por timestamp ou hash e migrations novas pelo nome. Uma migration aplicada ausente localmente faz o boot falhar e reverte a transação. No Postgres, o migrator oficial roda sob o advisory lock. Mantenha as migrations Aditivas (ADR-0007).
+
+Ao atualizar uma dependência local `file:` dos exemplos, use `bun remove @dangus-box/server` e `bun add @dangus-box/server@file:../../packages/server`: somente `bun install` não atualiza essa cópia no lockfile.

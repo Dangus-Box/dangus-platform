@@ -1,30 +1,32 @@
 import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { drizzle as sqliteDrizzle } from "drizzle-orm/bun-sqlite";
+import { migrate as migrateOfficialSqlite } from "drizzle-orm/bun-sqlite/migrator";
+import { drizzle as legacySqlite } from "drizzle-orm-legacy/bun-sqlite";
+import { migrate as migrateLegacySqlite } from "drizzle-orm-legacy/bun-sqlite/migrator";
+import { drizzle as legacyPostgres } from "drizzle-orm-legacy/postgres-js";
+import { migrate as migrateLegacyPostgres } from "drizzle-orm-legacy/postgres-js/migrator";
 import postgres from "postgres";
+import { migratePostgres, migrateSqlite } from "./migrate";
 
 const postgresUrl = process.env.POSTGRES_TEST_URL;
 const fixture = join(import.meta.dir, "../test/boot.ts");
 
 async function runBoots(kind: string, connection: string, fail: boolean) {
   const dir = await mkdtemp(join(tmpdir(), "dangus-migration-"));
-  await mkdir(join(dir, "meta"));
-  await writeFile(
-    join(dir, "meta/_journal.json"),
-    JSON.stringify({
-      entries: [
-        { idx: 0, when: fail ? 2 : 1, tag: "0000_test", breakpoints: true },
-      ],
-    }),
-  );
-  await writeFile(
-    join(dir, "0000_test.sql"),
+  await writeMigrations(dir, [
     fail
       ? "INVALID SQL;"
       : "CREATE TABLE applied_once (id integer);\n--> statement-breakpoint\nINSERT INTO applied_once VALUES (1);",
-  );
+  ]);
+  if (fail)
+    await rename(
+      join(dir, "20261117000000_test"),
+      join(dir, "20261117000002_test"),
+    );
   const servers = Array.from({ length: fail ? 1 : 2 }, () => {
     const listener = Bun.listen({
       hostname: "127.0.0.1",
@@ -120,20 +122,11 @@ test.skipIf(!postgresUrl)(
 );
 
 async function writeMigrations(dir: string, migrations: string[]) {
-  await mkdir(join(dir, "meta"), { recursive: true });
-  await writeFile(
-    join(dir, "meta/_journal.json"),
-    JSON.stringify({
-      entries: migrations.map((_, idx) => ({
-        idx,
-        when: idx + 1,
-        tag: `000${idx}_test`,
-        breakpoints: true,
-      })),
-    }),
-  );
-  for (const [idx, sql] of migrations.entries())
-    await writeFile(join(dir, `000${idx}_test.sql`), sql);
+  for (const [idx, sql] of migrations.entries()) {
+    const folder = join(dir, `2026111700000${idx}_test`);
+    await mkdir(folder, { recursive: true });
+    await writeFile(join(folder, "migration.sql"), sql);
+  }
 }
 
 function boot(kind: string, connection: string, dir: string) {
@@ -364,3 +357,129 @@ test.skipIf(!postgresUrl)(
   },
   60000,
 );
+
+for (const kind of ["sqlite", "postgres"] as const) {
+  test.skipIf(kind === "postgres" && !postgresUrl)(
+    `${kind}: a 0.44.7 history upgrades without replay and accepts the next migration`,
+    async () => {
+      await withDatabase(kind, async (connection, query) => {
+        const dir = await mkdtemp(join(tmpdir(), "dangus-legacy-"));
+        const sql =
+          "CREATE TABLE legacy_data (id integer);\n--> statement-breakpoint\nINSERT INTO legacy_data VALUES (42);";
+        const sqlite = kind === "sqlite" ? new Database(connection) : undefined;
+        const client =
+          kind === "postgres"
+            ? postgres(connection, { onnotice: () => {} })
+            : undefined;
+        try {
+          await mkdir(join(dir, "meta"));
+          await writeFile(
+            join(dir, "meta/_journal.json"),
+            JSON.stringify({
+              entries: [
+                {
+                  idx: 0,
+                  when: 1794873600123,
+                  tag: "0000_test",
+                  breakpoints: true,
+                },
+              ],
+            }),
+          );
+          await writeFile(join(dir, "0000_test.sql"), sql);
+          if (sqlite)
+            migrateLegacySqlite(legacySqlite(sqlite), {
+              migrationsFolder: dir,
+            });
+          if (client)
+            await migrateLegacyPostgres(legacyPostgres(client), {
+              migrationsFolder: dir,
+            });
+          await rm(join(dir, "meta"), { recursive: true });
+          await rm(join(dir, "0000_test.sql"));
+          await writeMigrations(dir, [
+            sql,
+            "INSERT INTO legacy_data VALUES (43);",
+          ]);
+          // The official SQLite migrator also recognizes the legacy history,
+          // but cannot be nested inside the SDK's BEGIN IMMEDIATE.
+          if (sqlite) {
+            const cloned = Database.deserialize(sqlite.serialize());
+            try {
+              migrateOfficialSqlite(sqliteDrizzle({ client: cloned }), {
+                migrationsFolder: dir,
+              });
+              expect(
+                cloned.query("SELECT * FROM legacy_data").all(),
+              ).toHaveLength(2);
+            } finally {
+              cloned.close();
+            }
+          }
+          for (let attempt = 0; attempt < 2; attempt++) {
+            if (sqlite) migrateSqlite(sqlite, dir);
+            else await migratePostgres(connection, dir);
+          }
+          expect(await query("SELECT id FROM legacy_data ORDER BY id")).toEqual(
+            [{ id: 42 }, { id: 43 }],
+          );
+          const history = await query(
+            `SELECT name FROM ${historyTable[kind]} ORDER BY created_at`,
+          );
+          expect(history).toEqual([
+            { name: "20261117000000_test" },
+            { name: "20261117000001_test" },
+          ]);
+        } finally {
+          sqlite?.close();
+          await client?.end();
+          await rm(dir, { recursive: true, force: true });
+        }
+      });
+    },
+    30000,
+  );
+}
+
+test("SQLite: an SDK 1.0.0 history with a null id upgrades, and missing history rolls back", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dangus-sdk-history-"));
+  const db = new Database(":memory:");
+  try {
+    await writeMigrations(dir, ["CREATE TABLE already_applied (id integer);"]);
+    db.run("CREATE TABLE already_applied (id integer)");
+    db.run(
+      "CREATE TABLE __drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric)",
+    );
+    db.run(
+      "INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('old-hash', 1794873600123)",
+    );
+    migrateSqlite(db, dir);
+    migrateSqlite(db, dir);
+    expect(db.query("SELECT id, name FROM __drizzle_migrations").all()).toEqual(
+      [{ id: null, name: "20261117000000_test" }],
+    );
+  } finally {
+    db.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+
+  const missing = new Database(":memory:");
+  const empty = await mkdtemp(join(tmpdir(), "dangus-missing-history-"));
+  try {
+    missing.run(
+      "CREATE TABLE __drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric)",
+    );
+    missing.run(
+      "INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('missing', 1794873600123)",
+    );
+    expect(() => migrateSqlite(missing, empty)).toThrow(
+      "Applied migration is missing",
+    );
+    expect(
+      missing.query("PRAGMA table_info(__drizzle_migrations)").all(),
+    ).toHaveLength(3);
+  } finally {
+    missing.close();
+    await rm(empty, { recursive: true, force: true });
+  }
+});
