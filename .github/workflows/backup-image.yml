@@ -19,8 +19,4 @@ jobs:
           ACTOR: ${{ github.actor }}
         run: |
           echo "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
-          version=$(cat infra/backup/image/VERSION)
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          image="ghcr.io/dangus-box/backup:$version"
-          docker build -t "$image" infra/backup/image
-          docker push "$image"
+          infra/backup/publish-image.sh
