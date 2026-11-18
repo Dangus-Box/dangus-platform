@@ -108,9 +108,13 @@ function pathspecSafe(value: string): string {
 }
 
 // Secrets become Docker and Kamal environment variables during deploy; these
-// names control deploy or are supplied by the Platform.
+// names control deploy or are supplied by the Platform. Backup names would make
+// deploy fetch Platform credentials from BWS for the Product.
 const RESERVED_SECRET =
-  /^(?:KAMAL_.*|DOCKER_.*|PATH|HOME|SSH_AUTH_SOCK|DATABASE_URL|POSTGRES_PASSWORD|SQLITE_PATH|APP_VERSION)$/;
+  /^(?:KAMAL_.*|DOCKER_.*|PATH|HOME|SSH_AUTH_SOCK|DATABASE_URL|POSTGRES_PASSWORD|SQLITE_PATH|APP_VERSION|R2_ACCESS_KEY_ID|R2_SECRET_ACCESS_KEY|R2_ENDPOINT|HEALTHCHECKS_URL|AGE_PUBLIC_KEY)$/;
+// Clear variables the Platform sets in the App container.
+const RESERVED_ENV =
+  /^(?:DATABASE_URL|POSTGRES_PASSWORD|SQLITE_PATH|APP_VERSION)$/;
 
 function secretNames(value: unknown, path: string): string[] {
   if (
@@ -134,12 +138,16 @@ function variables(
   value: unknown,
   path: string,
   singleLine: boolean,
+  reserved: RegExp,
 ): Record<string, string> {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     fail(path, "must be an object");
   for (const [name, entry] of Object.entries(value)) {
-    if (!/^[A-Z][A-Z0-9_]*$/.test(name) || name === "APP_VERSION")
+    if (!/^[A-Z][A-Z0-9_]*$/.test(name) || reserved.test(name))
       fail(`${path}.${name}`, "invalid or reserved variable name");
+    // Kamal renders deploy.yml through ERB, which could interpolate secrets.
+    if (typeof entry === "string" && entry.includes("<%"))
+      fail(`${path}.${name}`, "must not contain ERB tags (<%)");
     if (
       typeof entry !== "string" ||
       entry.includes("\0") ||
@@ -249,11 +257,13 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
       build.args === undefined ? {} : build.args,
       `${path}.build.args`,
       false,
+      /^APP_VERSION$/,
     );
     const env = variables(
       app.env === undefined ? {} : app.env,
       `${path}.env`,
       true,
+      RESERVED_ENV,
     );
     for (const name of [...secrets, ...buildSecrets]) {
       if (Object.hasOwn(env, name))

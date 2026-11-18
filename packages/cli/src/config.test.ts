@@ -261,3 +261,48 @@ test("validates build and clear environment variables without revealing values",
     }
   }
 });
+
+test("rejects ERB tags in public values because Kamal evaluates deploy.yml as ERB", () => {
+  const check = (fields: object) =>
+    validateConfig({
+      ...valid,
+      apps: { api: { domain: "api.produto.com", ...fields } },
+    });
+  for (const fields of [
+    { env: { LEAK: "<%= ENV['SSH_KEY'] %>" } },
+    { build: { args: { LEAK: "x <%= ENV['SSH_KEY'] %> y" } } },
+  ])
+    expect(() => check(fields)).toThrow("must not contain ERB tags");
+  expect(check({ env: { PCT: "100% done %>" } }).apps.api?.env).toEqual({
+    PCT: "100% done %>",
+  });
+});
+
+test("rejects variables and secrets that collide with Platform-supplied names", () => {
+  const check = (fields: object) =>
+    validateConfig({
+      ...valid,
+      apps: { api: { domain: "api.produto.com", ...fields } },
+    });
+  for (const name of [
+    "DATABASE_URL",
+    "POSTGRES_PASSWORD",
+    "SQLITE_PATH",
+    "APP_VERSION",
+  ])
+    expect(() => check({ env: { [name]: "value" } })).toThrow(
+      `apps.api.env.${name}`,
+    );
+  for (const name of [
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+    "R2_ENDPOINT",
+    "HEALTHCHECKS_URL",
+    "AGE_PUBLIC_KEY",
+  ]) {
+    expect(() => check({ secrets: [name] })).toThrow("apps.api.secrets");
+    expect(() => check({ build: { secrets: [name] } })).toThrow(
+      "apps.api.build.secrets",
+    );
+  }
+});
