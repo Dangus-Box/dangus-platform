@@ -32,8 +32,16 @@ for (const file of [
 ]) {
   const load = async () => {
     const text = await Bun.file(join(root, file)).text();
-    const workflow = Bun.YAML.parse(text) as { jobs: { deploy: Job } };
-    return { text, job: workflow.jobs.deploy };
+    const workflow = Bun.YAML.parse(text) as {
+      on: {
+        workflow_call: {
+          inputs: { sha: { required: boolean; type: string } };
+          secrets: { BWS_ACCESS_TOKEN: { required: boolean } };
+        };
+      };
+      jobs: { deploy: Job };
+    };
+    return { text, workflow, job: workflow.jobs.deploy };
   };
 
   test(`workflow ${file} pins checkout and credentials and serializes deploys`, async () => {
@@ -80,9 +88,7 @@ for (const file of [
 
   test(`workflow ${file} accepts only a full SHA reachable from main`, async () => {
     const { job } = await load();
-    const steps = job.steps.filter(
-      (step) => step.if === "github.event_name == 'workflow_dispatch'",
-    );
+    const steps = job.steps.filter((step) => step.if === "inputs.sha != ''");
     const checkout = job.steps.findIndex((step) =>
       step.uses?.startsWith("actions/checkout@"),
     );
@@ -128,6 +134,83 @@ for (const file of [
       ])
         expect(await run(value)).toBe(false);
       expect(await Bun.file(join(repo, "pwned")).exists()).toBe(false);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  test(`workflow ${file} supports a reusable deploy with optional rollback`, async () => {
+    const { workflow, job } = await load();
+    expect(workflow.on.workflow_call.inputs.sha).toMatchObject({
+      required: false,
+      type: "string",
+    });
+    expect(workflow.on.workflow_call.secrets.BWS_ACCESS_TOKEN.required).toBe(
+      true,
+    );
+    const checkout = job.steps.find((step) =>
+      step.uses?.startsWith("actions/checkout@"),
+    );
+    expect(checkout?.with).toMatchObject({
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub Actions expression
+      ref: "${{ inputs.sha || github.sha }}",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub Actions expression
+      "fetch-depth": "${{ inputs.sha == '' && 2 || 0 }}",
+    });
+    const deploy = job.steps.find((step) => step.name === "Deploy");
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub Actions expression
+    expect(deploy?.env?.SHA).toBe("${{ inputs.sha }}");
+    const repo = await mkdtemp(join(tmpdir(), "dangus-deploy-"));
+    try {
+      await Bun.write(
+        join(repo, "bun"),
+        '#!/bin/bash\nprintf "%s\\n" "$*" > args\n',
+      );
+      await Bun.$`chmod +x ${join(repo, "bun")}`;
+      for (const sha of ["", "a".repeat(40)]) {
+        expect(
+          await sh(
+            deploy?.run ?? "",
+            { SHA: sha, PATH: `${repo}:${process.env.PATH}` },
+            repo,
+          ),
+        ).toBe(0);
+        expect((await Bun.file(join(repo, "args")).text()).trim()).toBe(
+          sha ? "run dangus deploy --skip-build" : "run dangus deploy",
+        );
+      }
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  test(`workflow ${file} checks the Product against the previous commit before deploy`, async () => {
+    const { job } = await load();
+    const doctor = job.steps.findIndex((step) =>
+      step.run?.includes("dangus doctor"),
+    );
+    const tailscale = job.steps.findIndex((step) => step.id === "tailscale");
+    const deploy = job.steps.findIndex((step) => step.name === "Deploy");
+    expect(doctor).toBeGreaterThan(tailscale);
+    expect(doctor).toBeLessThan(deploy);
+    expect(job.steps[doctor].if).toBe("inputs.sha == ''");
+    expect(job.steps[doctor].run).toBe("bun run dangus doctor --base HEAD^");
+    const repo = await mkdtemp(join(tmpdir(), "dangus-doctor-base-"));
+    try {
+      expect(
+        await sh(
+          "git init -q && git config user.email t@t && git config user.name t && git commit -q --allow-empty -m previous && git commit -q --allow-empty -m current",
+          {},
+          repo,
+        ),
+      ).toBe(0);
+      const checkout = join(repo, "checkout");
+      await Bun.$`git clone -q --depth 2 --no-local ${repo} ${checkout}`;
+      expect(
+        (
+          await Bun.$`git -C ${checkout} log -1 --format=%s HEAD^`.text()
+        ).trim(),
+      ).toBe("previous");
     } finally {
       await rm(repo, { recursive: true, force: true });
     }
