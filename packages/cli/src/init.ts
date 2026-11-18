@@ -67,6 +67,9 @@ export async function init(root: string, yes: boolean) {
       if (line.length <= 80) return line;
       return `      secrets: [\n${secrets[app].map((secret) => `        "${secret}",\n`).join("")}      ],`;
     };
+    console.log(
+      "Review the generated App domains (app.<product>.com) before Registration; use domains in the Product Cloudflare zone.",
+    );
     const configApps = found
       .map(
         (app) =>

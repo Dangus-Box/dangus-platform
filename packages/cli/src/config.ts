@@ -229,16 +229,16 @@ export function validateConfig(value: unknown): ResolvedProductConfig {
         `${path}.healthcheckPath`,
         "must be a URL path starting with a single / and without spaces or #",
       );
-    // ADR-0009: one subdomain level, including .com.br domains.
+    // ADR-0015: zone apex or one subdomain level, including .com.br domains.
     if (
       typeof app.domain !== "string" ||
-      !/^(?!-)[a-z0-9-]+(?<!-)\.(?!-)[a-z0-9-]+(?<!-)\.(?:com\.br|[a-z]{2,})$/i.test(
+      !/^(?:(?!-)[a-z0-9-]+(?<!-)\.)?(?!-)[a-z0-9-]+(?<!-)\.(?:com\.br|[a-z]{2,})$/i.test(
         app.domain,
       )
     ) {
       fail(
         `${path}.domain`,
-        "must be a domain with one subdomain level (e.g. api.product.com)",
+        "must be a zone apex or one subdomain level (e.g. product.com or api.product.com)",
       );
     }
     const secrets = secretNames(

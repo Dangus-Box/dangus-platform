@@ -9,7 +9,7 @@ Siga na raiz do repositório do Produto. Este guia pressupõe a Stack Ops e o Ho
 - Instale `bun`, Docker, `jq`, `tailscale` e o CLI `bws`; para restore, também `age`, `gzip` e `curl`. Conecte-se à tailnet e confirme com `tailscale status`.
 - Para as seções 4 em diante, exporte `BWS_ACCESS_TOKEN` de uma machine account `operator` com leitura no projeto `ops` e escrita em `prod`. Use uma máquina confiável: o BWS CLI recebe valores em argumentos durante o Registro.
 
-## 2. Inicializar
+## 2. Adotar o Produto e revisar os domínios
 
 Instale uma versão publicada exata do CLI e inicialize:
 
@@ -23,7 +23,10 @@ O comando mostra as Apps e o banco detectados e pede confirmação; `--yes` disp
 Revise `dangus.config.ts`:
 
 - `name`: letras minúsculas, números e hífens; é o prefixo dos secrets (`<produto>__*`) e das Flags.
-- `domain` de cada App: troque os domínios gerados (`api.<produto>.com`) por domínios da zona Cloudflare da Plataforma com um único nível de subdomínio, como `api-<produto>.dangus-box.com`. O mobile também exige um domínio.
+- `domain` de cada App: o `init` gera `api.<produto>.com`, `web.<produto>.com` e `mobile.<produto>.com` e avisa para revisar. Substitua por domínios próprios do Produto: apex (`produto.com`, `produto.com.br`) ou um nível (`api.produto.com`, `api.produto.com.br`). O mobile também exige um domínio.
+- Adicione e ative a zona do Produto na mesma conta Cloudflare da Plataforma. O Registro consulta `GET /zones?name=` do nome completo até encontrar o maior sufixo existente na conta; não depende de `platform__CLOUDFLARE_ZONE_ID` e reconhece `.com.br`.
+- Antes do Registro, uma pessoa deve rotacionar `platform__CLOUDFLARE_DNS_TOKEN` no BWS (`ops`): criar um token com **Zone:DNS:Edit** e **Zone:Zone:Read**, escopo **All zones from an account**, atualizar o secret e revogar o token antigo. O [wizard](../scripts/setup-external-accounts.sh) descreve as permissões. Não reutilize o token antigo restrito à zona da Plataforma.
+- Mantenha os registros em **DNS-only**. O kamal-proxy emite TLS pelo Let's Encrypt HTTP-01 (portas 80/443 públicas). CNAME, proxy ligado ou IP diferente interrompem o Registro para revisão manual, sem sobrescrever registros; zona ausente pede ativação/permissões. Veja a [ADR-0015](adr/0015-dominio-proprio-dns-only.md).
 - Produto sem web: remova `UMAMI_WEBSITE_ID` dos `secrets` da API, pois o Registro só cria o site no Umami quando há web.
 
 Detalhes dos campos no [README do CLI](../packages/cli/README.md#config-do-produto).

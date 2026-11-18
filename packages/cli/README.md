@@ -24,7 +24,7 @@ Depois de `dangus init`, revise os domínios da Config do Produto e execute `dan
 
 No Unleash OSS, os tokens `<produto>-backend` e `<produto>-frontend` são individuais e pertencem ao projeto compartilhado `default`, no Ambiente `production`. O prefixo das Flags e suas constraints de `appName` seguem a convenção descrita em `infra/ops/README.md`; essa convenção não impede um Produto de acessar dados de outro.
 
-Instale `tailscale` e `bws`, conecte o Tailscale e use `BWS_ACCESS_TOKEN` de uma conta `operator` com leitura no projeto `ops` e escrita em `prod`. O projeto `ops` deve conter `ops__UMAMI_ADMIN_PASSWORD`, `ops__UNLEASH_ADMIN_PASSWORD`, `platform__HEALTHCHECKS_API_KEY` com escrita, `platform__CLOUDFLARE_DNS_TOKEN`, `platform__CLOUDFLARE_ZONE_ID`, `platform__CLOUDFLARE_ACCOUNT_ID` e `platform__CLOUDFLARE_R2_TOKEN` com permissão de edição do Workers KV. Configure previamente a integração Telegram no projeto do Healthchecks.io. Os IPs A e AAAA vêm do DNS de `analytics.dangus-box.com`; os domínios das Apps precisam pertencer à zona informada. O BWS CLI recebe valores nos argumentos ao criar secrets; execute em uma máquina confiável sem outros usuários locais.
+Instale `tailscale` e `bws`, conecte o Tailscale e use `BWS_ACCESS_TOKEN` de uma conta `operator` com leitura no projeto `ops` e escrita em `prod`. O projeto `ops` deve conter `ops__UMAMI_ADMIN_PASSWORD`, `ops__UNLEASH_ADMIN_PASSWORD`, `platform__HEALTHCHECKS_API_KEY` com escrita, `platform__CLOUDFLARE_DNS_TOKEN`, `platform__CLOUDFLARE_ACCOUNT_ID` e `platform__CLOUDFLARE_R2_TOKEN` com permissão de edição do Workers KV. Configure previamente a integração Telegram no projeto do Healthchecks.io. Os IPs A e AAAA vêm do DNS de `analytics.dangus-box.com`; o Registro descobre a zona do Produto pelo maior sufixo existente na conta (`GET /zones?name=`, incluindo `.com.br`). O token DNS exige Zone:DNS:Edit e Zone:Zone:Read em “All zones from an account”. `platform__CLOUDFLARE_ZONE_ID` não é necessário. Zona ausente, CNAME, registro com proxy, IP divergente ou duplicatas interrompem o comando para revisão, sem sobrescrever DNS. O BWS CLI recebe valores nos argumentos ao criar secrets; execute em uma máquina confiável sem outros usuários locais.
 
 Crie `dangus.config.ts` na raiz do repositório do Produto:
 
@@ -44,7 +44,7 @@ export default defineConfig({
 });
 ```
 
-O `name` usa apenas letras minúsculas, números e hífens. Declare ao menos uma das Apps `api`, `web` e `mobile`; cada App declarada precisa de um domínio com um único nível de subdomínio, como `api-staging.produto.com`. O limite `memoryMb` (inteiro, em MB) tem padrão de 512 MB por App. O banco aceita `postgres` ou `sqlite`; `deployTimeoutSeconds` é o timeout de deploy em segundos (inteiro). `logger.redact` acrescenta campos para redaction e tem padrão vazio. O destino do Backup tem padrão `r2`; use `s3` para AWS S3 em `sa-east-1`.
+O `name` usa apenas letras minúsculas, números e hífens. Declare ao menos uma das Apps `api`, `web` e `mobile`; cada App declarada precisa de um domínio apex ou com um único nível de subdomínio, como `produto.com`, `produto.com.br` ou `api-staging.produto.com`. O limite `memoryMb` (inteiro, em MB) tem padrão de 512 MB por App. O banco aceita `postgres` ou `sqlite`; `deployTimeoutSeconds` é o timeout de deploy em segundos (inteiro). `logger.redact` acrescenta campos para redaction e tem padrão vazio. O destino do Backup tem padrão `r2`; use `s3` para AWS S3 em `sa-east-1`.
 
 Os campos opcionais de layout são:
 

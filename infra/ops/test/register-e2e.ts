@@ -20,7 +20,6 @@ const vault: Record<string, Secret[]> = {
     ops__UMAMI_ADMIN_PASSWORD: env("UMAMI_ADMIN_PASSWORD"),
     ops__UNLEASH_ADMIN_PASSWORD: env("UNLEASH_ADMIN_PASSWORD"),
     platform__HEALTHCHECKS_API_KEY: "health",
-    platform__CLOUDFLARE_ZONE_ID: "zone",
     platform__CLOUDFLARE_ACCOUNT_ID: "account",
     platform__CLOUDFLARE_DNS_TOKEN: "dns",
     platform__CLOUDFLARE_R2_TOKEN: "kv",
@@ -83,13 +82,24 @@ const request = (async (input: string | URL | Request, init?: RequestInit) => {
     fakeChecks.push(check);
     return Response.json(check);
   }
+  if (path === "/zones")
+    return Response.json({
+      result:
+        url.searchParams.get("name")?.split(".").length === 2
+          ? [
+              {
+                id: "zone",
+                name: url.searchParams.get("name"),
+                status: "active",
+              },
+            ]
+          : [],
+    });
   if (path.endsWith("/dns_records")) {
     if (method === "GET")
       return Response.json({
         result: fakeRecords.filter(
-          (r) =>
-            r.type === url.searchParams.get("type") &&
-            r.name === url.searchParams.get("name"),
+          (r) => r.name === url.searchParams.get("name"),
         ),
       });
     const record = { ...body(), id: `d${fakeRecords.length}` };

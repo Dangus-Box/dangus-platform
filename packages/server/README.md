@@ -62,3 +62,9 @@ A rc.4 reconhece o histórico escrito pelo Drizzle 0.44.7 e acrescenta `name` e 
 No SQLite, a rc.4 oficial abre sua própria transação e não aceita um `BEGIN IMMEDIATE` externo. Por isso o SDK executa as migrations e o upgrade do histórico na mesma transação de escrita, identificando o histórico antigo por timestamp ou hash e migrations novas pelo nome. Uma migration aplicada ausente localmente faz o boot falhar e reverte a transação. No Postgres, o migrator oficial roda sob o advisory lock. Mantenha as migrations Aditivas (ADR-0007).
 
 Ao atualizar uma dependência local `file:` dos exemplos, use `bun remove @dangus-box/server` e `bun add @dangus-box/server@file:../../packages/server`: somente `bun install` não atualiza essa cópia no lockfile.
+
+## IP do cliente atrás do kamal-proxy
+
+Em DNS-only, use `X-Forwarded-For` do kamal-proxy com `ssl: true` e sem habilitar `forward_headers`, desde que a App só receba tráfego por esse proxy. Não confie em `CF-Connecting-IP`: sem origem restrita, qualquer cliente pode enviá-lo diretamente ao Host.
+
+No v0.9.2, essa configuração **sobrescreve** XFF com o IP do par da conexão, então o cliente não consegue forjá-lo. Em 17/11/2026, uma requisição HTTPS feita no próprio Host ao exemplo implantado, com XFF forjado, chegou à API só com o IP privado do par após NAT, sem o valor enviado. Ainda não foi verificado que, para um cliente externo (IPv4 ou IPv6), esse par é o IP público dele e não um gateway do Docker; trate o valor como o par visto pelo kamal-proxy. Com `forward_headers: true`, o proxy **acrescenta** o IP e preserva o valor forjado; sem TLS, esse encaminhamento é o padrão. Evidência, fontes e limites de confiança na [ADR-0015](../../docs/adr/0015-dominio-proprio-dns-only.md).

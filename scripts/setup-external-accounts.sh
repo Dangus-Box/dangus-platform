@@ -216,7 +216,7 @@ ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.external-accounts.en
 BWS_KEYS=(
   BWS_HOST_TOKEN
   HOSTINGER_API_TOKEN
-  CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_ZONE_ID CLOUDFLARE_DNS_TOKEN
+  CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_DNS_TOKEN
   CLOUDFLARE_R2_TOKEN R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_ENDPOINT
   TAILSCALE_TAILNET TAILSCALE_OAUTH_CLIENT_ID TAILSCALE_OAUTH_CLIENT_SECRET
   HEALTHCHECKS_API_KEY
@@ -336,17 +336,20 @@ open_url "https://dash.cloudflare.com/"
 step "Add a domain → dangus-box.com → Free plan."
 step "Replace the nameservers at the domain registrar with the two shown by Cloudflare."
 note "  Activation may take a few hours; you can continue without waiting."
-step "On the zone Overview page, right column (API): copy Zone ID and Account ID."
-require_value CLOUDFLARE_ZONE_ID "Zone ID:"
+step "On the zone Overview page, right column (API): copy Account ID."
 require_value CLOUDFLARE_ACCOUNT_ID "Account ID:"
 pause "Press Enter to continue"
 
 # ── 7 ─────────────────────────────────────────────────────────────────────
 stage "Cloudflare: DNS token"
-say "Token with DNS edit permission only for the dangus-box.com zone."
+say "Token for Registration in the Product zones of one Cloudflare account."
 open_url "https://dash.cloudflare.com/profile/api-tokens"
 step "Create Token → template 'Edit zone DNS' → Use template."
-step "Zone Resources: Include → Specific zone → dangus-box.com."
+step "Permissions: Zone → DNS → Edit AND Zone → Zone → Read."
+step "Zone Resources: Include → All zones from an account → select the Platform account."
+warn "Existing installations: rotate platform__CLOUDFLARE_DNS_TOKEN in BWS (ops project) manually before registering a Product."
+note "  Create the replacement token with these permissions, update BWS, then revoke the old token."
+note "  Paste the replacement below; do not keep a cached token limited to dangus-box.com."
 step "Continue to summary → Create Token → copy the token."
 require_value CLOUDFLARE_DNS_TOKEN "Paste the DNS token:" secret
 pause "Press Enter to continue"
