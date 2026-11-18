@@ -10,6 +10,16 @@ on:
         required: true
         type: string
 
+  workflow_call:
+    inputs:
+      sha:
+        description: Full commit SHA for rollback
+        required: false
+        type: string
+    secrets:
+      BWS_ACCESS_TOKEN:
+        required: true
+
 permissions:
   contents: read
 
@@ -28,17 +38,17 @@ jobs:
       DANGUS_HOST: ${{ vars.DANGUS_HOST }}
     steps:
       - name: Validate SHA
-        if: github.event_name == 'workflow_dispatch'
+        if: inputs.sha != ''
         env:
           SHA: ${{ inputs.sha }}
         run: '[[ "$SHA" =~ ^[0-9a-f]{40}$ ]]'
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.sha }}
-          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
+          ref: ${{ inputs.sha || github.sha }}
+          fetch-depth: ${{ inputs.sha == '' && 2 || 0 }}
           persist-credentials: false
       - name: Verify SHA is on main
-        if: github.event_name == 'workflow_dispatch'
+        if: inputs.sha != ''
         env:
           SHA: ${{ inputs.sha }}
         run: git merge-base --is-ancestor "$SHA" origin/main
@@ -94,6 +104,9 @@ jobs:
           done
           [[ -n "${ip:-}" ]] || { echo "Host $host is not visible on the tailnet: check the tag:ci -> tag:host grant." >&2; exit 1; }
           echo "$ip $host" | sudo tee -a /etc/hosts
+      - name: Check Product before deploy
+        if: inputs.sha == ''
+        run: bun run dangus doctor --base HEAD^
       - name: Authenticate with GHCR
         env:
           KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
@@ -102,9 +115,9 @@ jobs:
         env:
           BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
           KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          EVENT_NAME: ${{ github.event_name }}
+          SHA: ${{ inputs.sha }}
         run: |
-          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+          if [[ -n "$SHA" ]]; then
             bun run dangus deploy --skip-build
           else
             bun run dangus deploy

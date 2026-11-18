@@ -1,4 +1,5 @@
-import { resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { loadConfig } from "./config";
 
 type Result = { status: "pass" | "warn" | "fail"; message: string };
@@ -38,7 +39,7 @@ export async function doctor(
   }
   const results: Result[] = [];
   if (config.apps.api) {
-    const path = resolve(directory, "apps/api/index.ts");
+    const path = resolve(directory, config.apps.api.entry);
     const source = await Bun.file(path)
       .text()
       .catch(() => "");
@@ -63,7 +64,7 @@ export async function doctor(
         ok ? "pass" : "fail",
         ok
           ? "SDK integration in API present."
-          : `API: in apps/api/index.ts, import observability and ${migration} from @dangus-box/server and run both before .listen().`,
+          : `API: in ${config.apps.api.entry}, import observability and ${migration} from @dangus-box/server and run both before .listen().`,
       ),
     );
   } else results.push(result("pass", "SDK integration: Product has no API."));
@@ -124,11 +125,13 @@ export async function doctor(
       "git",
       "ls-tree",
       "-r",
+      "-d",
+      "--full-tree",
       "--name-only",
       "-z",
       base,
       "--",
-      `${git.output.trim()}drizzle`,
+      `${git.output.trim()}${config.migrations}`,
     ],
     directory,
   );
@@ -139,10 +142,29 @@ export async function doctor(
     return results;
   }
   const old = new Set(existing.output.split("\0"));
-  const files = new Bun.Glob("drizzle/**/*.sql");
+  const files = new Bun.Glob("*/migration.sql");
+  const migrationsDirectory = resolve(directory, config.migrations);
   let found = false;
-  for await (const file of files.scan({ cwd: directory, onlyFiles: true })) {
-    if (old.has(`${git.output.trim()}${file}`)) continue;
+  if (existsSync(migrationsDirectory)) {
+    for await (const file of new Bun.Glob("*.sql").scan({
+      cwd: migrationsDirectory,
+      onlyFiles: true,
+    })) {
+      found = true;
+      results.push(
+        result(
+          "fail",
+          `Migrations: ${join(config.migrations, file)} uses the unsupported Drizzle 0.x flat SQL layout; upgrade to Drizzle 1.0 with <migrations>/<timestamp>_<name>/migration.sql.`,
+        ),
+      );
+    }
+  }
+  const migrations = existsSync(migrationsDirectory)
+    ? files.scan({ cwd: migrationsDirectory, onlyFiles: true })
+    : [];
+  for await (const relative of migrations) {
+    const file = join(config.migrations, relative);
+    if (old.has(`${git.output.trim()}${dirname(file)}`)) continue;
     for (const issue of lintSql(
       await Bun.file(resolve(directory, file)).text(),
     )) {

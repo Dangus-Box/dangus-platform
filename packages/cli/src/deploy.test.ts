@@ -6,6 +6,7 @@ import {
   backupNow,
   deploy,
   KAMAL_IMAGE,
+  productVersion,
   type Runner,
   render,
   resolveDomain,
@@ -67,15 +68,25 @@ for (const variant of ["postgres", "sqlite"]) {
     const output = await new Response(cli.stdout).text();
     expect(await cli.exited).toBe(0);
     expect(output).toContain(
-      await readFile(
-        join(root, "packages/cli/test/golden", `${variant}-api.yml`),
-        "utf8",
+      (
+        await readFile(
+          join(root, "packages/cli/test/golden", `${variant}-api.yml`),
+          "utf8",
+        )
+      ).replaceAll(
+        "\"<%= ENV.fetch('KAMAL_VERSION') %>\"",
+        await productVersion(),
       ),
     );
     expect(output).toContain(
-      await readFile(
-        join(root, "packages/cli/test/golden", `${variant}-web.yml`),
-        "utf8",
+      (
+        await readFile(
+          join(root, "packages/cli/test/golden", `${variant}-web.yml`),
+          "utf8",
+        )
+      ).replaceAll(
+        "\"<%= ENV.fetch('KAMAL_VERSION') %>\"",
+        await productVersion(),
       ),
     );
   });
@@ -339,7 +350,8 @@ test("Postgres stays on the internal network with labels and a pinned image", as
   expect(db.port).toBeUndefined();
   expect(db.options).toBeUndefined();
   expect(db.labels).toEqual({ product: "produto", app: "postgres" });
-  expect(db.image).toMatch(/^postgres:17\.6@sha256:[0-9a-f]{64}$/);
+  expect(db.volumes).toEqual(["produto-postgres:/var/lib/postgresql"]);
+  expect(db.image).toMatch(/^postgres:18\.1@sha256:[0-9a-f]{64}$/);
 });
 
 test("render prints readable YAML with one field per line", () => {
@@ -770,3 +782,197 @@ test("db backup runs the script on the existing accessory", async () => {
     "/usr/local/bin/backup.sh",
   ]);
 });
+
+test("custom Postgres layout render matches its golden file", async () => {
+  const config = validateConfig({
+    name: "produto",
+    apps: {
+      api: {
+        domain: "api.produto.com",
+        path: "backend",
+        dockerfile: "docker/api.Dockerfile",
+        target: "production",
+        build: {
+          secrets: ["SSH_KEY"],
+          args: { PUBLIC_URL: "https://example.com" },
+        },
+        env: { NODE_ENV: "production" },
+        entry: "backend/src/main.ts",
+        healthcheckPath: "/health/ready",
+      },
+    },
+    migrations: "database/migrations",
+    database: "postgres",
+    deployTimeoutSeconds: 120,
+  });
+  expect(
+    render(config, "api", "devbox-1", ".", ["192.0.2.1", "2001:db8::1"]),
+  ).toBe(
+    await readFile(
+      join(root, "packages/cli/test/golden/postgres-layout.yml"),
+      "utf8",
+    ),
+  );
+});
+
+for (const skipBuild of [false, true]) {
+  test(`build secrets are requested only when building (skipBuild=${skipBuild})`, async () => {
+    const privateKey =
+      "-----BEGIN OPENSSH PRIVATE KEY-----\nline$with\\special\nlast-line\n-----END OPENSSH PRIVATE KEY-----\n";
+    const config = validateConfig({
+      name: "produto",
+      apps: {
+        web: {
+          domain: "web.produto.com",
+          build: {
+            secrets: ["SSH_KEY"],
+            args: { PUBLIC_URL: "https://example.com" },
+          },
+          env: { NODE_ENV: "production" },
+        },
+      },
+      database: "sqlite",
+      deployTimeoutSeconds: 120,
+    });
+    const calls: string[][] = [];
+    const runner: Runner = async (args, env) => {
+      calls.push(args);
+      if (args[0] === "git") return { code: 0, stdout: "b".repeat(40) };
+      if (args[0] === "bws")
+        return {
+          code: 0,
+          stdout: JSON.stringify([
+            { key: "produto__SSH_KEY", value: privateKey },
+          ]),
+        };
+      if (args[1] === "manifest") return { code: 0, stdout: "" };
+      expect(
+        args.filter((_, i) => args[i - 1] === "-e").includes("SSH_KEY"),
+      ).toBe(!skipBuild);
+      expect(env.SSH_KEY).toBe(skipBuild ? undefined : privateKey);
+      const path =
+        args[args.indexOf("-v", args.indexOf("-w")) + 1].split(":")[0];
+      const yaml = await Bun.file(join(path, "deploy.yml")).text();
+      const doc = Bun.YAML.parse(yaml) as {
+        builder: { args: Record<string, string>; secrets: string[] };
+        env: { clear: Record<string, string>; secret: string[] };
+      };
+      expect(doc.builder.args).toEqual({
+        PUBLIC_URL: "https://example.com",
+        APP_VERSION: "b".repeat(40),
+      });
+      expect(doc.builder.secrets).toEqual(["SSH_KEY"]);
+      expect(doc.env.clear).toEqual({
+        NODE_ENV: "production",
+        APP_VERSION: "b".repeat(40),
+      });
+      expect(doc.env.secret).not.toContain("SSH_KEY");
+      const secrets = await Bun.file(join(path, ".kamal/secrets")).text();
+      expect(secrets.includes("SSH_KEY=$SSH_KEY")).toBe(!skipBuild);
+      expect(yaml + secrets + JSON.stringify(args)).not.toContain(privateKey);
+      return { code: 0, stdout: "" };
+    };
+    await deploy(
+      config,
+      "/produto",
+      runner,
+      { SSH_AUTH_SOCK: "/agent", DANGUS_PROXY_BIND_IPS: "192.0.2.1" },
+      skipBuild,
+    );
+    expect(calls.filter((args) => args[0] === "bws")).toEqual(
+      skipBuild ? [] : [["bws", "secret", "list"]],
+    );
+  });
+}
+
+test("render prints only build secret names even when the environment contains values", async () => {
+  const { mkdtemp, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const dir = await mkdtemp(join(tmpdir(), "dangus-render-"));
+  try {
+    await Bun.write(
+      join(dir, "dangus.config.ts"),
+      `export default ${JSON.stringify({ name: "produto", apps: { web: { domain: "web.produto.com", build: { secrets: ["SSH_KEY"] }, secrets: ["TOKEN"] } }, database: "sqlite", deployTimeoutSeconds: 120 })}`,
+    );
+    const child = Bun.spawn(
+      ["bun", join(root, "packages/cli/src/index.ts"), "render"],
+      {
+        cwd: dir,
+        env: {
+          ...process.env,
+          DANGUS_PROXY_BIND_IPS: "192.0.2.1",
+          GIT_DIR: Bun.spawnSync(["git", "rev-parse", "--absolute-git-dir"], {
+            cwd: root,
+          })
+            .stdout.toString()
+            .trim(),
+          SSH_KEY: "private-key-value",
+          TOKEN: "private-token-value",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    const output =
+      (await new Response(child.stdout).text()) +
+      (await new Response(child.stderr).text());
+    expect(await child.exited).toBe(0);
+    expect(output).toContain("SSH_KEY");
+    expect(output).toContain("TOKEN");
+    expect(output).not.toContain("private-key-value");
+    expect(output).not.toContain("private-token-value");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test.skipIf(!process.env.DANGUS_TEST_KAMAL)(
+  "Kamal reads a multiline build secret intact from its environment",
+  async () => {
+    const privateKey =
+      "-----BEGIN OPENSSH PRIVATE KEY-----\nline$with\\special\nlast-line\n-----END OPENSSH PRIVATE KEY-----\n";
+    const config = validateConfig({
+      name: "produto",
+      apps: {
+        web: { domain: "web.produto.com", build: { secrets: ["SSH_KEY"] } },
+      },
+      database: "sqlite",
+      deployTimeoutSeconds: 120,
+    });
+    await withRendered(
+      config,
+      "devbox-1",
+      async (dir) => {
+        const child = Bun.spawn(
+          [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            `${join(dir, "web")}:/dangus:ro`,
+            "-e",
+            "SSH_KEY",
+            "--entrypoint",
+            "ruby",
+            KAMAL_IMAGE,
+            "-rkamal",
+            "-e",
+            'STDOUT.write(Kamal::Secrets.new(secrets_path: "/dangus/.kamal/secrets")["SSH_KEY"])',
+          ],
+          {
+            env: { ...process.env, SSH_KEY: privateKey },
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        );
+        const output = await new Response(child.stdout).text();
+        const error = await new Response(child.stderr).text();
+        expect(error).toBe("");
+        expect(await child.exited).toBe(0);
+        expect(output).toBe(privateKey);
+      },
+      ".",
+      ["192.0.2.1"],
+    );
+  },
+);

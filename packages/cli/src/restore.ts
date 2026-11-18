@@ -147,7 +147,7 @@ export async function restore(
   // Ctrl-C or SIGTERM leaves neither the plain-text dump nor the container behind.
   const abort = () => {
     if (dir) rmSync(dir, { recursive: true, force: true });
-    if (container) Bun.spawnSync(["docker", "rm", "-f", container]);
+    if (container) Bun.spawnSync(["docker", "rm", "-fv", container]);
     process.exit(130);
   };
   process.once("SIGINT", abort).once("SIGTERM", abort);
@@ -250,8 +250,10 @@ export async function restore(
           container,
           "-e",
           "POSTGRES_HOST_AUTH_METHOD=trust",
-          "postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929",
+          "postgres:18.1@sha256:1090bc3a8ccfb0b55f78a494d76f8d603434f7e4553543d6e807bc7bd6bbd17f",
         ]);
+        // Probe over TCP: the image's init server listens only on the socket and
+        // stops before the final start, so a socket probe can pass too early.
         let ready = false;
         for (let i = 0; i < 60; i++) {
           try {
@@ -260,6 +262,8 @@ export async function restore(
               "exec",
               container,
               "pg_isready",
+              "-h",
+              "127.0.0.1",
               "-U",
               "postgres",
             ]);
@@ -307,7 +311,7 @@ export async function restore(
   } finally {
     process.off("SIGINT", abort).off("SIGTERM", abort);
     if (container)
-      await command(["docker", "rm", "-f", container]).catch(() => {});
+      await command(["docker", "rm", "-fv", container]).catch(() => {});
     if (dir) await rm(dir, { recursive: true, force: true });
   }
 }

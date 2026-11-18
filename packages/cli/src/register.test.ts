@@ -701,3 +701,31 @@ test("apex keeps unrelated MX/TXT records and adds only A/AAAA", async () => {
     f.server.stop(true);
   }
 });
+
+test("Registration uses configured healthcheck paths for server Apps only", async () => {
+  const f = await fixture();
+  try {
+    await writeFile(
+      join(f.dir, "dangus.config.ts"),
+      `export default {
+      name: "produto", apps: {
+        api: { domain: "api.example.com", healthcheckPath: "/health/ready" },
+        web: { domain: "web.example.com", healthcheckPath: "/status" },
+        mobile: { domain: "mobile.example.com", healthcheckPath: "/ignored" },
+      }, database: "sqlite", deployTimeoutSeconds: 120,
+    }`,
+    );
+    await register(f.dir, f.deps);
+    expect(f.targets).toEqual([
+      "https://analytics.dangus-box.com/api/heartbeat",
+      "https://flags.dangus-box.com/internal-backstage/health",
+      "https://api.example.com/health/ready",
+      "https://web.example.com/status",
+    ]);
+    const writes = f.writes;
+    await register(f.dir, f.deps);
+    expect(f.writes).toBe(writes);
+  } finally {
+    f.server.stop(true);
+  }
+});

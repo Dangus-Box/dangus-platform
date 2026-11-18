@@ -9,6 +9,20 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_TEST_URL: postgres://postgres:test@localhost:5432/postgres
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -21,3 +35,6 @@ jobs:
       - run: bun run typecheck
       - run: bun test
       - run: bun run check:packages
+      - run: bash infra/backup/tests/scripts.sh
+      - run: bash infra/backup/tests/e2e.sh
+      - run: bash infra/backup/tests/restore-e2e.sh

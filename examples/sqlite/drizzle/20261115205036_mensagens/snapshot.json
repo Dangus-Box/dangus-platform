@@ -1,0 +1,40 @@
+{
+  "dialect": "sqlite",
+  "id": "50f65b1c-4a7f-4ea3-8115-ce8d88cf773e",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "version": "7",
+  "ddl": [
+    {
+      "name": "mensagens",
+      "entityType": "tables"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "table": "mensagens",
+      "entityType": "columns"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "mensagens_pk",
+      "table": "mensagens",
+      "entityType": "pks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "texto",
+      "table": "mensagens",
+      "entityType": "columns"
+    }
+  ],
+  "renames": []
+}

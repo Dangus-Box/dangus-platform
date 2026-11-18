@@ -30,6 +30,8 @@ builder:
   arch: amd64
   dockerfile: apps/api/Dockerfile
   context: "."
+  args:
+    APP_VERSION: "<%= ENV.fetch('KAMAL_VERSION') %>"
 deploy_timeout: 120
 labels:
   product: exemplo-postgres
@@ -37,11 +39,13 @@ labels:
   prometheus.io.scrape: "true"
   prometheus.io.port: "3000"
 env:
+  clear:
+    APP_VERSION: "<%= ENV.fetch('KAMAL_VERSION') %>"
   secret:
     - DATABASE_URL
 accessories:
   db:
-    image: postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929
+    image: postgres:18.1@sha256:1090bc3a8ccfb0b55f78a494d76f8d603434f7e4553543d6e807bc7bd6bbd17f
     host: devbox-1
     labels:
       product: exemplo-postgres
@@ -53,9 +57,9 @@ accessories:
       secret:
         - POSTGRES_PASSWORD
     volumes:
-      - exemplo-postgres-postgres:/var/lib/postgresql/data
+      - exemplo-postgres-postgres:/var/lib/postgresql
   backup:
-    image: ghcr.io/dangus-box/backup:1.0.0
+    image: ghcr.io/dangus-box/backup:1.1.0
     host: devbox-1
     labels:
       product: exemplo-postgres

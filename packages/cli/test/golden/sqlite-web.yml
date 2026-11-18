@@ -30,11 +30,15 @@ builder:
   arch: amd64
   dockerfile: apps/web/Dockerfile
   context: "."
+  args:
+    APP_VERSION: "<%= ENV.fetch('KAMAL_VERSION') %>"
 deploy_timeout: 120
 labels:
   product: exemplo-sqlite
   app: web
 env:
+  clear:
+    APP_VERSION: "<%= ENV.fetch('KAMAL_VERSION') %>"
   secret:
     - UMAMI_WEBSITE_ID
     - FLAGS_FRONTEND_TOKEN
