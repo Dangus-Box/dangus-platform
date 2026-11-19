@@ -262,18 +262,33 @@ function rebuildsCheck(maskedSql: string, namedSql: string): boolean {
     "i",
   ).exec(masked);
   if (!head) return false;
-  const actions: string[] = [];
+  // Fail closed on anything unterminated: a stray quote, dollar quote or
+  // comment opener, or unbalanced parentheses.
+  if (
+    /(?<![\w$])\$(?:[A-Za-z_]\w*)?\$/.test(masked) ||
+    masked.includes("'") ||
+    masked.replace(/"x*"/g, "").includes('"') ||
+    masked.includes("/*")
+  )
+    return false;
+  const actions: { named: string; masked: string }[] = [];
   let depth = 0;
   let from = head[0].length;
   for (let i = from; i <= masked.length; i++) {
     const char = masked[i];
     if (char === "(") depth++;
-    else if (char === ")") depth--;
-    else if (i === masked.length || (char === "," && depth === 0)) {
-      actions.push(named.slice(from, i));
+    else if (char === ")") {
+      depth--;
+      if (depth < 0) return false;
+    } else if (i === masked.length || (char === "," && depth === 0)) {
+      actions.push({
+        named: named.slice(from, i),
+        masked: masked.slice(from, i),
+      });
       from = i + 1;
     }
   }
+  if (depth !== 0) return false;
   const drop = new RegExp(`^\\s*DROP\\s+CONSTRAINT\\s+(${IDENT})\\s*$`, "i");
   const add = new RegExp(
     `^\\s*ADD\\s+CONSTRAINT\\s+(${IDENT})\\s+CHECK\\s*\\(`,
@@ -281,9 +296,25 @@ function rebuildsCheck(maskedSql: string, namedSql: string): boolean {
   );
   const dropped = new Set<string>();
   let sawDrop = false;
-  for (const action of actions) {
+  for (const { named: action, masked: maskedAction } of actions) {
     const added = add.exec(action);
     if (added) {
+      // The CHECK expression must be fully balanced and nothing but an
+      // optional NOT VALID may follow it.
+      let level = 0;
+      let end = -1;
+      for (let i = added[0].length - 1; i < maskedAction.length; i++) {
+        if (maskedAction[i] === "(") level++;
+        else if (maskedAction[i] === ")" && --level === 0) {
+          end = i;
+          break;
+        }
+      }
+      if (
+        end < 0 ||
+        !/^\s*(?:NOT\s+VALID)?\s*$/i.test(maskedAction.slice(end + 1))
+      )
+        return false;
       dropped.delete(constraintName(added[1] as string));
       continue;
     }
