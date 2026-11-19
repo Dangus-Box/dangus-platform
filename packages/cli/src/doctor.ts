@@ -191,16 +191,30 @@ export function lintSql(sql: string): Issue[] {
         ? `"${"x".repeat(match.length - 2)}"`
         : match.replace(/[^\n]/g, " "),
   );
+  // Same positions, but quoted identifiers keep their text so constraint
+  // names can be compared.
+  const named = sql.replace(
+    /--[^\n]*|\/\*[\s\S]*?\*\/|'(?:''|[^'])*'|"(?:""|[^"])*"/g,
+    (match) => (match.startsWith('"') ? match : match.replace(/[^\n]/g, " ")),
+  );
   const issues: Issue[] = [];
   let offset = 0;
   for (const statement of clean.split(";")) {
+    const original = named.slice(offset, offset + statement.length);
     const start = offset + statement.search(/\S|$/);
     const line = clean.slice(0, start).split("\n").length;
     offset += statement.length + 1;
     const add = (status: Result["status"], message: string) =>
       issues.push({ status, message, line });
-    if (/\bDROP\b/i.test(statement))
-      add("fail", "remove DROP and perform the removal in a later deploy.");
+    if (/\bDROP\b/i.test(statement)) {
+      if (rebuildsCheck(statement, original))
+        add(
+          "warn",
+          "DROP CONSTRAINT re-added as CHECK in the same statement is accepted as expand; make sure the new CHECK only widens (the doctor cannot prove it).",
+        );
+      else
+        add("fail", "remove DROP and perform the removal in a later deploy.");
+    }
     if (/\bRENAME\b/i.test(statement))
       add(
         "fail",
@@ -222,4 +236,93 @@ export function lintSql(sql: string): Issue[] {
       add("warn", "use CREATE INDEX CONCURRENTLY to avoid locking the table.");
   }
   return issues;
+}
+
+const IDENT = `"(?:""|[^"])*"|[A-Za-z_][\\w$]*`;
+const constraintName = (raw: string) =>
+  raw.startsWith('"')
+    ? raw.slice(1, -1).replaceAll('""', '"')
+    : raw.toLowerCase();
+
+// True when every DROP in an ALTER TABLE statement is a
+// `DROP CONSTRAINT x` followed, in the same statement, by
+// `ADD CONSTRAINT x CHECK (...)` with the same name. `masked` hides quoted
+// identifiers; `named` has the same positions with their text intact.
+function rebuildsCheck(maskedSql: string, namedSql: string): boolean {
+  // Dollar-quoted literals can hold parentheses or commas; blank them (keeping
+  // positions) so they cannot hide the real action boundaries.
+  const blank = (text: string) =>
+    text.replace(/(?<![\w$])\$([A-Za-z_]\w*)?\$[\s\S]*?\$\1\$/g, (match) =>
+      match.replace(/[^\n]/g, " "),
+    );
+  const masked = blank(maskedSql);
+  const named = blank(namedSql);
+  const head = new RegExp(
+    `^\\s*ALTER\\s+TABLE\\s+(?:ONLY\\s+)?(?:IF\\s+EXISTS\\s+)?(?:${IDENT})(?:\\s*\\.\\s*(?:${IDENT}))?\\s+`,
+    "i",
+  ).exec(masked);
+  if (!head) return false;
+  // Fail closed on anything unterminated: a stray quote, dollar quote or
+  // comment opener, or unbalanced parentheses.
+  if (
+    /(?<![\w$])\$(?:[A-Za-z_]\w*)?\$/.test(masked) ||
+    masked.includes("'") ||
+    masked.replace(/"x*"/g, "").includes('"') ||
+    masked.includes("/*")
+  )
+    return false;
+  const actions: { named: string; masked: string }[] = [];
+  let depth = 0;
+  let from = head[0].length;
+  for (let i = from; i <= masked.length; i++) {
+    const char = masked[i];
+    if (char === "(") depth++;
+    else if (char === ")") {
+      depth--;
+      if (depth < 0) return false;
+    } else if (i === masked.length || (char === "," && depth === 0)) {
+      actions.push({
+        named: named.slice(from, i),
+        masked: masked.slice(from, i),
+      });
+      from = i + 1;
+    }
+  }
+  if (depth !== 0) return false;
+  const drop = new RegExp(`^\\s*DROP\\s+CONSTRAINT\\s+(${IDENT})\\s*$`, "i");
+  const add = new RegExp(
+    `^\\s*ADD\\s+CONSTRAINT\\s+(${IDENT})\\s+CHECK\\s*\\(`,
+    "i",
+  );
+  const dropped = new Set<string>();
+  let sawDrop = false;
+  for (const { named: action, masked: maskedAction } of actions) {
+    const added = add.exec(action);
+    if (added) {
+      // The CHECK expression must be fully balanced and nothing but an
+      // optional NOT VALID may follow it.
+      let level = 0;
+      let end = -1;
+      for (let i = added[0].length - 1; i < maskedAction.length; i++) {
+        if (maskedAction[i] === "(") level++;
+        else if (maskedAction[i] === ")" && --level === 0) {
+          end = i;
+          break;
+        }
+      }
+      if (
+        end < 0 ||
+        !/^\s*(?:NOT\s+VALID)?\s*$/i.test(maskedAction.slice(end + 1))
+      )
+        return false;
+      dropped.delete(constraintName(added[1] as string));
+      continue;
+    }
+    const removed = drop.exec(action);
+    if (removed) {
+      sawDrop = true;
+      dropped.add(constraintName(removed[1] as string));
+    } else if (/\bDROP\b/i.test(action)) return false;
+  }
+  return sawDrop && dropped.size === 0;
 }

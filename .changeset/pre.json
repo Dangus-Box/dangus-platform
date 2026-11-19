@@ -7,5 +7,11 @@
     "@dangus-box/server": "1.0.0",
     "@dangus-box/web": "1.0.0"
   },
-  "changesets": ["kit-2-cli", "kit-2-native", "kit-2-server", "kit-2-web"]
+  "changesets": [
+    "doctor-widen-check",
+    "kit-2-cli",
+    "kit-2-native",
+    "kit-2-server",
+    "kit-2-web"
+  ]
 }
