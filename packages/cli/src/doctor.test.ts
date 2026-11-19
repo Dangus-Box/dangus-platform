@@ -210,6 +210,31 @@ test("lint covers Drizzle DDL and DO blocks and reports the line", () => {
     expect(statuses(sql)).toEqual(["fail"]);
   expect(statuses("ALTER TABLE t ALTER c TYPE int;")).toEqual(["warn"]);
   expect(
+    statuses(
+      `ALTER TABLE "import_batch" DROP CONSTRAINT "import_batch_format_valid", ADD CONSTRAINT "import_batch_format_valid" CHECK ("format" in ('ofx', 'csv', 'pdf')) NOT VALID;--> statement-breakpoint
+ALTER TABLE "import_batch" VALIDATE CONSTRAINT "import_batch_format_valid";`,
+    ),
+  ).toEqual(["warn"]);
+  for (const sql of [
+    `ALTER TABLE "t" DROP CONSTRAINT "a", ADD CONSTRAINT "a" CHECK ("x" in ('d'));`,
+    `alter table t drop constraint a, add constraint A check (x > 0);`,
+    `ALTER TABLE t DROP CONSTRAINT "a", ADD CONSTRAINT "a" CHECK (x > 0), DROP CONSTRAINT b, ADD CONSTRAINT b CHECK (y > 0);`,
+  ])
+    expect(statuses(sql)).toEqual(["warn"]);
+  for (const sql of [
+    `ALTER TABLE t DROP CONSTRAINT a;`,
+    `ALTER TABLE t DROP CONSTRAINT a, ADD CONSTRAINT b CHECK (x > 0);`,
+    `ALTER TABLE t DROP CONSTRAINT "a", ADD CONSTRAINT "A" CHECK (x > 0);`,
+    `ALTER TABLE t DROP CONSTRAINT a, ADD CONSTRAINT a FOREIGN KEY (x) REFERENCES u (id);`,
+    `ALTER TABLE t DROP CONSTRAINT a, ADD CONSTRAINT a UNIQUE (x);`,
+    `ALTER TABLE t DROP CONSTRAINT a, ADD CONSTRAINT a CHECK (x > 0), DROP COLUMN c;`,
+    `ALTER TABLE t DROP CONSTRAINT a, DROP CONSTRAINT b, ADD CONSTRAINT a CHECK (x > 0);`,
+    `ALTER TABLE t ADD CONSTRAINT a CHECK (x > 0), DROP CONSTRAINT a;`,
+    `ALTER TABLE t DROP CONSTRAINT a CASCADE, ADD CONSTRAINT a CHECK (x > 0);`,
+    `DROP TABLE t;`,
+  ])
+    expect(statuses(sql)).toEqual(["fail"]);
+  expect(
     lintSql(
       'CREATE TABLE "a" ("id" int);\n--> statement-breakpoint\nDROP TABLE "b";\n--> statement-breakpoint\n/* x\n */ DROP TABLE "c";',
     ).map((r) => r.line),
