@@ -221,6 +221,11 @@ ALTER TABLE "import_batch" VALIDATE CONSTRAINT "import_batch_format_valid";`,
     `ALTER TABLE t DROP CONSTRAINT "a", ADD CONSTRAINT "a" CHECK (x > 0), DROP CONSTRAINT b, ADD CONSTRAINT b CHECK (y > 0);`,
   ])
     expect(statuses(sql)).toEqual(["warn"]);
+  expect(
+    statuses(
+      `ALTER TABLE t DROP CONSTRAINT a, ADD CONSTRAINT a CHECK (x <> $tag$(,$tag$);`,
+    ),
+  ).toEqual(["warn"]);
   for (const sql of [
     `ALTER TABLE t DROP CONSTRAINT a;`,
     `ALTER TABLE t DROP CONSTRAINT a, ADD CONSTRAINT b CHECK (x > 0);`,
@@ -232,6 +237,9 @@ ALTER TABLE "import_batch" VALIDATE CONSTRAINT "import_batch_format_valid";`,
     `ALTER TABLE t ADD CONSTRAINT a CHECK (x > 0), DROP CONSTRAINT a;`,
     `ALTER TABLE t DROP CONSTRAINT a CASCADE, ADD CONSTRAINT a CHECK (x > 0);`,
     `DROP TABLE t;`,
+    `ALTER TABLE t DROP CONSTRAINT a, ADD CONSTRAINT a CHECK (x <> $$($$), DROP COLUMN c;`,
+    `ALTER TABLE t DROP CONSTRAINT a, ADD CONSTRAINT a CHECK (x <> $tag$($tag$), DROP COLUMN c;`,
+    `ALTER TABLE t DROP CONSTRAINT a, ADD CONSTRAINT a CHECK (x <> $t$ $$ ($t$), DROP COLUMN c;`,
   ])
     expect(statuses(sql)).toEqual(["fail"]);
   expect(

@@ -248,7 +248,15 @@ const constraintName = (raw: string) =>
 // `DROP CONSTRAINT x` followed, in the same statement, by
 // `ADD CONSTRAINT x CHECK (...)` with the same name. `masked` hides quoted
 // identifiers; `named` has the same positions with their text intact.
-function rebuildsCheck(masked: string, named: string): boolean {
+function rebuildsCheck(maskedSql: string, namedSql: string): boolean {
+  // Dollar-quoted literals can hold parentheses or commas; blank them (keeping
+  // positions) so they cannot hide the real action boundaries.
+  const blank = (text: string) =>
+    text.replace(/(?<![\w$])\$([A-Za-z_]\w*)?\$[\s\S]*?\$\1\$/g, (match) =>
+      match.replace(/[^\n]/g, " "),
+    );
+  const masked = blank(maskedSql);
+  const named = blank(namedSql);
   const head = new RegExp(
     `^\\s*ALTER\\s+TABLE\\s+(?:ONLY\\s+)?(?:IF\\s+EXISTS\\s+)?(?:${IDENT})(?:\\s*\\.\\s*(?:${IDENT}))?\\s+`,
     "i",
