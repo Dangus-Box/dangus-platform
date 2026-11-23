@@ -392,10 +392,22 @@ test("Umami retention runs daily against the Umami database with a pinned image"
   expect(job.env.clear.UMAMI_RETENTION).toBe("6 months");
   expect(job.env.clear.PGHOST).toBe("dangus-ops-umami-db");
   expect(job.env.secret).toEqual(["PGPASSWORD:UMAMI_DB_PASSWORD"]);
-  expect(job.files).toContain("umami-retention.sql:/etc/umami-retention/retention.sql");
-  expect(readFileSync(`${path}umami-retention.sh`, "utf8")).toContain("sleep 86400");
-  expect(readFileSync(`${path}deploy.sh`, "utf8")).toContain("replace umami-retention deploy.yml");
+  expect(job.files).toContain(
+    "umami-retention.sql:/etc/umami-retention/retention.sql",
+  );
+  expect(readFileSync(`${path}umami-retention.sh`, "utf8")).toContain(
+    "sleep 86400",
+  );
+  expect(readFileSync(`${path}deploy.sh`, "utf8")).toContain(
+    "replace umami-retention deploy.yml",
+  );
   const sql = readFileSync(`${path}umami-retention.sql`, "utf8");
-  for (const table of ["event_data", "revenue", "website_event", "session_data", "session"])
+  for (const table of [
+    "event_data",
+    "revenue",
+    "website_event",
+    "session_data",
+    "session",
+  ])
     expect(sql).toContain(`DELETE FROM ${table} `);
 });
