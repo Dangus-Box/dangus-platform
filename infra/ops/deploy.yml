@@ -86,6 +86,25 @@ accessories:
     options:
       memory: 512m
       cpus: 0.2
+  # Umami não expira dados sozinho. Apaga o que passou de UMAMI_RETENTION uma vez por dia.
+  umami-retention:
+    image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
+    host: devbox-1
+    cmd: sh /etc/umami-retention/run.sh
+    env:
+      clear:
+        UMAMI_RETENTION: 6 months
+        PGHOST: dangus-ops-umami-db
+        PGUSER: umami
+        PGDATABASE: umami
+      secret:
+        - PGPASSWORD:UMAMI_DB_PASSWORD
+    files:
+      - umami-retention.sh:/etc/umami-retention/run.sh
+      - umami-retention.sql:/etc/umami-retention/retention.sql
+    options:
+      memory: 64m
+      cpus: 0.05
   unleash-db:
     image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
     host: devbox-1

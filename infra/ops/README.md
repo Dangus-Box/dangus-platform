@@ -24,6 +24,8 @@ O Umami atende em `https://analytics.dangus-box.com` pelo kamal-proxy. Seu Postg
 
 No projeto `ops` do BWS, preencha `ops__UMAMI_APP_SECRET`, `ops__UMAMI_DB_PASSWORD` e `ops__UMAMI_ADMIN_PASSWORD`, além da senha do Grafana. O deploy valida os secrets e substitui a senha inicial do administrador; não use `umami` como senha. Após o primeiro deploy, a senha no BWS deve continuar igual à senha no Umami. Para trocar a senha, atualize-a no painel e no BWS antes do próximo deploy. O script do tracker é `/t.js` e a coleta é `/api/e`; as issues #19 e #20 servirão esses caminhos pelo domínio de cada Produto.
 
+O Umami não expira dados sozinho. O accessory `umami-retention` apaga, ao iniciar e depois a cada 24 h, eventos, dados de eventos, receitas, dados de sessão e sessões sem evento mais antigos que `UMAMI_RETENTION` (6 meses, o prazo que os Produtos publicam na política de privacidade). O resultado de cada execução vai para o log. Para verificar localmente, execute `infra/ops/test/umami-retention-e2e.sh`.
+
 Para verificar localmente, execute `UMAMI_ADMIN_PASSWORD=<senha-de-teste> infra/ops/test/umami-e2e.sh`. O teste cria uma rede e um banco descartáveis e verifica login, tracker, evento pela API e evento enviado por `trackEvent` do `@dangus-box/server`. HTTPS e kamal-proxy precisam ser verificados no Host após o deploy.
 
 ## Flags
