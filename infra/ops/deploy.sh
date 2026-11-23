@@ -67,6 +67,8 @@ runner accessory exec umami --reuse --config-file "$private" "node -e 'eval(Buff
   { runner accessory stop umami --config-file "$private"; exit 1; }
 # The public boot runs `kamal-proxy deploy`, which creates or replaces the route.
 replace umami deploy.yml
+# Recreated on each deploy to apply the retention period and SQL.
+replace umami-retention deploy.yml
 
 POSTGRES_PASSWORD="$UNLEASH_DB_PASSWORD" runner accessory boot unleash-db --config-file deploy.yml
 runner accessory exec unleash-db --reuse --config-file deploy.yml "sh -c 'for i in \$(seq 1 120); do pg_isready -U unleash && exit 0; sleep 1; done; exit 1'"
